@@ -1,3 +1,7 @@
+// NOTE: SSE clients are stored in module-level memory.
+// This works for single-process deployments only (e.g., one Next.js worker).
+// For multi-process or serverless (Vercel), replace with Redis pub/sub (Upstash).
+
 export type KitchenEvent =
   | { type: 'novo_pedido'; payload: { pedidoId: string; mesaNumero: number; itens: string[] } }
   | { type: 'status_atualizado'; payload: { pedidoId: string; status: string } }

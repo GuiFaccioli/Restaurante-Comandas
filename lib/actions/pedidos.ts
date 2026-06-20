@@ -1,11 +1,20 @@
 'use server'
-import { eq } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
 import type { StatusPedido } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
+import { auth } from '@/lib/auth/server'
+import { redirect } from 'next/navigation'
+
+async function requireAuth() {
+  const { data: session } = await auth.getSession()
+  if (!session?.user) redirect('/auth/sign-in')
+  return session.user
+}
 
 export async function criarPedido(mesaId: string): Promise<{ id: string }> {
+  await requireAuth()
   const [novo] = await db
     .insert(pedido)
     .values({ mesaId, status: 'novo' })
@@ -19,6 +28,7 @@ export async function adicionarItem(
   quantidade: number,
   observacao?: string
 ): Promise<void> {
+  await requireAuth()
   const [prod] = await db
     .select({ preco: produto.preco })
     .from(produto)
@@ -34,6 +44,7 @@ export async function adicionarItem(
 }
 
 export async function enviarPedido(pedidoId: string): Promise<void> {
+  await requireAuth()
   await db
     .update(pedido)
     .set({ atualizadoEm: new Date() })
@@ -59,10 +70,30 @@ export async function enviarPedido(pedidoId: string): Promise<void> {
   notifyKitchen({ type: 'novo_pedido', payload: { pedidoId, mesaNumero, itens } })
 }
 
+const STATUS_FLOW: Record<StatusPedido, StatusPedido | null> = {
+  novo: 'em_preparo',
+  em_preparo: 'pronto',
+  pronto: 'entregue',
+  entregue: null,
+}
+
 export async function atualizarStatus(
   pedidoId: string,
   status: StatusPedido
 ): Promise<void> {
+  await requireAuth()
+
+  const [current] = await db
+    .select({ status: pedido.status })
+    .from(pedido)
+    .where(eq(pedido.id, pedidoId))
+
+  if (!current) throw new Error('Pedido não encontrado')
+  const expectedNext = STATUS_FLOW[current.status]
+  if (expectedNext !== status) {
+    throw new Error(`Transição inválida: ${current.status} → ${status}`)
+  }
+
   await db
     .update(pedido)
     .set({ status, atualizadoEm: new Date() })

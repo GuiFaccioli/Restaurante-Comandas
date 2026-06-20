@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Trash2, Minus, Plus } from 'lucide-react'
 import { useCart } from '@/lib/store/cart'
-import { enviarPedido } from '@/lib/actions/pedidos'
+import { adicionarItem, enviarPedido } from '@/lib/actions/pedidos'
 import { ObservacaoSheet } from './observacao-sheet'
 
 type Props = {
@@ -23,6 +23,10 @@ export function CartDrawer({ open, onClose, pedidoId, mesaNumero }: Props) {
   async function handleEnviar() {
     setSending(true)
     try {
+      // Write cart items to DB first
+      for (const item of items) {
+        await adicionarItem(pedidoId, item.produtoId, item.quantidade, item.observacao)
+      }
       await enviarPedido(pedidoId)
       clearCart()
       onClose()

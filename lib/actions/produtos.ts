@@ -3,6 +3,14 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, produto } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
+import { auth } from '@/lib/auth/server'
+import { redirect } from 'next/navigation'
+
+async function requireAuth() {
+  const { data: session } = await auth.getSession()
+  if (!session?.user) redirect('/auth/sign-in')
+  return session.user
+}
 
 type NovoProduto = {
   categoriaId: string
@@ -13,6 +21,7 @@ type NovoProduto = {
 }
 
 export async function criarCategoria(nome: string): Promise<{ id: string }> {
+  await requireAuth()
   const max = await db.select({ ordem: categoria.ordem }).from(categoria)
   const ordem = max.length ? Math.max(...max.map((c) => c.ordem)) + 1 : 0
   const [cat] = await db
@@ -23,6 +32,7 @@ export async function criarCategoria(nome: string): Promise<{ id: string }> {
 }
 
 export async function reordenarCategorias(ids: string[]): Promise<void> {
+  await requireAuth()
   await Promise.all(
     ids.map((id, ordem) =>
       db.update(categoria).set({ ordem }).where(eq(categoria.id, id))
@@ -31,6 +41,7 @@ export async function reordenarCategorias(ids: string[]): Promise<void> {
 }
 
 export async function criarProduto(data: NovoProduto): Promise<{ id: string }> {
+  await requireAuth()
   const [prod] = await db
     .insert(produto)
     .values({
@@ -48,6 +59,7 @@ export async function editarProduto(
   id: string,
   data: Partial<NovoProduto>
 ): Promise<void> {
+  await requireAuth()
   await db
     .update(produto)
     .set({
@@ -61,6 +73,7 @@ export async function editarProduto(
 }
 
 export async function toggleDisponivel(id: string): Promise<void> {
+  await requireAuth()
   const [prod] = await db
     .select({ id: produto.id, disponivel: produto.disponivel })
     .from(produto)

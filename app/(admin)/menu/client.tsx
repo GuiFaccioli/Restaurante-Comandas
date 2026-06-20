@@ -85,6 +85,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
 
       {selected && (
         <ProdutoForm
+          key={editProduto?.id ?? 'new'}
           open={formOpen}
           onClose={() => setFormOpen(false)}
           categoriaId={selected}
