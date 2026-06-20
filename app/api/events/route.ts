@@ -1,0 +1,31 @@
+import { NextRequest } from 'next/server'
+import { addClient, removeClient } from '@/lib/sse'
+
+export const dynamic = 'force-dynamic'
+
+export function GET(req: NextRequest) {
+  let controller: ReadableStreamDefaultController
+
+  const stream = new ReadableStream({
+    start(c) {
+      controller = c
+      addClient(controller)
+      // Send initial heartbeat
+      controller.enqueue(new TextEncoder().encode(': connected\n\n'))
+    },
+    cancel() {
+      removeClient(controller)
+    },
+  })
+
+  req.signal.addEventListener('abort', () => removeClient(controller))
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  })
+}
