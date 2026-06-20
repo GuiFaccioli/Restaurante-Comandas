@@ -7,6 +7,16 @@ tags: [meta, histórico]
 
 # Changelog
 
+## 2026-06-20 — Task 6: Server Actions — Cardápio e Mesas
+
+- Implementado: `lib/actions/produtos.ts`, `lib/actions/mesas.ts`, testes em `tests/unit/actions/produtos.test.ts`
+- Funções criadas:
+  - **Produtos**: `criarCategoria`, `reordenarCategorias`, `criarProduto`, `editarProduto`, `toggleDisponivel`
+  - **Mesas**: `criarMesa`, `toggleAtiva`
+  - `toggleDisponivel` emite SSE 'produto_indisponivel' quando desativar (disponivel: true → false)
+- Padrão: 4 testes validando insert/returning, SSE notification apenas em desativação
+- Commit: 920ced1
+
 ## 2026-06-20 — Ingestão: Vercel Geist Design System
 
 - Criado: `raw_sources/vercel-geist-design.md` (502 linhas, verbatim), `concepts/geist-design-system.md`, `sources/vercel-geist-design.md`
