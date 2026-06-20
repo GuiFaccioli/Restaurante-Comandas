@@ -42,9 +42,13 @@ describe('enviarPedido', () => {
     ;(db.select as any).mockReturnValue({
       from: vi.fn().mockReturnValue({
         innerJoin: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([
-            { pedidoId: 'p-1', mesaNumero: 4, produtoNome: 'Margherita', quantidade: 2 }
-          ]),
+          innerJoin: vi.fn().mockReturnValue({
+            innerJoin: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([
+                { pedidoId: 'p-1', mesaNumero: 4, produtoNome: 'Margherita', quantidade: 2 }
+              ]),
+            }),
+          }),
         }),
       }),
     })

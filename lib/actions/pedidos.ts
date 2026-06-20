@@ -36,7 +36,7 @@ export async function adicionarItem(
 export async function enviarPedido(pedidoId: string): Promise<void> {
   await db
     .update(pedido)
-    .set({ status: 'novo', atualizadoEm: new Date() })
+    .set({ atualizadoEm: new Date() })
     .where(eq(pedido.id, pedidoId))
 
   // Fetch items with mesa number for SSE payload using a single join chain
@@ -47,8 +47,10 @@ export async function enviarPedido(pedidoId: string): Promise<void> {
       produtoNome: produto.nome,
       quantidade: itemPedido.quantidade,
     })
-    .from(pedido)
+    .from(itemPedido)
+    .innerJoin(pedido, eq(itemPedido.pedidoId, pedido.id))
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
+    .innerJoin(produto, eq(itemPedido.produtoId, produto.id))
     .where(eq(pedido.id, pedidoId))
 
   const mesaNumero = rows[0]?.mesaNumero ?? 0
