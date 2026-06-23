@@ -19,13 +19,18 @@ export function ItemCard({ produto }: { produto: Produto }) {
 
   return (
     <div className="border rounded-[var(--radius)] p-3 flex flex-col gap-2">
-      {produto.imagemUrl && (
+      {produto.imagemUrl ? (
         <img
           src={produto.imagemUrl}
           alt={produto.nome}
           className="w-full h-32 object-cover rounded-[var(--radius)]"
           loading="lazy"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
+      ) : (
+        <div className="w-full h-32 rounded-[var(--radius)] bg-muted flex items-center justify-center text-4xl select-none">
+          🍕
+        </div>
       )}
       <div>
         <p className="font-semibold text-sm">{produto.nome}</p>

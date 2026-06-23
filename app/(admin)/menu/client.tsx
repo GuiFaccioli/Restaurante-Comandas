@@ -61,8 +61,18 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
         </div>
         <div className="space-y-2">
           {catAtual?.produtos.map((p) => (
-            <div key={p.id} className="border rounded-[var(--radius)] px-4 py-3 flex items-center justify-between">
-              <div>
+            <div key={p.id} className="border rounded-[var(--radius)] px-4 py-3 flex items-center justify-between gap-3">
+              {p.imagemUrl ? (
+                <img
+                  src={p.imagemUrl}
+                  alt={p.nome}
+                  className="w-12 h-12 object-cover rounded-[var(--radius)] shrink-0"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-[var(--radius)] bg-muted flex items-center justify-center text-xl shrink-0 select-none">🍕</div>
+              )}
+              <div className="flex-1 min-w-0">
                 <span className="font-medium text-sm">{p.nome}</span>
                 <span className="text-muted-foreground text-sm ml-2">R$ {parseFloat(p.preco).toFixed(2)}</span>
               </div>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Bypass auth in local dev mode
   if (process.env.DEV_SKIP_AUTH === 'true') {
     return NextResponse.next()

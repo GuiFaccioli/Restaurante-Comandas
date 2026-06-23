@@ -60,29 +60,65 @@ async function seed() {
 
   // Produtos
   const pizzas = [
-    { nome: 'Margherita', descricao: 'Molho, mussarela e manjericão', preco: '38.90' },
-    { nome: 'Pepperoni', descricao: 'Molho, mussarela e pepperoni', preco: '44.90' },
-    { nome: 'Quatro Queijos', descricao: 'Molho, mussarela, parmesão, gorgonzola e provolone', preco: '46.90' },
+    {
+      nome: 'Margherita',
+      descricao: 'Molho de tomate, mussarela fresca e manjericão',
+      preco: '38.90',
+      imagemUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&q=80',
+    },
+    {
+      nome: 'Pepperoni',
+      descricao: 'Molho de tomate, mussarela e pepperoni',
+      preco: '44.90',
+      imagemUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=400&q=80',
+    },
+    {
+      nome: 'Quatro Queijos',
+      descricao: 'Mussarela, parmesão, gorgonzola e provolone',
+      preco: '46.90',
+      imagemUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80',
+    },
   ]
-
-  for (const p of pizzas) {
-    db.insert(schema.produto)
-      .values({ categoriaId: pizzaId!, ...p })
-      .onConflictDoNothing()
-      .run()
-  }
 
   const bebidas = [
-    { nome: 'Coca-Cola 350ml', preco: '6.00' },
-    { nome: 'Água com gás', preco: '4.00' },
-    { nome: 'Suco de laranja', preco: '8.00' },
+    {
+      nome: 'Coca-Cola 350ml',
+      descricao: 'Refrigerante gelado',
+      preco: '6.00',
+      imagemUrl: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&q=80',
+    },
+    {
+      nome: 'Água com gás',
+      descricao: 'Água mineral com gás 500ml',
+      preco: '4.00',
+      imagemUrl: 'https://images.unsplash.com/photo-1564419320461-6870880221ad?w=400&q=80',
+    },
+    {
+      nome: 'Suco de laranja',
+      descricao: 'Suco natural espremido na hora',
+      preco: '8.00',
+      imagemUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&q=80',
+    },
   ]
 
-  for (const b of bebidas) {
-    db.insert(schema.produto)
-      .values({ categoriaId: bebidaId!, ...b })
-      .onConflictDoNothing()
-      .run()
+  // Insert products only if they don't exist by name (idempotent)
+  const upsertProduto = sqlite.prepare(`
+    INSERT INTO produto (id, categoria_id, nome, descricao, preco, imagem_url, disponivel)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
+    ON CONFLICT DO NOTHING
+  `)
+  const updateProduto = sqlite.prepare(`
+    UPDATE produto SET imagem_url = ?, descricao = ? WHERE nome = ? AND categoria_id = ?
+  `)
+
+  for (const p of [...pizzas, ...bebidas]) {
+    const catId = pizzas.includes(p as typeof pizzas[0]) ? pizzaId! : bebidaId!
+    const exists = sqlite.prepare('SELECT id FROM produto WHERE nome = ? AND categoria_id = ?').get(p.nome, catId)
+    if (!exists) {
+      upsertProduto.run(crypto.randomUUID(), catId, p.nome, p.descricao ?? null, p.preco, p.imagemUrl)
+    } else {
+      updateProduto.run(p.imagemUrl, p.descricao ?? null, p.nome, catId)
+    }
   }
 
   console.log('Done! Database seeded successfully.')
