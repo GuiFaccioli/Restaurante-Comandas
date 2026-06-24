@@ -62,26 +62,14 @@ describe('confirmarPedido', () => {
   it('persists the official order atomically and emits novo_pedido after confirmation', async () => {
     const { confirmarPedido } = await import('@/lib/actions/pedidos')
 
-    const returning = vi.fn().mockResolvedValue([{ id: 'pedido-1' }])
     const itemValues = vi.fn()
-    const txSelectWhere = vi.fn().mockResolvedValue([{ numero: 7 }])
-    const txInsert = vi
-      .fn()
-      .mockReturnValueOnce({
-        values: vi.fn().mockReturnValue({ returning }),
-      })
-      .mockReturnValueOnce({
-        values: itemValues,
-      })
+    const txInsert = vi.fn().mockReturnValue({
+      values: itemValues,
+    })
 
-    mocks.db.transaction.mockImplementation(async (callback) =>
+    mocks.db.transaction.mockImplementation((callback) =>
       callback({
         insert: txInsert,
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: txSelectWhere,
-          }),
-        }),
       })
     )
 
@@ -91,17 +79,27 @@ describe('confirmarPedido', () => {
       }),
     })
 
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ numero: 7 }]),
+      }),
+    })
+
     const result = await confirmarPedido('mesa-1', [
       { produtoId: 'produto-1', quantidade: 2, observacao: 'Sem cebola' },
     ])
 
-    expect(result).toEqual({ id: 'pedido-1' })
+    expect(result).toEqual({ id: expect.any(String) })
     expect(mocks.db.transaction).toHaveBeenCalledTimes(1)
-    expect(mocks.db.select).toHaveBeenCalledTimes(1)
-    expect(txSelectWhere).toHaveBeenCalledTimes(1)
-    expect(returning).toHaveBeenCalledWith({ id: 'pedido.id' })
-    expect(itemValues).toHaveBeenCalledWith({
-      pedidoId: 'pedido-1',
+    expect(mocks.db.select).toHaveBeenCalledTimes(2)
+    expect(itemValues).toHaveBeenNthCalledWith(1, {
+      id: expect.any(String),
+      mesaId: 'mesa-1',
+      status: 'novo',
+    })
+    expect(itemValues).toHaveBeenNthCalledWith(2, {
+      id: expect.any(String),
+      pedidoId: expect.any(String),
       produtoId: 'produto-1',
       quantidade: 2,
       precoUnitario: '45.00',
@@ -113,34 +111,23 @@ describe('confirmarPedido', () => {
     expect(mocks.notifyKitchen).toHaveBeenCalledWith({
       type: 'novo_pedido',
       payload: {
-        pedidoId: 'pedido-1',
+        pedidoId: expect.any(String),
         mesaNumero: 7,
-        itens: ['2x Margherita'],
+      itens: ['2x Margherita'],
       },
     })
   })
 
-  it('does not require a post-transaction mesa lookup to succeed', async () => {
+  it('loads mesa before the transaction and still emits novo_pedido', async () => {
     const { confirmarPedido } = await import('@/lib/actions/pedidos')
 
-    const returning = vi.fn().mockResolvedValue([{ id: 'pedido-2' }])
     const txInsert = vi
       .fn()
-      .mockReturnValueOnce({
-        values: vi.fn().mockReturnValue({ returning }),
-      })
-      .mockReturnValueOnce({
-        values: vi.fn(),
-      })
+      .mockReturnValue({ values: vi.fn() })
 
-    mocks.db.transaction.mockImplementation(async (callback) =>
+    mocks.db.transaction.mockImplementation((callback) =>
       callback({
         insert: txInsert,
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ numero: 9 }]),
-          }),
-        }),
       })
     )
 
@@ -150,14 +137,20 @@ describe('confirmarPedido', () => {
       }),
     })
 
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ numero: 9 }]),
+      }),
+    })
+
     const result = await confirmarPedido('mesa-1', [{ produtoId: 'produto-2', quantidade: 1 }])
 
-    expect(result).toEqual({ id: 'pedido-2' })
-    expect(mocks.db.select).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ id: expect.any(String) })
+    expect(mocks.db.select).toHaveBeenCalledTimes(2)
     expect(mocks.notifyKitchen).toHaveBeenCalledWith({
       type: 'novo_pedido',
       payload: {
-        pedidoId: 'pedido-2',
+        pedidoId: expect.any(String),
         mesaNumero: 9,
         itens: ['1x Calabresa'],
       },
@@ -173,6 +166,11 @@ describe('confirmarPedido', () => {
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
+      }),
+    })
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ numero: 7 }]),
       }),
     })
 

@@ -7,6 +7,7 @@ import { Trash2, Minus, Plus } from 'lucide-react'
 import { useCart } from '@/lib/store/cart'
 import { confirmarPedido } from '@/lib/actions/pedidos'
 import { ObservacaoSheet } from './observacao-sheet'
+import { toast } from 'sonner'
 
 type Props = {
   open: boolean
@@ -35,8 +36,10 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
       )
       clearCart()
       onClose()
+      toast.success('Pedido concluído com sucesso.')
     } catch {
       setError('Não foi possível confirmar o pedido. Tente novamente.')
+      toast.error('Não foi possível confirmar o pedido.')
     } finally {
       setSending(false)
     }

@@ -1,9 +1,12 @@
 import { db } from '@/lib/db/index'
-import { desc, eq } from 'drizzle-orm'
-import { pedido, mesa } from '@/lib/db/schema'
+import { desc, eq, inArray } from 'drizzle-orm'
+import { pedido, mesa, itemPedido, produto } from '@/lib/db/schema'
+import { AdminPedidosLive } from './client'
+
+export const dynamic = 'force-dynamic'
 
 export default async function AdminPedidosPage() {
-  const pedidos = await db
+  const pedidosAtivos = await db
     .select({
       id: pedido.id,
       status: pedido.status,
@@ -14,6 +17,30 @@ export default async function AdminPedidosPage() {
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
     .orderBy(desc(pedido.criadoEm))
 
+  const pedidoIds = pedidosAtivos.map((p) => p.id)
+
+  const itens =
+    pedidoIds.length > 0
+      ? await db
+          .select({
+            pedidoId: itemPedido.pedidoId,
+            nome: produto.nome,
+            quantidade: itemPedido.quantidade,
+            observacao: itemPedido.observacao,
+          })
+          .from(itemPedido)
+          .innerJoin(produto, eq(itemPedido.produtoId, produto.id))
+          .where(inArray(itemPedido.pedidoId, pedidoIds))
+      : []
+
+  const initialPedidos = pedidosAtivos.map((p) => ({
+    id: p.id,
+    status: p.status,
+    criadoEm: p.criadoEm.toISOString(),
+    mesaNumero: p.mesaNumero,
+    itens: itens.filter((i) => i.pedidoId === p.id),
+  }))
+
   return (
     <div className="space-y-4">
       <div>
@@ -21,30 +48,7 @@ export default async function AdminPedidosPage() {
         <p className="text-sm text-muted-foreground">Pedidos persistidos no sistema.</p>
       </div>
 
-      {pedidos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum pedido encontrado.</p>
-      ) : (
-        <div className="rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left">
-              <tr>
-                <th className="px-4 py-3 font-medium">Mesa</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Criado em</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pedidos.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="px-4 py-3">Mesa {item.mesaNumero}</td>
-                  <td className="px-4 py-3">{item.status}</td>
-                  <td className="px-4 py-3">{item.criadoEm?.toLocaleString?.() ?? '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <AdminPedidosLive initialPedidos={initialPedidos} />
     </div>
   )
 }

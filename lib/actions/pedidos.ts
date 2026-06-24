@@ -48,20 +48,23 @@ export async function confirmarPedido(
 
   const itensNotificacao: string[] = []
 
-  const novo = await db.transaction(async (tx) => {
-    const [mesaAtual] = await tx
-      .select({ numero: mesa.numero })
-      .from(mesa)
-      .where(eq(mesa.id, mesaId))
+  const [mesaAtual] = await db
+    .select({ numero: mesa.numero })
+    .from(mesa)
+    .where(eq(mesa.id, mesaId))
 
-    const [novoPedido] = await tx
-      .insert(pedido)
-      .values({ mesaId, status: 'novo' })
-      .returning({ id: pedido.id })
+  const novoPedidoId = crypto.randomUUID()
+  await db.transaction((tx) => {
+    tx.insert(pedido).values({
+      id: novoPedidoId,
+      mesaId,
+      status: 'novo',
+    })
 
     for (const { item, produto: prod } of itensPreparados) {
-      await tx.insert(itemPedido).values({
-        pedidoId: novoPedido.id,
+      tx.insert(itemPedido).values({
+        id: crypto.randomUUID(),
+        pedidoId: novoPedidoId,
         produtoId: item.produtoId,
         quantidade: item.quantidade,
         precoUnitario: prod.preco,
@@ -70,16 +73,14 @@ export async function confirmarPedido(
 
       itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
     }
-
-    return { ...novoPedido, mesaNumero: mesaAtual?.numero ?? 0 }
   })
 
   notifyKitchen({
     type: 'novo_pedido',
-    payload: { pedidoId: novo.id, mesaNumero: novo.mesaNumero, itens: itensNotificacao },
+    payload: { pedidoId: novoPedidoId, mesaNumero: mesaAtual?.numero ?? 0, itens: itensNotificacao },
   })
 
-  return { id: novo.id }
+  return { id: novoPedidoId }
 }
 
 const STATUS_FLOW: Record<StatusPedido, StatusPedido | null> = {

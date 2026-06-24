@@ -47,11 +47,13 @@ describe('pedido business flow', () => {
     expect(drawerSource).toContain('Confirmar pedido')
     expect(drawerSource).toContain('Confirmando')
     expect(drawerSource).toContain('Não foi possível confirmar o pedido')
+    expect(drawerSource).toContain('Pedido concluído com sucesso.')
   })
 
   test('kitchen and admin persisted-order surfaces read persisted pedidos instead of cart state', () => {
     const kitchenSource = source('app/cozinha/dashboard/page.tsx')
     const adminPedidosPath = 'app/admin/pedidos/page.tsx'
+    const adminClient = source('app/admin/pedidos/client.tsx')
 
     expect(existsSync(join(root, 'app/cozinha/dashboard/page.tsx'))).toBe(true)
     expect(existsSync(join(root, adminPedidosPath))).toBe(true)
@@ -60,6 +62,8 @@ describe('pedido business flow', () => {
 
     expect(kitchenSource).toContain('from(pedido)')
     expect(adminSource).toContain('from(pedido)')
+    expect(adminClient).toContain('SseListener')
+    expect(adminClient).toContain('Pedido recebido da Mesa')
     expect(kitchenSource).not.toContain('useCart')
     expect(adminSource).not.toContain('useCart')
   })
