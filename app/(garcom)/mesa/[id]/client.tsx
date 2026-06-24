@@ -22,11 +22,10 @@ type CategoriaComProdutos = {
 type Props = {
   mesaNumero: number
   mesaId: string
-  pedidoId: string
   categorias: CategoriaComProdutos[]
 }
 
-export function MesaPageClient({ mesaNumero, mesaId, pedidoId, categorias }: Props) {
+export function MesaPageClient({ mesaNumero, mesaId, categorias }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (

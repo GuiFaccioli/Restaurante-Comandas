@@ -1,5 +1,5 @@
 'use server'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
 import type { StatusPedido } from '@/lib/db/schema'
@@ -13,61 +13,69 @@ async function requireAuth() {
   return session.user
 }
 
-export async function criarPedido(mesaId: string): Promise<{ id: string }> {
+export type ConfirmarPedidoItem = {
+  produtoId: string
+  quantidade: number
+  observacao?: string
+}
+
+export async function confirmarPedido(
+  mesaId: string,
+  items: ConfirmarPedidoItem[]
+): Promise<{ id: string }> {
   await requireAuth()
+  if (!mesaId) throw new Error('Mesa inválida')
+  if (items.length === 0) throw new Error('Pedido vazio')
+  if (items.some((item) => !item.produtoId || item.quantidade <= 0)) {
+    throw new Error('Item inválido')
+  }
+
+  const itensPreparados: {
+    item: ConfirmarPedidoItem
+    produto: { nome: string; preco: string }
+  }[] = []
+
+  for (const item of items) {
+    const [prod] = await db
+      .select({ nome: produto.nome, preco: produto.preco })
+      .from(produto)
+      .where(eq(produto.id, item.produtoId))
+
+    if (!prod) throw new Error('Produto inválido')
+
+    itensPreparados.push({ item, produto: prod })
+  }
+
   const [novo] = await db
     .insert(pedido)
     .values({ mesaId, status: 'novo' })
     .returning({ id: pedido.id })
-  return { id: novo.id }
-}
 
-export async function adicionarItem(
-  pedidoId: string,
-  produtoId: string,
-  quantidade: number,
-  observacao?: string
-): Promise<void> {
-  await requireAuth()
-  const [prod] = await db
-    .select({ preco: produto.preco })
-    .from(produto)
-    .where(eq(produto.id, produtoId))
+  const itensNotificacao: string[] = []
 
-  await db.insert(itemPedido).values({
-    pedidoId,
-    produtoId,
-    quantidade,
-    precoUnitario: prod.preco,
-    observacao: observacao ?? null,
-  })
-}
-
-export async function enviarPedido(pedidoId: string): Promise<void> {
-  await requireAuth()
-  await db
-    .update(pedido)
-    .set({ atualizadoEm: new Date() })
-    .where(eq(pedido.id, pedidoId))
-
-  // Fetch items with mesa number for SSE payload using a single join chain
-  const rows = await db
-    .select({
-      pedidoId: pedido.id,
-      mesaNumero: mesa.numero,
-      produtoNome: produto.nome,
-      quantidade: itemPedido.quantidade,
+  for (const { item, produto: prod } of itensPreparados) {
+    await db.insert(itemPedido).values({
+      pedidoId: novo.id,
+      produtoId: item.produtoId,
+      quantidade: item.quantidade,
+      precoUnitario: prod.preco,
+      observacao: item.observacao ?? null,
     })
-    .from(itemPedido)
-    .innerJoin(pedido, eq(itemPedido.pedidoId, pedido.id))
-    .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
-    .innerJoin(produto, eq(itemPedido.produtoId, produto.id))
-    .where(eq(pedido.id, pedidoId))
 
-  const mesaNumero = rows[0]?.mesaNumero ?? 0
-  const itens = rows.map((r) => `${r.quantidade}x ${r.produtoNome}`)
+    itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
+  }
 
-  notifyKitchen({ type: 'novo_pedido', payload: { pedidoId, mesaNumero, itens } })
+  const [m] = await db
+    .select({ numero: mesa.numero })
+    .from(mesa)
+    .where(eq(mesa.id, mesaId))
+
+  notifyKitchen({
+    type: 'novo_pedido',
+    payload: { pedidoId: novo.id, mesaNumero: m?.numero ?? 0, itens: itensNotificacao },
+  })
+
+  return { id: novo.id }
 }
 
 const STATUS_FLOW: Record<StatusPedido, StatusPedido | null> = {
