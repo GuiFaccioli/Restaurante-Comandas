@@ -9,3 +9,5 @@ Additional notes:
 - Renamed the submit handler to `handleConfirmar` and updated the CTA/status copy to `Confirmar pedido` / `Confirmando...`.
 - Preserved local cart behavior: item quantity controls, observation sheet, cart clearing, and drawer close on success.
 - Added inline error feedback for the confirmation failure path.
+- Fixed the review findings by making `mesaId` required, removing the `pedidoId ?? ''` fallback, and calling `confirmarPedido(mesaId, ...)` directly.
+- Restored the Portuguese UI strings as proper UTF-8: `Carrinho — Mesa {mesaNumero}`, `+ Observação`, `Não foi possível confirmar o pedido. Tente novamente.`, `Confirmando...`, and `Confirmar pedido`.

@@ -11,12 +11,11 @@ import { ObservacaoSheet } from './observacao-sheet'
 type Props = {
   open: boolean
   onClose: () => void
-  mesaId?: string
-  pedidoId?: string
+  mesaId: string
   mesaNumero: number
 }
 
-export function CartDrawer({ open, onClose, mesaId, pedidoId, mesaNumero }: Props) {
+export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
   const { items, total, removeItem, addItem, decrementItem, clearCart } = useCart()
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +26,7 @@ export function CartDrawer({ open, onClose, mesaId, pedidoId, mesaNumero }: Prop
     setError(null)
     try {
       await confirmarPedido(
-        mesaId ?? pedidoId ?? '',
+        mesaId,
         items.map((item) => ({
           produtoId: item.produtoId,
           quantidade: item.quantidade,
@@ -48,7 +47,7 @@ export function CartDrawer({ open, onClose, mesaId, pedidoId, mesaNumero }: Prop
       <Drawer open={open} onOpenChange={(v) => !v && onClose()}>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>Carrinho â€” Mesa {mesaNumero}</DrawerTitle>
+            <DrawerTitle>Carrinho — Mesa {mesaNumero}</DrawerTitle>
           </DrawerHeader>
           <div className="px-4 space-y-3 overflow-y-auto max-h-[60vh]">
             {items.map((item) => (
@@ -62,7 +61,7 @@ export function CartDrawer({ open, onClose, mesaId, pedidoId, mesaNumero }: Prop
                     className="text-xs text-ring underline"
                     onClick={() => setObsItem(item.produtoId)}
                   >
-                    {item.observacao ? 'Editar obs.' : '+ ObservaÃ§Ã£o'}
+                    {item.observacao ? 'Editar obs.' : '+ Observação'}
                   </button>
                 </div>
                 <div className="flex items-center gap-1">
