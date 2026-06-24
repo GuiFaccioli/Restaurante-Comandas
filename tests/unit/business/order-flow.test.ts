@@ -10,8 +10,8 @@ function source(path: string) {
 
 describe('pedido business flow', () => {
   test('garcom mesa screen does not create a kitchen-visible pedido before confirmation', () => {
-    const pageSource = source('app/(garcom)/mesa/[id]/page.tsx')
-    const clientSource = source('app/(garcom)/mesa/[id]/client.tsx')
+    const pageSource = source('app/garcom/mesa/[id]/page.tsx')
+    const clientSource = source('app/garcom/mesa/[id]/client.tsx')
 
     expect(pageSource).not.toContain('criarPedido')
     expect(pageSource).not.toContain('adicionarItem')
@@ -20,6 +20,16 @@ describe('pedido business flow', () => {
     expect(clientSource).not.toContain('adicionarItem')
     expect(clientSource).not.toContain('enviarPedido')
     expect(clientSource).toContain('CartDrawer')
+  })
+
+  test('garcom screens filter sqlite booleans without binding raw true', () => {
+    const mesasSource = source('app/garcom/mesas/page.tsx')
+    const menuSource = source('app/garcom/mesa/[id]/page.tsx')
+
+    expect(mesasSource).toContain('= 1')
+    expect(menuSource).toContain('= 1')
+    expect(mesasSource).not.toContain('eq(mesa.ativa, true)')
+    expect(menuSource).not.toContain('eq(produto.disponivel, true)')
   })
 
   test('garcom confirms the full cart in one official business action', () => {
@@ -40,10 +50,10 @@ describe('pedido business flow', () => {
   })
 
   test('kitchen and admin persisted-order surfaces read persisted pedidos instead of cart state', () => {
-    const kitchenSource = source('app/(cozinha)/dashboard/page.tsx')
-    const adminPedidosPath = 'app/(admin)/pedidos/page.tsx'
+    const kitchenSource = source('app/cozinha/dashboard/page.tsx')
+    const adminPedidosPath = 'app/admin/pedidos/page.tsx'
 
-    expect(existsSync(join(root, 'app/(cozinha)/dashboard/page.tsx'))).toBe(true)
+    expect(existsSync(join(root, 'app/cozinha/dashboard/page.tsx'))).toBe(true)
     expect(existsSync(join(root, adminPedidosPath))).toBe(true)
 
     const adminSource = source(adminPedidosPath)

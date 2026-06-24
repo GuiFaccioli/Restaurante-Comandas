@@ -13,6 +13,6 @@ export default async function HomePage() {
     .from(usuario)
     .where(eq(usuario.id, session.user.id))
 
-  if (u?.role === 'admin') redirect('/menu')
-  redirect('/garcom/pedidos')
+  if (u?.role === 'admin') redirect('/admin/menu')
+  redirect('/garcom/mesas')
 }

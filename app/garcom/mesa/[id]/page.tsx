@@ -1,6 +1,6 @@
 // app/(garcom)/mesa/[id]/page.tsx
 import { db } from '@/lib/db/index'
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, sql } from 'drizzle-orm'
 import { mesa, categoria, produto } from '@/lib/db/schema'
 import { notFound } from 'next/navigation'
 import { MesaPageClient } from './client'
@@ -18,7 +18,7 @@ export default async function MesaPage({ params }: { params: Promise<{ id: strin
   const produtos = await db
     .select()
     .from(produto)
-    .where(eq(produto.disponivel, true))
+    .where(sql`${produto.disponivel} = 1`)
 
   const categoriaComProdutos = categorias.map((c) => ({
     ...c,
