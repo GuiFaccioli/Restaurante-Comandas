@@ -59,9 +59,8 @@ beforeEach(() => {
 
 describe('confirmarPedido', () => {
   it('persists the official order and emits novo_pedido after confirmation', async () => {
-    const pedidos = await import('@/lib/actions/pedidos')
-    const confirmarPedido = (pedidos as Record<string, unknown>).confirmarPedido
-    expect(confirmarPedido).toBeTypeOf('function')
+
+    const { confirmarPedido } = await import('@/lib/actions/pedidos')
 
     const returning = vi.fn().mockResolvedValue([{ id: 'pedido-1' }])
     const itemValues = vi.fn()
@@ -86,7 +85,7 @@ describe('confirmarPedido', () => {
         }),
       })
 
-    const result = await (confirmarPedido as any)('mesa-1', [
+    const result = await confirmarPedido('mesa-1', [
       { produtoId: 'produto-1', quantidade: 2, observacao: 'Sem cebola' },
     ])
 
@@ -113,24 +112,19 @@ describe('confirmarPedido', () => {
   })
 
   it('does not emit novo_pedido for an empty cart', async () => {
-    const pedidos = await import('@/lib/actions/pedidos')
-    const confirmarPedido = (pedidos as Record<string, unknown>).confirmarPedido
-    expect(confirmarPedido).toBeTypeOf('function')
 
-    await expect((confirmarPedido as any)('mesa-1', [])).rejects.toThrow('Pedido vazio')
+    const { confirmarPedido } = await import('@/lib/actions/pedidos')
+    await expect(confirmarPedido('mesa-1', [])).rejects.toThrow('Pedido vazio')
 
     expect(mocks.db.insert).not.toHaveBeenCalled()
     expect(mocks.notifyKitchen).not.toHaveBeenCalled()
   })
 
   it('does not emit novo_pedido for an invalid item', async () => {
-    const pedidos = await import('@/lib/actions/pedidos')
-    const confirmarPedido = (pedidos as Record<string, unknown>).confirmarPedido
-    expect(confirmarPedido).toBeTypeOf('function')
-
-    await expect(
-      (confirmarPedido as any)('mesa-1', [{ produtoId: '', quantidade: 1 }])
-    ).rejects.toThrow('Item inválido')
+    const { confirmarPedido } = await import('@/lib/actions/pedidos')
+    await expect(confirmarPedido('mesa-1', [{ produtoId: '', quantidade: 1 }])).rejects.toThrow(
+      'Item inválido'
+    )
 
     expect(mocks.db.insert).not.toHaveBeenCalled()
     expect(mocks.notifyKitchen).not.toHaveBeenCalled()
