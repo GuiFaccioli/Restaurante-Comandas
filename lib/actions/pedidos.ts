@@ -49,6 +49,11 @@ export async function confirmarPedido(
   const itensNotificacao: string[] = []
 
   const novo = await db.transaction(async (tx) => {
+    const [mesaAtual] = await tx
+      .select({ numero: mesa.numero })
+      .from(mesa)
+      .where(eq(mesa.id, mesaId))
+
     const [novoPedido] = await tx
       .insert(pedido)
       .values({ mesaId, status: 'novo' })
@@ -66,17 +71,12 @@ export async function confirmarPedido(
       itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
     }
 
-    return novoPedido
+    return { ...novoPedido, mesaNumero: mesaAtual?.numero ?? 0 }
   })
-
-  const [m] = await db
-    .select({ numero: mesa.numero })
-    .from(mesa)
-    .where(eq(mesa.id, mesaId))
 
   notifyKitchen({
     type: 'novo_pedido',
-    payload: { pedidoId: novo.id, mesaNumero: m?.numero ?? 0, itens: itensNotificacao },
+    payload: { pedidoId: novo.id, mesaNumero: novo.mesaNumero, itens: itensNotificacao },
   })
 
   return { id: novo.id }

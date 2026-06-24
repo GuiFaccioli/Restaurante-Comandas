@@ -64,6 +64,7 @@ describe('confirmarPedido', () => {
 
     const returning = vi.fn().mockResolvedValue([{ id: 'pedido-1' }])
     const itemValues = vi.fn()
+    const txSelectWhere = vi.fn().mockResolvedValue([{ numero: 7 }])
     const txInsert = vi
       .fn()
       .mockReturnValueOnce({
@@ -73,19 +74,22 @@ describe('confirmarPedido', () => {
         values: itemValues,
       })
 
-    mocks.db.transaction.mockImplementation(async (callback) => callback({ insert: txInsert }))
+    mocks.db.transaction.mockImplementation(async (callback) =>
+      callback({
+        insert: txInsert,
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: txSelectWhere,
+          }),
+        }),
+      })
+    )
 
-    mocks.db.select
-      .mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
-        }),
-      })
-      .mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ numero: 7 }]),
-        }),
-      })
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
+      }),
+    })
 
     const result = await confirmarPedido('mesa-1', [
       { produtoId: 'produto-1', quantidade: 2, observacao: 'Sem cebola' },
@@ -93,6 +97,8 @@ describe('confirmarPedido', () => {
 
     expect(result).toEqual({ id: 'pedido-1' })
     expect(mocks.db.transaction).toHaveBeenCalledTimes(1)
+    expect(mocks.db.select).toHaveBeenCalledTimes(1)
+    expect(txSelectWhere).toHaveBeenCalledTimes(1)
     expect(returning).toHaveBeenCalledWith({ id: 'pedido.id' })
     expect(itemValues).toHaveBeenCalledWith({
       pedidoId: 'pedido-1',
@@ -110,6 +116,50 @@ describe('confirmarPedido', () => {
         pedidoId: 'pedido-1',
         mesaNumero: 7,
         itens: ['2x Margherita'],
+      },
+    })
+  })
+
+  it('does not require a post-transaction mesa lookup to succeed', async () => {
+    const { confirmarPedido } = await import('@/lib/actions/pedidos')
+
+    const returning = vi.fn().mockResolvedValue([{ id: 'pedido-2' }])
+    const txInsert = vi
+      .fn()
+      .mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({ returning }),
+      })
+      .mockReturnValueOnce({
+        values: vi.fn(),
+      })
+
+    mocks.db.transaction.mockImplementation(async (callback) =>
+      callback({
+        insert: txInsert,
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ numero: 9 }]),
+          }),
+        }),
+      })
+    )
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ nome: 'Calabresa', preco: '50.00' }]),
+      }),
+    })
+
+    const result = await confirmarPedido('mesa-1', [{ produtoId: 'produto-2', quantidade: 1 }])
+
+    expect(result).toEqual({ id: 'pedido-2' })
+    expect(mocks.db.select).toHaveBeenCalledTimes(1)
+    expect(mocks.notifyKitchen).toHaveBeenCalledWith({
+      type: 'novo_pedido',
+      payload: {
+        pedidoId: 'pedido-2',
+        mesaNumero: 9,
+        itens: ['1x Calabresa'],
       },
     })
   })
