@@ -1,78 +1,135 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock db and sse before importing actions
+process.env.DEV_SKIP_AUTH = 'true'
+
+const mocks = vi.hoisted(() => {
+  const db = {
+    insert: vi.fn(),
+    select: vi.fn(),
+    update: vi.fn(),
+  }
+
+  return {
+    redirect: vi.fn(),
+    notifyKitchen: vi.fn(),
+    db,
+  }
+})
+
+vi.mock('next/navigation', () => ({
+  redirect: mocks.redirect,
+}))
+
 vi.mock('@/lib/db/index', () => ({
-  db: {
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    returning: vi.fn(),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
+  db: mocks.db,
+}))
+
+vi.mock('@/lib/sse', () => ({
+  notifyKitchen: mocks.notifyKitchen,
+}))
+
+vi.mock('@/lib/db/schema', () => ({
+  pedido: {
+    id: 'pedido.id',
+    mesaId: 'pedido.mesa_id',
+    status: 'pedido.status',
+    atualizadoEm: 'pedido.atualizado_em',
+  },
+  itemPedido: {
+    pedidoId: 'item_pedido.pedido_id',
+    produtoId: 'item_pedido.produto_id',
+    quantidade: 'item_pedido.quantidade',
+    precoUnitario: 'item_pedido.preco_unitario',
+    observacao: 'item_pedido.observacao',
+  },
+  mesa: {
+    id: 'mesa.id',
+    numero: 'mesa.numero',
+  },
+  produto: {
+    id: 'produto.id',
+    nome: 'produto.nome',
+    preco: 'produto.preco',
   },
 }))
-vi.mock('@/lib/sse', () => ({ notifyKitchen: vi.fn() }))
 
-import { db } from '@/lib/db/index'
-import { notifyKitchen } from '@/lib/sse'
-import { criarPedido, enviarPedido, atualizarStatus } from '@/lib/actions/pedidos'
-
-beforeEach(() => vi.clearAllMocks())
-
-describe('criarPedido', () => {
-  it('inserts a new pedido and returns id', async () => {
-    ;(db.insert as any).mockReturnValue({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([{ id: 'pedido-1' }]),
-      }),
-    })
-    const result = await criarPedido('mesa-1')
-    expect(result).toEqual({ id: 'pedido-1' })
-  })
+beforeEach(() => {
+  vi.clearAllMocks()
 })
 
-describe('enviarPedido', () => {
-  it('calls notifyKitchen with novo_pedido event', async () => {
-    ;(db.update as any).mockReturnValue({
-      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
-    })
-    ;(db.select as any).mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        innerJoin: vi.fn().mockReturnValue({
-          innerJoin: vi.fn().mockReturnValue({
-            innerJoin: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([
-                { pedidoId: 'p-1', mesaNumero: 4, produtoNome: 'Margherita', quantidade: 2 }
-              ]),
-            }),
-          }),
+describe('confirmarPedido', () => {
+  it('persists the official order and emits novo_pedido after confirmation', async () => {
+    const pedidos = await import('@/lib/actions/pedidos')
+    const confirmarPedido = (pedidos as Record<string, unknown>).confirmarPedido
+    expect(confirmarPedido).toBeTypeOf('function')
+
+    const returning = vi.fn().mockResolvedValue([{ id: 'pedido-1' }])
+    const itemValues = vi.fn()
+
+    mocks.db.insert
+      .mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({ returning }),
+      })
+      .mockReturnValueOnce({
+        values: itemValues,
+      })
+
+    mocks.db.select
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
         }),
-      }),
-    })
-    await enviarPedido('p-1')
-    expect(notifyKitchen).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'novo_pedido' })
-    )
-  })
-})
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ numero: 7 }]),
+        }),
+      })
 
-describe('atualizarStatus', () => {
-  it('calls notifyKitchen with status_atualizado', async () => {
-    ;(db.update as any).mockReturnValue({
-      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+    const result = await (confirmarPedido as any)('mesa-1', [
+      { produtoId: 'produto-1', quantidade: 2, observacao: 'Sem cebola' },
+    ])
+
+    expect(result).toEqual({ id: 'pedido-1' })
+    expect(returning).toHaveBeenCalledWith({ id: 'pedido.id' })
+    expect(itemValues).toHaveBeenCalledWith({
+      pedidoId: 'pedido-1',
+      produtoId: 'produto-1',
+      quantidade: 2,
+      precoUnitario: '45.00',
+      observacao: 'Sem cebola',
     })
-    await atualizarStatus('p-1', 'em_preparo')
-    expect(notifyKitchen).toHaveBeenCalledWith({
-      type: 'status_atualizado',
-      payload: { pedidoId: 'p-1', status: 'em_preparo' },
+    expect(mocks.notifyKitchen).toHaveBeenCalledWith({
+      type: 'novo_pedido',
+      payload: {
+        pedidoId: 'pedido-1',
+        mesaNumero: 7,
+        itens: ['2x Margherita'],
+      },
     })
   })
 
-  it('throws if status is already entregue', async () => {
-    // No update should fire after terminal status
-    await expect(atualizarStatus('p-1', 'entregue')).resolves.not.toThrow()
+  it('does not emit novo_pedido for an empty cart', async () => {
+    const pedidos = await import('@/lib/actions/pedidos')
+    const confirmarPedido = (pedidos as Record<string, unknown>).confirmarPedido
+    expect(confirmarPedido).toBeTypeOf('function')
+
+    await expect((confirmarPedido as any)('mesa-1', [])).rejects.toThrow('Pedido vazio')
+
+    expect(mocks.db.insert).not.toHaveBeenCalled()
+    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
+  })
+
+  it('does not emit novo_pedido for an invalid item', async () => {
+    const pedidos = await import('@/lib/actions/pedidos')
+    const confirmarPedido = (pedidos as Record<string, unknown>).confirmarPedido
+    expect(confirmarPedido).toBeTypeOf('function')
+
+    await expect(
+      (confirmarPedido as any)('mesa-1', [{ produtoId: '', quantidade: 1 }])
+    ).rejects.toThrow('Item inválido')
+
+    expect(mocks.db.insert).not.toHaveBeenCalled()
+    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
   })
 })
