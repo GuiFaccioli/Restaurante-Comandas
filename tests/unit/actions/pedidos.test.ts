@@ -99,6 +99,9 @@ describe('confirmarPedido', () => {
       precoUnitario: '45.00',
       observacao: 'Sem cebola',
     })
+    expect(itemValues.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.notifyKitchen.mock.invocationCallOrder[0]
+    )
     expect(mocks.notifyKitchen).toHaveBeenCalledWith({
       type: 'novo_pedido',
       payload: {

@@ -9,3 +9,5 @@ Fix notes:
 - Removed the fallback from `tests/unit/business/order-flow.test.ts`; admin persisted-orders visibility now hard-requires `app/(admin)/pedidos/page.tsx`, while kitchen checks `app/(cozinha)/dashboard/page.tsx` independently.
 - Test command: `npm test -- tests/unit/business/order-flow.test.ts tests/unit/actions/pedidos.test.ts`
 - Output summary: the focused suite still fails on the current implementation, including the intentional red check for the missing admin pedidos surface and existing waiter/action boundary mismatches.
+- Added an explicit call-order assertion in `tests/unit/actions/pedidos.test.ts` so the happy-path now proves the item insert happens before `notifyKitchen`.
+- The assertion uses Vitest's `mock.invocationCallOrder` on the item insert `values` mock and `notifyKitchen`, keeping the check readable and robust.
