@@ -5,31 +5,39 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Trash2, Minus, Plus } from 'lucide-react'
 import { useCart } from '@/lib/store/cart'
-import { adicionarItem, enviarPedido } from '@/lib/actions/pedidos'
+import { confirmarPedido } from '@/lib/actions/pedidos'
 import { ObservacaoSheet } from './observacao-sheet'
 
 type Props = {
   open: boolean
   onClose: () => void
-  pedidoId: string
+  mesaId?: string
+  pedidoId?: string
   mesaNumero: number
 }
 
-export function CartDrawer({ open, onClose, pedidoId, mesaNumero }: Props) {
+export function CartDrawer({ open, onClose, mesaId, pedidoId, mesaNumero }: Props) {
   const { items, total, removeItem, addItem, decrementItem, clearCart } = useCart()
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [obsItem, setObsItem] = useState<string | null>(null)
 
-  async function handleEnviar() {
+  async function handleConfirmar() {
     setSending(true)
+    setError(null)
     try {
-      // Write cart items to DB first
-      for (const item of items) {
-        await adicionarItem(pedidoId, item.produtoId, item.quantidade, item.observacao)
-      }
-      await enviarPedido(pedidoId)
+      await confirmarPedido(
+        mesaId ?? pedidoId ?? '',
+        items.map((item) => ({
+          produtoId: item.produtoId,
+          quantidade: item.quantidade,
+          observacao: item.observacao,
+        }))
+      )
       clearCart()
       onClose()
+    } catch {
+      setError('Não foi possível confirmar o pedido. Tente novamente.')
     } finally {
       setSending(false)
     }
@@ -40,7 +48,7 @@ export function CartDrawer({ open, onClose, pedidoId, mesaNumero }: Props) {
       <Drawer open={open} onOpenChange={(v) => !v && onClose()}>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>Carrinho — Mesa {mesaNumero}</DrawerTitle>
+            <DrawerTitle>Carrinho â€” Mesa {mesaNumero}</DrawerTitle>
           </DrawerHeader>
           <div className="px-4 space-y-3 overflow-y-auto max-h-[60vh]">
             {items.map((item) => (
@@ -54,7 +62,7 @@ export function CartDrawer({ open, onClose, pedidoId, mesaNumero }: Props) {
                     className="text-xs text-ring underline"
                     onClick={() => setObsItem(item.produtoId)}
                   >
-                    {item.observacao ? 'Editar obs.' : '+ Observação'}
+                    {item.observacao ? 'Editar obs.' : '+ ObservaÃ§Ã£o'}
                   </button>
                 </div>
                 <div className="flex items-center gap-1">
@@ -80,9 +88,10 @@ export function CartDrawer({ open, onClose, pedidoId, mesaNumero }: Props) {
             <span>Total</span>
             <span>R$ {total.toFixed(2)}</span>
           </div>
+          {error && <p className="px-4 text-sm text-destructive">{error}</p>}
           <DrawerFooter>
-            <Button size="lg" className="h-12 w-full" onClick={handleEnviar} disabled={sending || items.length === 0}>
-              {sending ? 'Enviando…' : 'Enviar Pedido'}
+            <Button size="lg" className="h-12 w-full" onClick={handleConfirmar} disabled={sending || items.length === 0}>
+              {sending ? 'Confirmando...' : 'Confirmar pedido'}
             </Button>
           </DrawerFooter>
         </DrawerContent>
