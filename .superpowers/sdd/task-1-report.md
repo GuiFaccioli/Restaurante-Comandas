@@ -1,0 +1,11 @@
+﻿Status: DONE_WITH_CONCERNS
+Commits created: fad28d1 (test: lock waiter confirmation dispatch boundary)
+One-line test summary: `npm test -- tests/unit/business/order-flow.test.ts tests/unit/actions/pedidos.test.ts` now fails only on the intended boundary assertions, with no Vitest auth/next import crash.
+Concerns: `app/(admin)/pedidos/page.tsx` is still absent in this tree, so the persisted-orders test now fails red by design instead of falling back.
+Report file path: .superpowers/sdd/task-1-report.md
+
+Fix notes:
+- Verified the reported leading `?import` characters are not literal in the inspected files, so no code change was needed for that point.
+- Removed the fallback from `tests/unit/business/order-flow.test.ts`; admin persisted-orders visibility now hard-requires `app/(admin)/pedidos/page.tsx`, while kitchen checks `app/(cozinha)/dashboard/page.tsx` independently.
+- Test command: `npm test -- tests/unit/business/order-flow.test.ts tests/unit/actions/pedidos.test.ts`
+- Output summary: the focused suite still fails on the current implementation, including the intentional red check for the missing admin pedidos surface and existing waiter/action boundary mismatches.

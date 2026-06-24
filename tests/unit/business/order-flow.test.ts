@@ -8,10 +8,6 @@ function source(path: string) {
   return readFileSync(join(root, path), 'utf8')
 }
 
-const persistedOrdersSurface = existsSync(join(root, 'app/(admin)/pedidos/page.tsx'))
-  ? 'app/(admin)/pedidos/page.tsx'
-  : 'app/(garcom)/pedidos/page.tsx'
-
 describe('pedido business flow', () => {
   test('garcom mesa screen does not create a kitchen-visible pedido before confirmation', () => {
     const pageSource = source('app/(garcom)/mesa/[id]/page.tsx')
@@ -43,13 +39,18 @@ describe('pedido business flow', () => {
     expect(drawerSource).toContain('Não foi possível confirmar o pedido')
   })
 
-  test('kitchen and persisted orders surfaces read persisted pedidos instead of cart state', () => {
+  test('kitchen and admin persisted-order surfaces read persisted pedidos instead of cart state', () => {
     const kitchenSource = source('app/(cozinha)/dashboard/page.tsx')
-    const persistedOrdersSource = source(persistedOrdersSurface)
+    const adminPedidosPath = 'app/(admin)/pedidos/page.tsx'
+
+    expect(existsSync(join(root, 'app/(cozinha)/dashboard/page.tsx'))).toBe(true)
+    expect(existsSync(join(root, adminPedidosPath))).toBe(true)
+
+    const adminSource = source(adminPedidosPath)
 
     expect(kitchenSource).toContain('from(pedido)')
-    expect(persistedOrdersSource).toContain('from(pedido)')
+    expect(adminSource).toContain('from(pedido)')
     expect(kitchenSource).not.toContain('useCart')
-    expect(persistedOrdersSource).not.toContain('useCart')
+    expect(adminSource).not.toContain('useCart')
   })
 })
