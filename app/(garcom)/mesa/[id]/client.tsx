@@ -26,7 +26,7 @@ type Props = {
   categorias: CategoriaComProdutos[]
 }
 
-export function MesaPageClient({ mesaNumero, mesaId: _mesaId, pedidoId, categorias }: Props) {
+export function MesaPageClient({ mesaNumero, mesaId, pedidoId, categorias }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
@@ -37,7 +37,7 @@ export function MesaPageClient({ mesaNumero, mesaId: _mesaId, pedidoId, categori
       <CartDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        pedidoId={pedidoId}
+        mesaId={mesaId}
         mesaNumero={mesaNumero}
       />
     </div>
