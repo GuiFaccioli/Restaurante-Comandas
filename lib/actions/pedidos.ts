@@ -46,24 +46,28 @@ export async function confirmarPedido(
     itensPreparados.push({ item, produto: prod })
   }
 
-  const [novo] = await db
-    .insert(pedido)
-    .values({ mesaId, status: 'novo' })
-    .returning({ id: pedido.id })
-
   const itensNotificacao: string[] = []
 
-  for (const { item, produto: prod } of itensPreparados) {
-    await db.insert(itemPedido).values({
-      pedidoId: novo.id,
-      produtoId: item.produtoId,
-      quantidade: item.quantidade,
-      precoUnitario: prod.preco,
-      observacao: item.observacao ?? null,
-    })
+  const novo = await db.transaction(async (tx) => {
+    const [novoPedido] = await tx
+      .insert(pedido)
+      .values({ mesaId, status: 'novo' })
+      .returning({ id: pedido.id })
 
-    itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
-  }
+    for (const { item, produto: prod } of itensPreparados) {
+      await tx.insert(itemPedido).values({
+        pedidoId: novoPedido.id,
+        produtoId: item.produtoId,
+        quantidade: item.quantidade,
+        precoUnitario: prod.preco,
+        observacao: item.observacao ?? null,
+      })
+
+      itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
+    }
+
+    return novoPedido
+  })
 
   const [m] = await db
     .select({ numero: mesa.numero })
