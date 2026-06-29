@@ -2,10 +2,12 @@ import { db } from '@/lib/db/index'
 import { desc, eq, inArray } from 'drizzle-orm'
 import { pedido, mesa, itemPedido, produto } from '@/lib/db/schema'
 import { AdminPedidosLive } from './client'
+import { requireAccess } from '@/lib/auth/access'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminPedidosPage() {
+  await requireAccess('caixa')
   const pedidosAtivos = await db
     .select({
       id: pedido.id,

@@ -2,17 +2,10 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { mesa } from '@/lib/db/schema'
-import { auth } from '@/lib/auth/server'
-import { redirect } from 'next/navigation'
-
-async function requireAuth() {
-  const { data: session } = await auth.getSession()
-  if (!session?.user) redirect('/auth/sign-in')
-  return session.user
-}
+import { requireAccess } from '@/lib/auth/access'
 
 export async function criarMesa(numero: number): Promise<{ id: string }> {
-  await requireAuth()
+  await requireAccess('admin')
   const [m] = await db
     .insert(mesa)
     .values({ numero })
@@ -21,7 +14,7 @@ export async function criarMesa(numero: number): Promise<{ id: string }> {
 }
 
 export async function toggleAtiva(id: string): Promise<void> {
-  await requireAuth()
+  await requireAccess('admin')
   const [m] = await db
     .select({ ativa: mesa.ativa })
     .from(mesa)

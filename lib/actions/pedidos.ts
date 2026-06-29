@@ -4,14 +4,7 @@ import { db } from '@/lib/db/index'
 import { pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
 import type { StatusPedido } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
-import { auth } from '@/lib/auth/server'
-import { redirect } from 'next/navigation'
-
-async function requireAuth() {
-  const { data: session } = await auth.getSession()
-  if (!session?.user) redirect('/auth/sign-in')
-  return session.user
-}
+import { requireAccess } from '@/lib/auth/access'
 
 export type ConfirmarPedidoItem = {
   produtoId: string
@@ -23,7 +16,7 @@ export async function confirmarPedido(
   mesaId: string,
   items: ConfirmarPedidoItem[]
 ): Promise<{ id: string }> {
-  await requireAuth()
+  await requireAccess('garcom')
   if (!mesaId) throw new Error('Mesa inválida')
   if (items.length === 0) throw new Error('Pedido vazio')
   if (items.some((item) => !item.produtoId || item.quantidade <= 0)) {
@@ -94,7 +87,7 @@ export async function atualizarStatus(
   pedidoId: string,
   status: StatusPedido
 ): Promise<void> {
-  await requireAuth()
+  await requireAccess('cozinha')
 
   const [current] = await db
     .select({ status: pedido.status })

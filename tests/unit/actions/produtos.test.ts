@@ -13,6 +13,9 @@ vi.mock('@/lib/db/index', () => ({
   },
 }))
 vi.mock('@/lib/sse', () => ({ notifyKitchen: vi.fn() }))
+vi.mock('@/lib/auth/access', () => ({
+  requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', access: 'admin' })),
+}))
 
 import { db } from '@/lib/db/index'
 import { notifyKitchen } from '@/lib/sse'

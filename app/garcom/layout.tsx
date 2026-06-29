@@ -1,9 +1,7 @@
 // app/(garcom)/layout.tsx
-import { auth } from '@/lib/auth/server'
-import { redirect } from 'next/navigation'
+import { requireAccess } from '@/lib/auth/access'
 
 export default async function GarcomLayout({ children }: { children: React.ReactNode }) {
-  const { data: session } = await auth.getSession()
-  if (!session?.user) redirect('/auth/sign-in')
+  await requireAccess('garcom')
   return <div className="min-h-screen bg-background">{children}</div>
 }

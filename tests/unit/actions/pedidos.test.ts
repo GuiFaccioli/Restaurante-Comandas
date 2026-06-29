@@ -29,6 +29,10 @@ vi.mock('@/lib/sse', () => ({
   notifyKitchen: mocks.notifyKitchen,
 }))
 
+vi.mock('@/lib/auth/access', () => ({
+  requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', access: 'garcom' })),
+}))
+
 vi.mock('@/lib/db/schema', () => ({
   pedido: {
     id: 'pedido.id',
