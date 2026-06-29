@@ -8,6 +8,9 @@ import {
   categoria,
   produto,
   usuario,
+  usuarioAcesso,
+  authSession,
+  acessoUsuarioEnum,
 } from '@/lib/db/schema'
 
 describe('Drizzle schema', () => {
@@ -83,6 +86,27 @@ describe('Drizzle schema', () => {
       expect(Object.keys(usuario)).toContain('nome')
       expect(Object.keys(usuario)).toContain('email')
       expect(Object.keys(usuario)).toContain('role')
+      expect(Object.keys(usuario)).toContain('passwordHash')
+      expect(Object.keys(usuario)).toContain('createdAt')
+      expect(Object.keys(usuario)).toContain('updatedAt')
+    })
+  })
+
+  describe('usuarioAcesso table', () => {
+    it('stores explicit area permissions per user', () => {
+      expect(Object.keys(usuarioAcesso)).toContain('id')
+      expect(Object.keys(usuarioAcesso)).toContain('usuarioId')
+      expect(Object.keys(usuarioAcesso)).toContain('acesso')
+    })
+  })
+
+  describe('authSession table', () => {
+    it('stores server-side sessions without raw browser tokens', () => {
+      expect(Object.keys(authSession)).toContain('id')
+      expect(Object.keys(authSession)).toContain('usuarioId')
+      expect(Object.keys(authSession)).toContain('tokenHash')
+      expect(Object.keys(authSession)).toContain('expiresAt')
+      expect(Object.keys(authSession)).toContain('createdAt')
     })
   })
 
@@ -95,6 +119,11 @@ describe('Drizzle schema', () => {
     it('roleUsuarioEnum is defined', () => {
       expect(roleUsuarioEnum).toBeDefined()
       expect(roleUsuarioEnum.enumName).toBe('role_usuario')
+    })
+
+    it('acessoUsuarioEnum is defined', () => {
+      expect(acessoUsuarioEnum).toBeDefined()
+      expect(acessoUsuarioEnum.enumName).toBe('acesso_usuario')
     })
   })
 })

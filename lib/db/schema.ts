@@ -21,6 +21,12 @@ export const statusPedidoEnum = pgEnum('status_pedido', [
 ])
 
 export const roleUsuarioEnum = pgEnum('role_usuario', ['garcom', 'admin'])
+export const acessoUsuarioEnum = pgEnum('acesso_usuario', [
+  'admin',
+  'caixa',
+  'cozinha',
+  'garcom',
+])
 
 // ============================================================
 // TypeScript Type Exports
@@ -28,6 +34,7 @@ export const roleUsuarioEnum = pgEnum('role_usuario', ['garcom', 'admin'])
 
 export type StatusPedido = 'novo' | 'em_preparo' | 'pronto' | 'entregue'
 export type RoleUsuario = 'garcom' | 'admin'
+export type AcessoUsuario = 'admin' | 'caixa' | 'cozinha' | 'garcom'
 
 // ============================================================
 // Tables
@@ -90,4 +97,25 @@ export const usuario = pgTable('usuario', {
   nome: text('nome').notNull(),
   email: text('email').notNull().unique(),
   role: roleUsuarioEnum('role').notNull().default('garcom'),
+  passwordHash: text('password_hash'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const usuarioAcesso = pgTable('usuario_acesso', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  usuarioId: uuid('usuario_id')
+    .notNull()
+    .references(() => usuario.id, { onDelete: 'cascade' }),
+  acesso: acessoUsuarioEnum('acesso').notNull(),
+})
+
+export const authSession = pgTable('auth_session', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  usuarioId: uuid('usuario_id')
+    .notNull()
+    .references(() => usuario.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
