@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build the real registration, login, session, tenant selection, and permission flow for the SaaS version of the restaurant system.
+Build the real registration, login, session, tenant selection, and permission flow for the multi-company restaurant system.
 
 ## Decisions Already Approved
 
@@ -22,7 +22,7 @@ Reasons:
 
 - The product's core authorization model is tenant-based: one identity can belong to many companies with different permissions.
 - Local development needs real login persistence, not `DEV_SKIP_AUTH`.
-- Billing and blocked-tenant rules must be enforced from the app database.
+- Tenant and permission rules must be enforced from the app database.
 - External auth providers can be added later without changing the tenant/permission model.
 
 ## Data Model
@@ -72,14 +72,14 @@ On submit:
 1. Normalize email.
 2. Hash password.
 3. Create or reuse `usuario` by email.
-4. Create `tenant` with status `active` for local/MVP development.
+4. Create `tenant` with status `active`.
 5. Create `tenantUser` linking the owner to the tenant.
 6. Create `usuarioAcesso` for `admin`.
 7. Create authenticated session cookie.
 8. Set selected tenant to the newly created tenant.
 9. Redirect to `/selecionar-area`.
 
-Production billing can later switch new tenants to `pending_payment` before full access.
+The app must not process payments or require in-app payment confirmation before access.
 
 ## Login Flow
 
@@ -123,7 +123,7 @@ Permissions remain in `usuarioAcesso`, scoped through `tenantUser`.
 Rules:
 
 - `admin` can manage users for the selected tenant.
-- `caixa` can access checkout/order payment control.
+- `caixa` can access comanda closing and external payment registration.
 - `cozinha` can access kitchen dashboard.
 - `garcom` can access waiter mesa/order flow.
 - Admin does not automatically receive other accesses unless explicitly marked.
@@ -209,7 +209,7 @@ Add or update tests for:
 - Password reset by email.
 - Email verification.
 - Social login.
-- Mercado Pago billing enforcement.
+- Any in-app payment processing, payment gateway, provider webhook confirmation, or app-mediated subscription/billing enforcement.
 - Subdomain-based tenant routing.
 - Employee invitation email.
 
