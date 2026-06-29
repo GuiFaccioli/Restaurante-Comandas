@@ -9,10 +9,10 @@ function source(path: string) {
 }
 
 describe('waiter entry routing', () => {
-  test('home redirects waiter to mesa selection', () => {
+  test('home redirects through permission-based area routing', () => {
     const home = source('app/page.tsx')
-    expect(home).toContain("redirect('/admin/menu')")
-    expect(home).toContain("redirect('/garcom/mesas')")
+    expect(home).toContain('redirectForAccesses')
+    expect(home).toContain('getCurrentAccesses')
     expect(home).not.toContain("redirect('/garcom/pedidos')")
   })
 

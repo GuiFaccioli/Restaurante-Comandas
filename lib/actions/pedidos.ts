@@ -47,15 +47,15 @@ export async function confirmarPedido(
     .where(eq(mesa.id, mesaId))
 
   const novoPedidoId = crypto.randomUUID()
-  await db.transaction((tx) => {
-    tx.insert(pedido).values({
+  await db.transaction(async (tx) => {
+    await tx.insert(pedido).values({
       id: novoPedidoId,
       mesaId,
       status: 'novo',
     })
 
     for (const { item, produto: prod } of itensPreparados) {
-      tx.insert(itemPedido).values({
+      await tx.insert(itemPedido).values({
         id: crypto.randomUUID(),
         pedidoId: novoPedidoId,
         produtoId: item.produtoId,
