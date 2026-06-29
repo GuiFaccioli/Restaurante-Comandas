@@ -54,3 +54,12 @@ Sistema de gestÃ£o de pedidos para pizzaria: garÃ§om (PWA mobile) â†’ cozinha (d
 - `_cart` atom no PizzaQL usa `key: 'theme'` â€” provavelmente typo
 - Brainstorming mencionou "Next.js 15" â€” versÃ£o atual Ã© **16.2.9**
 - Brainstorming mencionou Supabase (Abordagem A) â€” **descartado**, usando Neon
+
+## Atualização 2026-06-29 — Permission Gates
+
+- Novo conceito: [permission-gates](concepts/permission-gates.md)
+- Autorização centralizada com `requireAccess(access)`.
+- Um e-mail representa uma pessoa em uma empresa.
+- Server Actions são tratadas como superfícies de API.
+- `/cozinha/dashboard` e `/api/events` exigem acesso `cozinha`.
+- O app registra pagamentos externos; não processa pagamentos.

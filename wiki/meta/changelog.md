@@ -57,3 +57,12 @@ tags: [meta, hist√≥rico]
 - Wiki criado com estrutura base
 - Schema definido em `meta/schema.md`
 - index.md inicializado
+
+## 2026-06-29 ó Ingest„o: Permission Gates
+
+- Criado: `wiki/concepts/permission-gates.md`
+- Atualizado: `wiki/index.md`
+- Decis„o: um e-mail representa uma pessoa em uma empresa.
+- Decis„o: `requireAccess(access)` protege p·ginas, Route Handlers e Server Actions.
+- Decis„o: `/cozinha/dashboard` e `/api/events` exigem acesso `cozinha`.
+- Decis„o: pagamentos s„o apenas registros externos; o app n„o processa pagamentos.
