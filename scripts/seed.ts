@@ -5,6 +5,8 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../lib/db/schema-sqlite'
+import { hashPassword } from '../lib/auth/password'
+import { DEV_TEST_PASSWORD, DEV_TEST_USERS } from '../lib/dev/test-users'
 
 const url = process.env.DATABASE_URL ?? 'file:./dev.db'
 const dbPath = url.startsWith('file:') ? url.replace('file:', '') : './dev.db'
@@ -18,16 +20,31 @@ const db = drizzle(sqlite, { schema })
 async function seed() {
   console.log('Seeding dev database at', dbPath, '...')
 
-  // Dev admin user
-  db.insert(schema.usuario)
-    .values({
-      id: 'dev-user-001',
-      nome: 'Admin Dev',
-      email: 'dev@local.com',
-      role: 'admin',
-    })
-    .onConflictDoNothing()
-    .run()
+  const upsertUser = sqlite.prepare(`
+    INSERT INTO usuario (id, nome, email, role, password_hash, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(email) DO UPDATE SET
+      nome = excluded.nome,
+      role = excluded.role,
+      password_hash = excluded.password_hash,
+      updated_at = excluded.updated_at
+  `)
+  const deleteAccesses = sqlite.prepare('DELETE FROM usuario_acesso WHERE usuario_id = ?')
+  const insertAccess = sqlite.prepare(`
+    INSERT INTO usuario_acesso (id, usuario_id, acesso)
+    VALUES (?, ?, ?)
+  `)
+  const passwordHash = await hashPassword(DEV_TEST_PASSWORD)
+  const now = Date.now()
+
+  for (const user of DEV_TEST_USERS) {
+    upsertUser.run(user.id, user.name, user.email, user.access, passwordHash, now, now)
+    deleteAccesses.run(user.id)
+
+    for (const access of user.accesses) {
+      insertAccess.run(crypto.randomUUID(), user.id, access)
+    }
+  }
 
   // 10 mesas
   for (let i = 1; i <= 10; i++) {
@@ -122,7 +139,8 @@ async function seed() {
   }
 
   console.log('Done! Database seeded successfully.')
-  console.log('  - 1 admin user (dev-user-001)')
+  console.log(`  - ${DEV_TEST_USERS.length} dev users (${DEV_TEST_USERS.map((user) => user.email).join(', ')})`)
+  console.log(`  - Dev password: ${DEV_TEST_PASSWORD}`)
   console.log('  - 10 mesas')
   console.log('  - 2 categorias (Pizzas, Bebidas)')
   console.log('  - 6 produtos (3 pizzas, 3 bebidas)')
