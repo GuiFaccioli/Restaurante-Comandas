@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { criarMesa, toggleAtiva } from '@/lib/actions/mesas'
 import { useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
 type Mesa = { id: string; numero: number; ativa: boolean }
 
@@ -15,9 +16,15 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
   async function handleNovaMesa() {
     const n = parseInt(novoNumero)
     if (!n) return
-    await criarMesa(n)
-    setNovoNumero('')
-    router.refresh()
+    try {
+      await criarMesa(n)
+      setNovoNumero('')
+      router.refresh()
+      toast.success('Mesa criada com sucesso.')
+    } catch (error) {
+      console.error('Failed to create table', error)
+      toast.error('Não foi possível criar a mesa.')
+    }
   }
 
   return (
@@ -42,7 +49,15 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
             <Badge
               className="cursor-pointer"
               variant={m.ativa ? 'default' : 'secondary'}
-              onClick={async () => { await toggleAtiva(m.id); router.refresh() }}
+              onClick={async () => {
+                try {
+                  await toggleAtiva(m.id)
+                  router.refresh()
+                } catch (error) {
+                  console.error('Failed to toggle table availability', error)
+                  toast.error('Não foi possível atualizar a mesa.')
+                }
+              }}
             >
               {m.ativa ? 'Ativa' : 'Inativa'}
             </Badge>

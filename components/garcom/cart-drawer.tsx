@@ -34,17 +34,19 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
           observacao: item.observacao,
         }))
       )
-      clearCart()
-      onClose()
-      toast.success('Pedido concluído com sucesso.')
-    } catch {
+    } catch (error) {
+      console.error('Failed to confirm order', error)
       setError('Não foi possível confirmar o pedido. Tente novamente.')
       toast.error('Não foi possível confirmar o pedido.')
+      return
     } finally {
       setSending(false)
     }
-  }
 
+    clearCart()
+    onClose()
+    toast.success('Pedido concluído com sucesso.')
+  }
   return (
     <>
       <Drawer open={open} onOpenChange={(v) => !v && onClose()}>
@@ -108,3 +110,4 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
     </>
   )
 }
+

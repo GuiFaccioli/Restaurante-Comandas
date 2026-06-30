@@ -6,6 +6,7 @@ import { Plus, Pencil } from 'lucide-react'
 import { ProdutoForm } from '@/components/admin/produto-form'
 import { criarCategoria, toggleDisponivel } from '@/lib/actions/produtos'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 type Produto = { id: string; nome: string; descricao: string | null; preco: string; imagemUrl: string | null; disponivel: boolean }
 type Categoria = { id: string; nome: string; ordem: number; produtos: Produto[] }
@@ -21,9 +22,15 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
 
   async function handleNewCategoria() {
     if (!newCat.trim()) return
-    await criarCategoria(newCat.trim())
-    setNewCat('')
-    router.refresh()
+    try {
+      await criarCategoria(newCat.trim())
+      setNewCat('')
+      router.refresh()
+      toast.success('Categoria criada com sucesso.')
+    } catch (error) {
+      console.error('Failed to create category', error)
+      toast.error('Não foi possível criar a categoria.')
+    }
   }
 
   return (
@@ -80,7 +87,15 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                 <Badge
                   className="cursor-pointer"
                   variant={p.disponivel ? 'default' : 'secondary'}
-                  onClick={async () => { await toggleDisponivel(p.id); router.refresh() }}
+                  onClick={async () => {
+                    try {
+                      await toggleDisponivel(p.id)
+                      router.refresh()
+                    } catch (error) {
+                      console.error('Failed to toggle product availability', error)
+                      toast.error('Não foi possível atualizar o produto.')
+                    }
+                  }}
                 >
                   {p.disponivel ? 'Disponível' : 'Indisponível'}
                 </Badge>

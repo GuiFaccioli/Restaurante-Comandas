@@ -6,7 +6,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { criarProduto, editarProduto } from '@/lib/actions/produtos'
+import { formatCurrencyInput, formatDecimalAsCurrencyInput } from '@/lib/money'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 type Produto = { id: string; nome: string; descricao: string | null; preco: string; imagemUrl: string | null }
 type Props = {
@@ -20,7 +22,7 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
   const router = useRouter()
   const [nome, setNome] = useState(produto?.nome ?? '')
   const [descricao, setDescricao] = useState(produto?.descricao ?? '')
-  const [preco, setPreco] = useState(produto?.preco ?? '')
+  const [preco, setPreco] = useState(produto?.preco ? formatDecimalAsCurrencyInput(produto.preco) : '')
   const [imagemUrl, setImagemUrl] = useState(produto?.imagemUrl ?? '')
   const [saving, setSaving] = useState(false)
 
@@ -34,6 +36,10 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
       }
       router.refresh()
       onClose()
+      toast.success(produto ? 'Produto atualizado com sucesso.' : 'Produto criado com sucesso.')
+    } catch (error) {
+      console.error('Failed to save product', error)
+      toast.error('Não foi possível salvar o produto.')
     } finally {
       setSaving(false)
     }
@@ -48,7 +54,15 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
         <div className="space-y-4">
           <div><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} /></div>
           <div><Label>Descrição</Label><Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} /></div>
-          <div><Label>Preço (R$)</Label><Input type="number" step="0.01" value={preco} onChange={(e) => setPreco(e.target.value)} /></div>
+          <div>
+            <Label>Preço (R$)</Label>
+            <Input
+              inputMode="numeric"
+              placeholder="0,00"
+              value={preco}
+              onChange={(e) => setPreco(formatCurrencyInput(e.target.value))}
+            />
+          </div>
           <div className="space-y-2">
             <Label>URL da Imagem</Label>
             <Input value={imagemUrl} onChange={(e) => setImagemUrl(e.target.value)} placeholder="https://..." />
@@ -73,3 +87,4 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
     </Dialog>
   )
 }
+
