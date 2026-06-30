@@ -21,9 +21,11 @@ export async function createAuthSession(usuarioId: string): Promise<void> {
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
 
   await db.insert(authSession).values({
+    id: crypto.randomUUID(),
     usuarioId,
     tokenHash,
     expiresAt,
+    createdAt: new Date(),
   })
 
   const store = await cookieStore()

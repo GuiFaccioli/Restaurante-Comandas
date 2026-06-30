@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/db/index', () => ({
   db: {
@@ -26,24 +26,40 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('criarCategoria', () => {
   it('inserts and returns id', async () => {
+    const values = vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([{ id: 'cat-1' }]),
+    })
     ;(db.insert as any).mockReturnValue({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([{ id: 'cat-1' }]),
-      }),
+      values,
     })
     expect(await criarCategoria('Pizzas')).toEqual({ id: 'cat-1' })
+    expect(values).toHaveBeenCalledWith({
+      id: expect.any(String),
+      nome: 'Pizzas',
+      ordem: 0,
+    })
   })
 })
 
 describe('criarProduto', () => {
   it('inserts produto and returns id', async () => {
-    ;(db.insert as any).mockReturnValue({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([{ id: 'prod-1' }]),
-      }),
+    const values = vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([{ id: 'prod-1' }]),
     })
-    const result = await criarProduto({ categoriaId: 'cat-1', nome: 'Margherita', preco: '32.00' })
+    ;(db.insert as any).mockReturnValue({
+      values,
+    })
+    const result = await criarProduto({ categoriaId: 'cat-1', nome: 'Margherita', preco: '32,00' })
     expect(result).toEqual({ id: 'prod-1' })
+    expect(values).toHaveBeenCalledWith({
+      id: expect.any(String),
+      categoriaId: 'cat-1',
+      nome: 'Margherita',
+      descricao: null,
+      preco: '32.00',
+      disponivel: 1,
+      imagemUrl: null,
+    })
   })
 })
 
@@ -67,11 +83,18 @@ describe('toggleDisponivel', () => {
 
 describe('criarMesa', () => {
   it('inserts mesa and returns id', async () => {
+    const values = vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([{ id: 'mesa-1' }]),
+    })
     ;(db.insert as any).mockReturnValue({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([{ id: 'mesa-1' }]),
-      }),
+      values,
     })
     expect(await criarMesa(5)).toEqual({ id: 'mesa-1' })
+    expect(values).toHaveBeenCalledWith({
+      id: expect.any(String),
+      numero: 5,
+      ativa: 1,
+    })
   })
 })
+

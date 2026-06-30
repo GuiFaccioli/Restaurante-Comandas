@@ -4,6 +4,8 @@ import { db } from '@/lib/db/index'
 import { categoria, produto } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
+import { dbBoolean } from '@/lib/db/compat'
+import { normalizeCurrencyToDecimal } from '@/lib/money'
 
 type NovoProduto = {
   categoriaId: string
@@ -19,7 +21,7 @@ export async function criarCategoria(nome: string): Promise<{ id: string }> {
   const ordem = max.length ? Math.max(...max.map((c) => c.ordem)) + 1 : 0
   const [cat] = await db
     .insert(categoria)
-    .values({ nome, ordem })
+    .values({ id: crypto.randomUUID(), nome, ordem })
     .returning({ id: categoria.id })
   return { id: cat.id }
 }
@@ -38,10 +40,12 @@ export async function criarProduto(data: NovoProduto): Promise<{ id: string }> {
   const [prod] = await db
     .insert(produto)
     .values({
+      id: crypto.randomUUID(),
       categoriaId: data.categoriaId,
       nome: data.nome,
       descricao: data.descricao ?? null,
-      preco: data.preco,
+      preco: normalizeCurrencyToDecimal(data.preco),
+      disponivel: dbBoolean(true) as boolean,
       imagemUrl: data.imagemUrl ?? null,
     })
     .returning({ id: produto.id })
@@ -58,7 +62,7 @@ export async function editarProduto(
     .set({
       ...(data.nome && { nome: data.nome }),
       ...(data.descricao !== undefined && { descricao: data.descricao }),
-      ...(data.preco && { preco: data.preco }),
+      ...(data.preco && { preco: normalizeCurrencyToDecimal(data.preco) }),
       ...(data.imagemUrl !== undefined && { imagemUrl: data.imagemUrl }),
       ...(data.categoriaId && { categoriaId: data.categoriaId }),
     })
@@ -72,10 +76,17 @@ export async function toggleDisponivel(id: string): Promise<void> {
     .from(produto)
     .where(eq(produto.id, id))
 
-  const novoEstado = !prod.disponivel
-  await db.update(produto).set({ disponivel: novoEstado }).where(eq(produto.id, id))
+  const novoEstado = !Boolean(prod.disponivel)
+  await db
+    .update(produto)
+    .set({ disponivel: dbBoolean(novoEstado) as boolean })
+    .where(eq(produto.id, id))
 
   if (!novoEstado) {
-    notifyKitchen({ type: 'produto_indisponivel', payload: { produtoId: id } })
+    try {
+      notifyKitchen({ type: 'produto_indisponivel', payload: { produtoId: id } })
+    } catch (error) {
+      console.error('Failed to notify kitchen about unavailable product', error)
+    }
   }
 }

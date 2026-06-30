@@ -38,6 +38,7 @@ export async function signUpOwner(
 
   const usuarioId = crypto.randomUUID()
   const passwordHash = await hashPassword(password)
+  const now = new Date()
 
   await db.insert(usuario).values({
     id: usuarioId,
@@ -45,9 +46,12 @@ export async function signUpOwner(
     email,
     passwordHash,
     role: 'admin',
+    createdAt: now,
+    updatedAt: now,
   })
 
   await db.insert(usuarioAcesso).values({
+    id: crypto.randomUUID(),
     usuarioId,
     acesso: 'admin',
   })

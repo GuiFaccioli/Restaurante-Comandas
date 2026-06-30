@@ -47,11 +47,14 @@ export async function confirmarPedido(
     .where(eq(mesa.id, mesaId))
 
   const novoPedidoId = crypto.randomUUID()
+  const now = new Date()
   await db.transaction(async (tx) => {
     await tx.insert(pedido).values({
       id: novoPedidoId,
       mesaId,
       status: 'novo',
+      criadoEm: now,
+      atualizadoEm: now,
     })
 
     for (const { item, produto: prod } of itensPreparados) {
@@ -68,10 +71,14 @@ export async function confirmarPedido(
     }
   })
 
-  notifyKitchen({
-    type: 'novo_pedido',
-    payload: { pedidoId: novoPedidoId, mesaNumero: mesaAtual?.numero ?? 0, itens: itensNotificacao },
-  })
+  try {
+    notifyKitchen({
+      type: 'novo_pedido',
+      payload: { pedidoId: novoPedidoId, mesaNumero: mesaAtual?.numero ?? 0, itens: itensNotificacao },
+    })
+  } catch (error) {
+    console.error('Failed to notify kitchen about new order', error)
+  }
 
   return { id: novoPedidoId }
 }
@@ -105,5 +112,9 @@ export async function atualizarStatus(
     .set({ status, atualizadoEm: new Date() })
     .where(eq(pedido.id, pedidoId))
 
-  notifyKitchen({ type: 'status_atualizado', payload: { pedidoId, status } })
+  try {
+    notifyKitchen({ type: 'status_atualizado', payload: { pedidoId, status } })
+  } catch (error) {
+    console.error('Failed to notify kitchen about status update', error)
+  }
 }

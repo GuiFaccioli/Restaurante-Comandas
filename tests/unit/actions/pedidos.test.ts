@@ -100,6 +100,8 @@ describe('confirmarPedido', () => {
       id: expect.any(String),
       mesaId: 'mesa-1',
       status: 'novo',
+      criadoEm: expect.any(Date),
+      atualizadoEm: expect.any(Date),
     })
     expect(itemValues).toHaveBeenNthCalledWith(2, {
       id: expect.any(String),
@@ -184,6 +186,41 @@ describe('confirmarPedido', () => {
 
     expect(mocks.db.transaction).toHaveBeenCalledTimes(1)
     expect(mocks.notifyKitchen).not.toHaveBeenCalled()
+  })
+
+  it('returns success after persistence even if kitchen notification fails', async () => {
+    const { confirmarPedido } = await import('@/lib/actions/pedidos')
+
+    const itemValues = vi.fn()
+    const txInsert = vi.fn().mockReturnValue({
+      values: itemValues,
+    })
+
+    mocks.db.transaction.mockImplementation((callback) =>
+      callback({
+        insert: txInsert,
+      })
+    )
+    mocks.notifyKitchen.mockImplementation(() => {
+      throw new Error('sse unavailable')
+    })
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
+      }),
+    })
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ numero: 7 }]),
+      }),
+    })
+
+    await expect(
+      confirmarPedido('mesa-1', [{ produtoId: 'produto-1', quantidade: 1 }])
+    ).resolves.toEqual({ id: expect.any(String) })
+
+    expect(itemValues).toHaveBeenCalledTimes(2)
   })
 
   it('does not emit novo_pedido for an empty cart', async () => {

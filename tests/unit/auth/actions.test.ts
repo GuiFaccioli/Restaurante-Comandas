@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
@@ -96,8 +96,11 @@ describe('auth actions', () => {
           email: 'ana@example.com',
           passwordHash: 'hashed-password',
           role: 'admin',
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
         }),
         expect.objectContaining({
+          id: expect.any(String),
           acesso: 'admin',
         }),
       ])
@@ -131,3 +134,5 @@ describe('auth actions', () => {
     expect(state.destroyCurrentSessionMock).toHaveBeenCalled()
   })
 })
+
+
