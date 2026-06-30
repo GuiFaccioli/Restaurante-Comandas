@@ -5,6 +5,7 @@ import { pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
 import type { StatusPedido } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
+import { isSQLiteDatabase } from '@/lib/db/compat'
 
 export type ConfirmarPedidoItem = {
   produtoId: string
@@ -48,28 +49,51 @@ export async function confirmarPedido(
 
   const novoPedidoId = crypto.randomUUID()
   const now = new Date()
-  await db.transaction(async (tx) => {
-    await tx.insert(pedido).values({
-      id: novoPedidoId,
-      mesaId,
-      status: 'novo',
-      criadoEm: now,
-      atualizadoEm: now,
+  const pedidoValues = {
+    id: novoPedidoId,
+    mesaId,
+    status: 'novo' as const,
+    criadoEm: now,
+    atualizadoEm: now,
+  }
+
+  if (isSQLiteDatabase) {
+    ;(db as any).transaction((tx: any) => {
+      tx.insert(pedido).values(pedidoValues).run()
+
+      for (const { item, produto: prod } of itensPreparados) {
+        tx.insert(itemPedido)
+          .values({
+            id: crypto.randomUUID(),
+            pedidoId: novoPedidoId,
+            produtoId: item.produtoId,
+            quantidade: item.quantidade,
+            precoUnitario: prod.preco,
+            observacao: item.observacao ?? null,
+          })
+          .run()
+
+        itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
+      }
     })
+  } else {
+    await db.transaction(async (tx) => {
+      await tx.insert(pedido).values(pedidoValues)
 
-    for (const { item, produto: prod } of itensPreparados) {
-      await tx.insert(itemPedido).values({
-        id: crypto.randomUUID(),
-        pedidoId: novoPedidoId,
-        produtoId: item.produtoId,
-        quantidade: item.quantidade,
-        precoUnitario: prod.preco,
-        observacao: item.observacao ?? null,
-      })
+      for (const { item, produto: prod } of itensPreparados) {
+        await tx.insert(itemPedido).values({
+          id: crypto.randomUUID(),
+          pedidoId: novoPedidoId,
+          produtoId: item.produtoId,
+          quantidade: item.quantidade,
+          precoUnitario: prod.preco,
+          observacao: item.observacao ?? null,
+        })
 
-      itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
-    }
-  })
+        itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
+      }
+    })
+  }
 
   try {
     notifyKitchen({

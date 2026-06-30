@@ -62,20 +62,31 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+function mockSynchronousTransaction(txInsert: ReturnType<typeof vi.fn>) {
+  mocks.db.transaction.mockImplementation((callback) => {
+    const result = callback({
+      insert: txInsert,
+    })
+
+    if (result instanceof Promise) {
+      throw new TypeError('Transaction function cannot return a promise')
+    }
+
+    return result
+  })
+}
+
 describe('confirmarPedido', () => {
   it('persists the official order atomically and emits novo_pedido after confirmation', async () => {
     const { confirmarPedido } = await import('@/lib/actions/pedidos')
 
     const itemValues = vi.fn()
+    const itemRun = vi.fn()
     const txInsert = vi.fn().mockReturnValue({
-      values: itemValues,
+      values: itemValues.mockReturnValue({ run: itemRun }),
     })
 
-    mocks.db.transaction.mockImplementation((callback) =>
-      callback({
-        insert: txInsert,
-      })
-    )
+    mockSynchronousTransaction(txInsert)
 
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
@@ -111,6 +122,7 @@ describe('confirmarPedido', () => {
       precoUnitario: '45.00',
       observacao: 'Sem cebola',
     })
+    expect(itemRun).toHaveBeenCalledTimes(2)
     expect(itemValues.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.notifyKitchen.mock.invocationCallOrder[0]
     )
@@ -129,13 +141,9 @@ describe('confirmarPedido', () => {
 
     const txInsert = vi
       .fn()
-      .mockReturnValue({ values: vi.fn() })
+      .mockReturnValue({ values: vi.fn().mockReturnValue({ run: vi.fn() }) })
 
-    mocks.db.transaction.mockImplementation((callback) =>
-      callback({
-        insert: txInsert,
-      })
-    )
+    mockSynchronousTransaction(txInsert)
 
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
@@ -168,7 +176,9 @@ describe('confirmarPedido', () => {
 
     const transactionError = new Error('insert failed')
 
-    mocks.db.transaction.mockRejectedValue(transactionError)
+    mocks.db.transaction.mockImplementation(() => {
+      throw transactionError
+    })
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
@@ -193,14 +203,10 @@ describe('confirmarPedido', () => {
 
     const itemValues = vi.fn()
     const txInsert = vi.fn().mockReturnValue({
-      values: itemValues,
+      values: itemValues.mockReturnValue({ run: vi.fn() }),
     })
 
-    mocks.db.transaction.mockImplementation((callback) =>
-      callback({
-        insert: txInsert,
-      })
-    )
+    mockSynchronousTransaction(txInsert)
     mocks.notifyKitchen.mockImplementation(() => {
       throw new Error('sse unavailable')
     })
