@@ -35,6 +35,7 @@ export const pedido = sqliteTable('pedido', {
   criadoEm: integer('criado_em', { mode: 'timestamp' })
     .notNull()
     .$defaultFn(() => new Date()),
+  entregueEm: integer('entregue_em', { mode: 'timestamp' }),
   atualizadoEm: integer('atualizado_em', { mode: 'timestamp' })
     .notNull()
     .$defaultFn(() => new Date()),

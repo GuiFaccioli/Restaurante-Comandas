@@ -73,6 +73,7 @@ export const pedido = pgTable('pedido', {
   criadoEm: timestamp('criado_em', { withTimezone: true })
     .notNull()
     .defaultNow(),
+  entregueEm: timestamp('entregue_em', { withTimezone: true }),
   atualizadoEm: timestamp('atualizado_em', { withTimezone: true })
     .notNull()
     .defaultNow(),

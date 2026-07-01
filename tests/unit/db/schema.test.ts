@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import {
   mesa,
@@ -51,6 +53,7 @@ describe('Drizzle schema', () => {
       expect(Object.keys(pedido)).toContain('mesaId')
       expect(Object.keys(pedido)).toContain('status')
       expect(Object.keys(pedido)).toContain('criadoEm')
+      expect(Object.keys(pedido)).toContain('entregueEm')
       expect(Object.keys(pedido)).toContain('atualizadoEm')
     })
 
@@ -89,6 +92,14 @@ describe('Drizzle schema', () => {
       expect(Object.keys(usuario)).toContain('passwordHash')
       expect(Object.keys(usuario)).toContain('createdAt')
       expect(Object.keys(usuario)).toContain('updatedAt')
+    })
+  })
+
+  describe('sqlite schema source', () => {
+    it('maps pedido.entregueEm to the entregue_em column', () => {
+      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
+
+      expect(sqliteSchema).toContain("entregueEm: integer('entregue_em'")
     })
   })
 
