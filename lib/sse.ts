@@ -3,7 +3,19 @@
 // For multi-process or serverless (Vercel), replace with Redis pub/sub (Upstash).
 
 export type KitchenEvent =
-  | { type: 'novo_pedido'; payload: { pedidoId: string; mesaNumero: number; itens: string[] } }
+  | {
+      type: 'novo_pedido'
+      payload: {
+        pedidoId: string
+        mesaNumero: number
+        itens: Array<{
+          nome: string
+          quantidade: number
+          categoriaNome?: string | null
+          observacao?: string | null
+        }>
+      }
+    }
   | { type: 'status_atualizado'; payload: { pedidoId: string; status: string } }
   | { type: 'produto_indisponivel'; payload: { produtoId: string } }
 

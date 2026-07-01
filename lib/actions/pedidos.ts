@@ -1,7 +1,7 @@
 'use server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
-import { pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
+import { categoria, pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
 import type { StatusPedido } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
@@ -26,13 +26,14 @@ export async function confirmarPedido(
 
   const itensPreparados: {
     item: ConfirmarPedidoItem
-    produto: { nome: string; preco: string }
+    produto: { nome: string; preco: string; categoriaNome: string }
   }[] = []
 
   for (const item of items) {
     const [prod] = await db
-      .select({ nome: produto.nome, preco: produto.preco })
+      .select({ nome: produto.nome, preco: produto.preco, categoriaNome: categoria.nome })
       .from(produto)
+      .innerJoin(categoria, eq(produto.categoriaId, categoria.id))
       .where(eq(produto.id, item.produtoId))
 
     if (!prod) throw new Error('Produto inválido')
@@ -40,7 +41,12 @@ export async function confirmarPedido(
     itensPreparados.push({ item, produto: prod })
   }
 
-  const itensNotificacao: string[] = []
+  const itensNotificacao: Array<{
+    nome: string
+    quantidade: number
+    categoriaNome: string
+    observacao?: string | null
+  }> = []
 
   const [mesaAtual] = await db
     .select({ numero: mesa.numero })
@@ -54,6 +60,7 @@ export async function confirmarPedido(
     mesaId,
     status: 'novo' as const,
     criadoEm: now,
+    entregueEm: null,
     atualizadoEm: now,
   }
 
@@ -73,7 +80,12 @@ export async function confirmarPedido(
           })
           .run()
 
-        itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
+        itensNotificacao.push({
+          nome: prod.nome,
+          quantidade: item.quantidade,
+          categoriaNome: prod.categoriaNome,
+          observacao: item.observacao ?? null,
+        })
       }
     })
   } else {
@@ -90,7 +102,12 @@ export async function confirmarPedido(
           observacao: item.observacao ?? null,
         })
 
-        itensNotificacao.push(`${item.quantidade}x ${prod.nome}`)
+        itensNotificacao.push({
+          nome: prod.nome,
+          quantidade: item.quantidade,
+          categoriaNome: prod.categoriaNome,
+          observacao: item.observacao ?? null,
+        })
       }
     })
   }
@@ -140,5 +157,34 @@ export async function atualizarStatus(
     notifyKitchen({ type: 'status_atualizado', payload: { pedidoId, status } })
   } catch (error) {
     console.error('Failed to notify kitchen about status update', error)
+  }
+}
+
+export async function confirmarEntrega(pedidoId: string): Promise<void> {
+  await requireAccess('garcom')
+
+  const [current] = await db
+    .select({ status: pedido.status })
+    .from(pedido)
+    .where(eq(pedido.id, pedidoId))
+
+  if (!current) throw new Error('Pedido não encontrado')
+  if (current.status !== 'novo') {
+    throw new Error('Só pedidos novos podem ser confirmados como entregues')
+  }
+
+  const now = new Date()
+  await db
+    .update(pedido)
+    .set({ status: 'entregue', entregueEm: now, atualizadoEm: now })
+    .where(eq(pedido.id, pedidoId))
+
+  try {
+    notifyKitchen({
+      type: 'status_atualizado',
+      payload: { pedidoId, status: 'entregue' },
+    })
+  } catch (error) {
+    console.error('Failed to notify kitchen about delivery confirmation', error)
   }
 }

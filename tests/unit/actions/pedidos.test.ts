@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
     redirect: vi.fn(),
     notifyKitchen: vi.fn(),
     db,
+    requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', access: 'garcom' })),
   }
 })
 
@@ -30,7 +31,7 @@ vi.mock('@/lib/sse', () => ({
 }))
 
 vi.mock('@/lib/auth/access', () => ({
-  requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', access: 'garcom' })),
+  requireAccess: mocks.requireAccess,
 }))
 
 vi.mock('@/lib/db/schema', () => ({
@@ -38,6 +39,8 @@ vi.mock('@/lib/db/schema', () => ({
     id: 'pedido.id',
     mesaId: 'pedido.mesa_id',
     status: 'pedido.status',
+    criadoEm: 'pedido.criado_em',
+    entregueEm: 'pedido.entregue_em',
     atualizadoEm: 'pedido.atualizado_em',
   },
   itemPedido: {
@@ -47,12 +50,17 @@ vi.mock('@/lib/db/schema', () => ({
     precoUnitario: 'item_pedido.preco_unitario',
     observacao: 'item_pedido.observacao',
   },
+  categoria: {
+    id: 'categoria.id',
+    nome: 'categoria.nome',
+  },
   mesa: {
     id: 'mesa.id',
     numero: 'mesa.numero',
   },
   produto: {
     id: 'produto.id',
+    categoriaId: 'produto.categoria_id',
     nome: 'produto.nome',
     preco: 'produto.preco',
   },
@@ -76,6 +84,16 @@ function mockSynchronousTransaction(txInsert: ReturnType<typeof vi.fn>) {
   })
 }
 
+function mockProductSelect(produto: { nome: string; preco: string; categoriaNome: string }) {
+  mocks.db.select.mockReturnValueOnce({
+    from: vi.fn().mockReturnValue({
+      innerJoin: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([produto]),
+      }),
+    }),
+  })
+}
+
 describe('confirmarPedido', () => {
   it('persists the official order atomically and emits novo_pedido after confirmation', async () => {
     const { confirmarPedido } = await import('@/lib/actions/pedidos')
@@ -88,11 +106,7 @@ describe('confirmarPedido', () => {
 
     mockSynchronousTransaction(txInsert)
 
-    mocks.db.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
-      }),
-    })
+    mockProductSelect({ nome: 'Margherita', preco: '45.00', categoriaNome: 'Pizzas' })
 
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
@@ -112,6 +126,7 @@ describe('confirmarPedido', () => {
       mesaId: 'mesa-1',
       status: 'novo',
       criadoEm: expect.any(Date),
+      entregueEm: null,
       atualizadoEm: expect.any(Date),
     })
     expect(itemValues).toHaveBeenNthCalledWith(2, {
@@ -131,7 +146,14 @@ describe('confirmarPedido', () => {
       payload: {
         pedidoId: expect.any(String),
         mesaNumero: 7,
-      itens: ['2x Margherita'],
+        itens: [
+          {
+            nome: 'Margherita',
+            quantidade: 2,
+            categoriaNome: 'Pizzas',
+            observacao: 'Sem cebola',
+          },
+        ],
       },
     })
   })
@@ -145,11 +167,7 @@ describe('confirmarPedido', () => {
 
     mockSynchronousTransaction(txInsert)
 
-    mocks.db.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ nome: 'Calabresa', preco: '50.00' }]),
-      }),
-    })
+    mockProductSelect({ nome: 'Calabresa', preco: '50.00', categoriaNome: 'Pizzas' })
 
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
@@ -166,7 +184,14 @@ describe('confirmarPedido', () => {
       payload: {
         pedidoId: expect.any(String),
         mesaNumero: 9,
-        itens: ['1x Calabresa'],
+        itens: [
+          {
+            nome: 'Calabresa',
+            quantidade: 1,
+            categoriaNome: 'Pizzas',
+            observacao: null,
+          },
+        ],
       },
     })
   })
@@ -179,11 +204,7 @@ describe('confirmarPedido', () => {
     mocks.db.transaction.mockImplementation(() => {
       throw transactionError
     })
-    mocks.db.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
-      }),
-    })
+    mockProductSelect({ nome: 'Margherita', preco: '45.00', categoriaNome: 'Pizzas' })
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ numero: 7 }]),
@@ -211,11 +232,7 @@ describe('confirmarPedido', () => {
       throw new Error('sse unavailable')
     })
 
-    mocks.db.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ nome: 'Margherita', preco: '45.00' }]),
-      }),
-    })
+    mockProductSelect({ nome: 'Margherita', preco: '45.00', categoriaNome: 'Pizzas' })
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ numero: 7 }]),
@@ -245,5 +262,69 @@ describe('confirmarPedido', () => {
 
     expect(mocks.db.transaction).not.toHaveBeenCalled()
     expect(mocks.notifyKitchen).not.toHaveBeenCalled()
+  })
+})
+
+describe('confirmarEntrega', () => {
+  it('requires waiter access before confirming delivery', async () => {
+    const { confirmarEntrega } = await import('@/lib/actions/pedidos')
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ status: 'novo' }]),
+      }),
+    })
+    mocks.db.update.mockReturnValueOnce({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+    })
+
+    await confirmarEntrega('pedido-1')
+
+    expect(mocks.requireAccess).toHaveBeenCalledWith('garcom')
+  })
+
+  it('rejects delivery confirmation for a non-new order', async () => {
+    const { confirmarEntrega } = await import('@/lib/actions/pedidos')
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ status: 'pronto' }]),
+      }),
+    })
+
+    await expect(confirmarEntrega('pedido-1')).rejects.toThrow(
+      'Só pedidos novos podem ser confirmados como entregues'
+    )
+
+    expect(mocks.db.update).not.toHaveBeenCalled()
+    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
+  })
+
+  it('marks a new order as delivered with delivery timestamp and emits status_atualizado', async () => {
+    const { confirmarEntrega } = await import('@/lib/actions/pedidos')
+    const set = vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(undefined),
+    })
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ status: 'novo' }]),
+      }),
+    })
+    mocks.db.update.mockReturnValueOnce({ set })
+
+    await confirmarEntrega('pedido-1')
+
+    expect(set).toHaveBeenCalledWith({
+      status: 'entregue',
+      entregueEm: expect.any(Date),
+      atualizadoEm: expect.any(Date),
+    })
+    expect(mocks.notifyKitchen).toHaveBeenCalledWith({
+      type: 'status_atualizado',
+      payload: { pedidoId: 'pedido-1', status: 'entregue' },
+    })
   })
 })
