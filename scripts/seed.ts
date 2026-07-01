@@ -7,6 +7,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../lib/db/schema-sqlite'
 import { hashPassword } from '../lib/auth/password'
 import { DEV_TEST_PASSWORD, DEV_TEST_USERS } from '../lib/dev/test-users'
+import { DEFAULT_MENU_CATEGORIES } from '../lib/menu/default-menu'
 
 const url = process.env.DATABASE_URL ?? 'file:./dev.db'
 const dbPath = url.startsWith('file:') ? url.replace('file:', '') : './dev.db'
@@ -51,99 +52,77 @@ async function seed() {
     db.insert(schema.mesa).values({ numero: i }).onConflictDoNothing().run()
   }
 
-  // Categorias
-  let pizzaId: string | undefined
-  let bebidaId: string | undefined
+  const categoryIdsByName = new Map<string, string>()
+  const existingCategories = db.select().from(schema.categoria).all()
+  const updateCategoryOrder = sqlite.prepare('UPDATE categoria SET ordem = ? WHERE id = ?')
 
-  const existingCats = db.select().from(schema.categoria).all()
-  const pizzaCat = existingCats.find((c) => c.nome === 'Pizzas')
-  const bebidaCat = existingCats.find((c) => c.nome === 'Bebidas')
+  for (const category of DEFAULT_MENU_CATEGORIES) {
+    const existingCategory = existingCategories.find((item) => item.nome === category.nome)
 
-  if (!pizzaCat) {
+    if (existingCategory) {
+      updateCategoryOrder.run(category.ordem, existingCategory.id)
+      categoryIdsByName.set(category.nome, existingCategory.id)
+      continue
+    }
+
     const id = crypto.randomUUID()
-    db.insert(schema.categoria).values({ id, nome: 'Pizzas', ordem: 0 }).run()
-    pizzaId = id
-  } else {
-    pizzaId = pizzaCat.id
+    db.insert(schema.categoria)
+      .values({ id, nome: category.nome, ordem: category.ordem })
+      .run()
+    categoryIdsByName.set(category.nome, id)
   }
 
-  if (!bebidaCat) {
-    const id = crypto.randomUUID()
-    db.insert(schema.categoria).values({ id, nome: 'Bebidas', ordem: 1 }).run()
-    bebidaId = id
-  } else {
-    bebidaId = bebidaCat.id
-  }
-
-  // Produtos
-  const pizzas = [
-    {
-      nome: 'Margherita',
-      descricao: 'Molho de tomate, mussarela fresca e manjericão',
-      preco: '38.90',
-      imagemUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&q=80',
-    },
-    {
-      nome: 'Pepperoni',
-      descricao: 'Molho de tomate, mussarela e pepperoni',
-      preco: '44.90',
-      imagemUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=400&q=80',
-    },
-    {
-      nome: 'Quatro Queijos',
-      descricao: 'Mussarela, parmesão, gorgonzola e provolone',
-      preco: '46.90',
-      imagemUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80',
-    },
-  ]
-
-  const bebidas = [
-    {
-      nome: 'Coca-Cola 350ml',
-      descricao: 'Refrigerante gelado',
-      preco: '6.00',
-      imagemUrl: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&q=80',
-    },
-    {
-      nome: 'Água com gás',
-      descricao: 'Água mineral com gás 500ml',
-      preco: '4.00',
-      imagemUrl: 'https://images.unsplash.com/photo-1564419320461-6870880221ad?w=400&q=80',
-    },
-    {
-      nome: 'Suco de laranja',
-      descricao: 'Suco natural espremido na hora',
-      preco: '8.00',
-      imagemUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&q=80',
-    },
-  ]
-
-  // Insert products only if they don't exist by name (idempotent)
-  const upsertProduto = sqlite.prepare(`
+  // Insert products only if they don't exist by name and category (idempotent).
+  const insertProduct = sqlite.prepare(`
     INSERT INTO produto (id, categoria_id, nome, descricao, preco, imagem_url, disponivel)
     VALUES (?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT DO NOTHING
   `)
-  const updateProduto = sqlite.prepare(`
-    UPDATE produto SET imagem_url = ?, descricao = ? WHERE nome = ? AND categoria_id = ?
+  const updateProduct = sqlite.prepare(`
+    UPDATE produto SET imagem_url = ?, descricao = ?, preco = ? WHERE nome = ? AND categoria_id = ?
   `)
+  const findProduct = sqlite.prepare('SELECT id FROM produto WHERE nome = ? AND categoria_id = ?')
 
-  for (const p of [...pizzas, ...bebidas]) {
-    const catId = pizzas.includes(p as typeof pizzas[0]) ? pizzaId! : bebidaId!
-    const exists = sqlite.prepare('SELECT id FROM produto WHERE nome = ? AND categoria_id = ?').get(p.nome, catId)
-    if (!exists) {
-      upsertProduto.run(crypto.randomUUID(), catId, p.nome, p.descricao ?? null, p.preco, p.imagemUrl)
-    } else {
-      updateProduto.run(p.imagemUrl, p.descricao ?? null, p.nome, catId)
+  for (const category of DEFAULT_MENU_CATEGORIES) {
+    const categoryId = categoryIdsByName.get(category.nome)
+    if (!categoryId) throw new Error(`Missing category id for ${category.nome}`)
+
+    for (const product of category.produtos) {
+      const existingProduct = findProduct.get(product.nome, categoryId)
+
+      if (!existingProduct) {
+        insertProduct.run(
+          crypto.randomUUID(),
+          categoryId,
+          product.nome,
+          product.descricao,
+          product.preco,
+          product.imagemUrl
+        )
+        continue
+      }
+
+      updateProduct.run(
+        product.imagemUrl,
+        product.descricao,
+        product.preco,
+        product.nome,
+        categoryId
+      )
     }
   }
+
+  const productCount = DEFAULT_MENU_CATEGORIES.reduce(
+    (total, category) => total + category.produtos.length,
+    0
+  )
 
   console.log('Done! Database seeded successfully.')
   console.log(`  - ${DEV_TEST_USERS.length} dev users (${DEV_TEST_USERS.map((user) => user.email).join(', ')})`)
   console.log(`  - Dev password: ${DEV_TEST_PASSWORD}`)
   console.log('  - 10 mesas')
-  console.log('  - 2 categorias (Pizzas, Bebidas)')
-  console.log('  - 6 produtos (3 pizzas, 3 bebidas)')
+  console.log(`  - ${DEFAULT_MENU_CATEGORIES.length} categorias (${DEFAULT_MENU_CATEGORIES.map((category) => category.nome).join(', ')})`)
+  console.log(`  - ${productCount} produtos`)
 
   sqlite.close()
 }
