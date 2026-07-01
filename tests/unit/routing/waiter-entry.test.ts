@@ -16,9 +16,11 @@ describe('waiter entry routing', () => {
     expect(home).not.toContain("redirect('/garcom/pedidos')")
   })
 
-  test('garcom pedidos route redirects to mesa selection', () => {
+  test('garcom pedidos route renders pending deliveries before mesa selection', () => {
     const pedidos = source('app/garcom/pedidos/page.tsx')
-    expect(pedidos).toContain("redirect('/garcom/mesas')")
+    expect(pedidos).toContain('Entregas pendentes')
+    expect(pedidos).toContain('PendingDeliveriesClient')
+    expect(pedidos).toContain('href="/garcom/mesas"')
   })
 
   test('mesa selection page links into mesa operation', () => {

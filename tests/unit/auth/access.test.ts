@@ -75,7 +75,7 @@ describe('access guard', () => {
   })
 
   it('routes single and multiple permissions to the correct destination', () => {
-    expect(redirectForAccesses(['garcom'])).toBe('/garcom/mesas')
+    expect(redirectForAccesses(['garcom'])).toBe('/garcom/pedidos')
     expect(redirectForAccesses(['cozinha'])).toBe('/cozinha/dashboard')
     expect(redirectForAccesses(['admin', 'caixa'])).toBe('/selecionar-area')
     expect(redirectForAccesses([])).toBe('/sem-acesso')

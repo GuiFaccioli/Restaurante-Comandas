@@ -9,7 +9,7 @@ const ACCESS_DESTINATION: Record<AcessoUsuario, string> = {
   admin: '/admin/menu',
   caixa: '/admin/pedidos',
   cozinha: '/cozinha/dashboard',
-  garcom: '/garcom/mesas',
+  garcom: '/garcom/pedidos',
 }
 
 export async function getCurrentAccesses(): Promise<AcessoUsuario[]> {
