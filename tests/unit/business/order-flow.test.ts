@@ -67,4 +67,36 @@ describe('pedido business flow', () => {
     expect(kitchenSource).not.toContain('useCart')
     expect(adminSource).not.toContain('useCart')
   })
+
+  test('kitchen is a visual-only board of open comandas', () => {
+    const kitchenSource = source('app/cozinha/dashboard/page.tsx')
+    const cardSource = source('components/cozinha/pedido-card.tsx')
+    const boardSource = source('components/cozinha/kanban-board.tsx')
+
+    expect(kitchenSource).toContain("eq(pedido.status, 'novo')")
+    expect(kitchenSource).not.toContain('inArray(pedido.status')
+    expect(cardSource).not.toContain('atualizarStatus')
+    expect(cardSource).not.toContain('onStatusChange')
+    expect(cardSource).not.toContain('Iniciar Preparo')
+    expect(cardSource).not.toContain('Marcar Pronto')
+    expect(cardSource).toContain('LiveElapsedTimer')
+    expect(boardSource).not.toContain('COLUMNS')
+    expect(boardSource).toContain("status === 'entregue'")
+  })
+
+  test('waiter pending deliveries page is the first waiter workflow screen', () => {
+    const accessSource = source('lib/auth/access.ts')
+    const pageSource = source('app/garcom/pedidos/page.tsx')
+    const clientSource = source('components/garcom/pending-deliveries-client.tsx')
+
+    expect(accessSource).toContain("garcom: '/garcom/pedidos'")
+    expect(pageSource).toContain("requireAccess('garcom')")
+    expect(pageSource).toContain('from(pedido)')
+    expect(pageSource).toContain("eq(pedido.status, 'novo')")
+    expect(pageSource).toContain('PendingDeliveriesClient')
+    expect(pageSource).not.toContain("redirect('/garcom/mesas')")
+    expect(clientSource).toContain('confirmarEntrega')
+    expect(clientSource).toContain('Confirmar entrega')
+    expect(clientSource).toContain("href=\"/garcom/mesas\"")
+  })
 })
