@@ -1,0 +1,46 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const root = process.cwd()
+
+function source(path: string) {
+  return readFileSync(join(root, path), 'utf8')
+}
+
+describe('admin management area', () => {
+  it('uses a right-side management sidebar with key admin destinations', () => {
+    const layout = source('app/admin/layout.tsx')
+
+    expect(layout).toContain('<aside')
+    expect(layout).toContain('/admin/relatorios')
+    expect(layout).toContain('/admin/usuarios')
+    expect(layout).toContain('/admin/configuracoes')
+  })
+
+  it('menu category creation is explicit instead of looking like search', () => {
+    const menuClient = source('app/admin/menu/client.tsx')
+
+    expect(menuClient).toContain('Nome da nova categoria')
+    expect(menuClient).toContain('Adicionar Categoria')
+  })
+
+  it('has admin reports, users, and settings pages', () => {
+    expect(existsSync(join(root, 'app/admin/relatorios/page.tsx'))).toBe(true)
+    expect(existsSync(join(root, 'app/admin/usuarios/page.tsx'))).toBe(true)
+    expect(existsSync(join(root, 'app/admin/configuracoes/page.tsx'))).toBe(true)
+  })
+
+  it('reports page is backed by existing order, item, product, and category data', () => {
+    const reportsPage = source('app/admin/relatorios/page.tsx')
+
+    expect(reportsPage).toContain("requireAccess('admin')")
+    expect(reportsPage).toContain('from(pedido)')
+    expect(reportsPage).toContain('innerJoin(itemPedido')
+    expect(reportsPage).toContain('innerJoin(produto')
+    expect(reportsPage).toContain('innerJoin(categoria')
+    expect(reportsPage).toContain('Faturamento estimado')
+    expect(reportsPage).toContain('Produtos mais vendidos')
+    expect(reportsPage).toContain('Ideias possíveis')
+  })
+})

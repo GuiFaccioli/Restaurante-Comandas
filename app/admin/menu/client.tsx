@@ -47,14 +47,21 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
             {c.nome}
           </button>
         ))}
-        <div className="flex gap-1 mt-3">
+        <div className="mt-4 space-y-2 rounded-[var(--radius)] border p-2">
+          <label htmlFor="nova-categoria" className="text-xs font-medium">
+            Nome da nova categoria
+          </label>
           <input
-            className="border rounded-[var(--radius)] px-2 py-1 text-xs w-full"
-            placeholder="Nova categoria"
+            id="nova-categoria"
+            className="w-full rounded-[var(--radius)] border px-2 py-1 text-xs"
+            placeholder="Ex.: Sobremesas"
             value={newCat}
             onChange={(e) => setNewCat(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleNewCategoria()}
           />
+          <Button size="sm" className="w-full" onClick={handleNewCategoria}>
+            <Plus className="mr-1 h-4 w-4" /> Adicionar Categoria
+          </Button>
         </div>
       </div>
 
