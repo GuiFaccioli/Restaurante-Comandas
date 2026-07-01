@@ -4,6 +4,7 @@ import { SseListener } from '@/components/cozinha/sse-listener'
 import { toast } from 'sonner'
 import type { KitchenEvent } from '@/lib/sse'
 import type { StatusPedido } from '@/lib/db/schema'
+import { formatPedidoCriadoEm } from '@/lib/date-format'
 
 type Item = { nome: string; quantidade: number; observacao?: string | null }
 
@@ -27,13 +28,11 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Pedido[] 
         mesaNumero,
         status: 'novo',
         criadoEm: new Date().toISOString(),
-        itens: itens.map((item) => {
-          const match = item.match(/^(\d+)x (.+)$/)
-          return {
-            quantidade: Number(match?.[1] ?? 1),
-            nome: match?.[2] ?? item,
-          }
-        }),
+        itens: itens.map((item) => ({
+          quantidade: item.quantidade,
+          nome: item.nome,
+          observacao: item.observacao,
+        })),
       }
 
       setPedidos((prev) => [novoPedido, ...prev])
@@ -78,7 +77,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Pedido[] 
                 <tr key={item.id} className="border-t">
                   <td className="px-4 py-3">Mesa {item.mesaNumero}</td>
                   <td className="px-4 py-3">{item.status}</td>
-                  <td className="px-4 py-3">{new Date(item.criadoEm).toLocaleString()}</td>
+                  <td className="px-4 py-3">{formatPedidoCriadoEm(item.criadoEm)}</td>
                 </tr>
               ))}
             </tbody>
