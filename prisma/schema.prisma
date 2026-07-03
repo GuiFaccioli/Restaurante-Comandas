@@ -43,6 +43,7 @@ model Pedido {
   mesaId       String       @map("mesa_id")
   status       String       @default("novo")
   criadoEm     Int          @map("criado_em")
+  entregueEm   Int?         @map("entregue_em")
   atualizadoEm Int          @map("atualizado_em")
   mesa         Mesa         @relation(fields: [mesaId], references: [id])
   itens        ItemPedido[]

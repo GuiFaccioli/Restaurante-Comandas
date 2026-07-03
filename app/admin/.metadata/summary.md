@@ -1,0 +1,1 @@
+﻿AdminShell (App Router layout, frontend-dev, 2026-07-03) — Provides admin navigation and management sidebar around admin pages. Deps: React children — nested admin pages; standard anchors — route navigation.

@@ -1,0 +1,1 @@
+﻿AppRoot (App Router root, frontend-dev, 2026-07-03) — Defines global layout, metadata, toaster, and force-dynamic role-based home redirect. Deps: `next/navigation`, `@/lib/auth/*`, `@/components/ui/sonner`.

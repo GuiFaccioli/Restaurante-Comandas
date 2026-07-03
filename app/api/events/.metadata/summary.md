@@ -1,0 +1,1 @@
+﻿EventsSseRoute (API Route Handler, backend-dev, 2026-07-03) — Streams kitchen/order events over Server-Sent Events to live operational clients. Deps: `@/lib/sse` — client registry; `@/lib/auth/access` — cozinha access; Web Streams API — SSE response.

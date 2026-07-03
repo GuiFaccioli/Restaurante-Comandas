@@ -1,0 +1,1 @@
+﻿AdminComponents (React components, frontend-dev, 2026-07-03) — Contains admin-specific editing components, currently the product form dialog. Deps: shadcn dialog/input/textarea/button/label — form UI; `@/lib/actions/produtos` — product mutations; `@/lib/money` — currency normalization/formatting.

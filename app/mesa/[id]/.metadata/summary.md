@@ -1,0 +1,1 @@
+﻿TableNumberAliasRoute (App Router page, frontend-dev, 2026-07-03) — Redirects a numeric public table URL to the canonical waiter table route. Deps: `@/lib/db/index` — table lookup; `next/navigation` — notFound/redirect; `drizzle-orm` — table number lookup.

@@ -1,0 +1,1 @@
+﻿SignInRoute (App Router page, frontend-dev, 2026-07-03) — Renders the email/password sign-in form bound to the auth server action. Deps: `@/lib/actions/auth` — sign-in action; shadcn UI inputs/buttons/labels — form controls.

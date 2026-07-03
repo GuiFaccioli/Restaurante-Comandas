@@ -1,0 +1,1 @@
+﻿PrismaSchemaReference (Database schema reference, backend-dev, 2026-07-03) — Prisma SQLite tooling schema with Pedido.entregueEm aligned to delivery reporting needs. Deps: `prisma`, SQLite datasource.

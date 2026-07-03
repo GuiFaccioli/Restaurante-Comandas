@@ -5,6 +5,8 @@ import { categoria, produto } from '@/lib/db/schema'
 import { MenuAdminClient } from './client'
 import { requireAccess } from '@/lib/auth/access'
 
+export const dynamic = 'force-dynamic'
+
 export default async function MenuAdminPage() {
   await requireAccess('admin')
   const categorias = await db.select().from(categoria).orderBy(asc(categoria.ordem))

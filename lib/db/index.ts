@@ -6,6 +6,7 @@ import { neon } from '@neondatabase/serverless'
 // Determine backend at module load time (server-side only)
 const DATABASE_URL = process.env.DATABASE_URL ?? ''
 const isSQLite = !DATABASE_URL.startsWith('postgresql')
+const isNextProductionBuild = process.env.NEXT_PHASE === 'phase-production-build'
 
 // We type db as the Neon/PG drizzle instance so all existing server actions
 // get proper TypeScript inference (column names and types are compatible at
@@ -22,8 +23,10 @@ function createDb(): DbType {
       : './dev.db'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sqlite: any = new Database(dbPath)
-    sqlite.pragma('journal_mode = WAL')
-    sqlite.pragma('foreign_keys = ON')
+    if (!isNextProductionBuild) {
+      sqlite.pragma('journal_mode = WAL')
+      sqlite.pragma('foreign_keys = ON')
+    }
     return drizzle(sqlite, { schema: sqliteSchema }) as unknown as DbType
   }
 

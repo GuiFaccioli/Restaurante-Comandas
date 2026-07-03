@@ -1,0 +1,1 @@
+﻿WaiterTableOrderRoute (App Router page + client component, frontend-dev, 2026-07-03) — Loads menu data for one active table and renders the waiter ordering UI. Deps: `@/lib/db/index` — table/menu query; `@/components/garcom/*` — menu/cart UI; `drizzle-orm` — filters/order.

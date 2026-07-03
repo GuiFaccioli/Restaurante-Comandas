@@ -1,0 +1,1 @@
+﻿AdminReportsRoute (App Router page, backend-dev, 2026-07-03) — Builds management reports from persisted orders, item snapshots, products, categories, and delivery timestamps. Deps: `@/lib/db/index`, `drizzle-orm`, `@/lib/auth/access`.

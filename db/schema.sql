@@ -42,6 +42,7 @@ CREATE TABLE pedido (
   mesa_id      UUID NOT NULL REFERENCES mesa(id),
   status       status_pedido NOT NULL DEFAULT 'novo',
   criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  entregue_em  TIMESTAMPTZ,
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -58,12 +59,30 @@ CREATE TABLE item_pedido (
 -- Usuários (espelha Neon Auth)
 -- ------------------------------------------------------------
 CREATE TYPE role_usuario AS ENUM ('garcom', 'admin');
+CREATE TYPE acesso_usuario AS ENUM ('admin', 'caixa', 'cozinha', 'garcom');
 
 CREATE TABLE usuario (
-  id     UUID PRIMARY KEY,  -- mesmo ID do Neon Auth
-  nome   TEXT NOT NULL,
-  email  TEXT NOT NULL UNIQUE,
-  role   role_usuario NOT NULL DEFAULT 'garcom'
+  id            UUID PRIMARY KEY,
+  nome          TEXT NOT NULL,
+  email         TEXT NOT NULL UNIQUE,
+  role          role_usuario NOT NULL DEFAULT 'garcom',
+  password_hash TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE usuario_acesso (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  usuario_id UUID NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+  acesso     acesso_usuario NOT NULL
+);
+
+CREATE TABLE auth_session (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  usuario_id UUID NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ------------------------------------------------------------
@@ -73,6 +92,8 @@ CREATE INDEX idx_pedido_mesa_id   ON pedido(mesa_id);
 CREATE INDEX idx_pedido_status    ON pedido(status);
 CREATE INDEX idx_item_pedido_id   ON item_pedido(pedido_id);
 CREATE INDEX idx_produto_cat      ON produto(categoria_id);
+CREATE INDEX idx_usuario_acesso_usuario_id ON usuario_acesso(usuario_id);
+CREATE INDEX idx_auth_session_usuario_id   ON auth_session(usuario_id);
 
 -- ------------------------------------------------------------
 -- Trigger: atualiza atualizado_em automaticamente

@@ -103,6 +103,25 @@ describe('Drizzle schema', () => {
     })
   })
 
+  describe('schema reference files', () => {
+    it('keeps db/schema.sql aligned with delivered timestamp and first-party auth tables', () => {
+      const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
+
+      expect(sqlSchema).toContain('entregue_em')
+      expect(sqlSchema).toContain('CREATE TYPE acesso_usuario')
+      expect(sqlSchema).toContain('CREATE TABLE usuario_acesso')
+      expect(sqlSchema).toContain('CREATE TABLE auth_session')
+      expect(sqlSchema).toContain('password_hash')
+    })
+
+    it('keeps prisma schema aligned with pedido.entregueEm for tooling', () => {
+      const prismaSchema = readFileSync(join(process.cwd(), 'prisma/schema.prisma'), 'utf8')
+
+      expect(prismaSchema).toContain('entregueEm')
+      expect(prismaSchema).toContain('@map("entregue_em")')
+    })
+  })
+
   describe('usuarioAcesso table', () => {
     it('stores explicit area permissions per user', () => {
       expect(Object.keys(usuarioAcesso)).toContain('id')

@@ -12,6 +12,17 @@ function formatMoney(value: number): string {
   }).format(value)
 }
 
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (value: number) => String(value).padStart(2, '0')
+
+  if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+  return `${pad(minutes)}:${pad(seconds)}`
+}
+
 export default async function RelatoriosAdminPage() {
   await requireAccess('admin')
 
@@ -20,6 +31,7 @@ export default async function RelatoriosAdminPage() {
       id: pedido.id,
       status: pedido.status,
       criadoEm: pedido.criadoEm,
+      entregueEm: pedido.entregueEm,
       mesaNumero: mesa.numero,
     })
     .from(pedido)
@@ -45,6 +57,13 @@ export default async function RelatoriosAdminPage() {
   )
   const totalItens = itens.reduce((total, item) => total + item.quantidade, 0)
   const ticketMedio = pedidos.length ? faturamentoEstimado / pedidos.length : 0
+  const deliveryDurations = pedidos
+    .filter((order) => order.status === 'entregue' && order.entregueEm)
+    .map((order) => order.entregueEm!.getTime() - order.criadoEm.getTime())
+    .filter((duration) => duration >= 0)
+  const averageDeliveryDuration = deliveryDurations.length
+    ? deliveryDurations.reduce((total, duration) => total + duration, 0) / deliveryDurations.length
+    : 0
 
   const produtosVendidos = new Map<string, { nome: string; quantidade: number; receita: number }>()
   const categoriasVendidas = new Map<string, { nome: string; quantidade: number; receita: number }>()
@@ -101,6 +120,15 @@ export default async function RelatoriosAdminPage() {
         <div className="rounded-[var(--radius)] border bg-card p-4">
           <p className="text-sm text-muted-foreground">Ticket médio estimado</p>
           <p className="mt-2 text-2xl font-bold">{formatMoney(ticketMedio)}</p>
+        </div>
+        <div className="rounded-[var(--radius)] border bg-card p-4">
+          <p className="text-sm text-muted-foreground">Tempo médio de entrega</p>
+          <p className="mt-2 text-2xl font-bold">
+            {deliveryDurations.length ? formatDuration(averageDeliveryDuration) : 'Sem dados'}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Pedidos entregues medidos: {deliveryDurations.length}
+          </p>
         </div>
       </section>
 

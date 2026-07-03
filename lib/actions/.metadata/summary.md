@@ -1,0 +1,1 @@
+﻿ServerActions (Server Actions, backend-dev, 2026-07-03) — Owns mutations for auth, tables, products, and orders. Deps: `drizzle-orm` — database mutations; `@/lib/auth/access` — authorization; `@/lib/sse` — live event notifications; `@/lib/db/compat` — SQLite/Postgres compatibility.

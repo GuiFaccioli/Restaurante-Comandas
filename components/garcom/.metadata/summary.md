@@ -1,0 +1,1 @@
+﻿WaiterComponents (React client components, frontend-dev, 2026-07-03) — Implements waiter menu/cart ordering and pending-delivery confirmation UI. Deps: `@/lib/store/cart` — local cart state; `@/lib/actions/pedidos` — confirm order/delivery actions; `@/lib/kitchen/order-items` — shared grouping; `@/components/cozinha/sse-listener` — live delivery queue.

@@ -1,0 +1,1 @@
+﻿SharedComponents (React components, frontend-dev, 2026-07-03) — Contains cross-area shared UI like status badges and live elapsed timers. Deps: `@/components/ui/*` — base UI primitives; `@/lib/time/elapsed` — timer formatting; `@/lib/db/schema` — status types.

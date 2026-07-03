@@ -1,0 +1,1 @@
+﻿UiPrimitives (React UI primitives, frontend-dev, 2026-07-03) — Provides shadcn/base UI primitives used across app surfaces. Deps: `@/lib/utils` — class merging; Radix/Base UI style packages — primitive behavior; Tailwind classes — styling.

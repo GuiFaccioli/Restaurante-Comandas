@@ -1,0 +1,1 @@
+﻿WaiterTablesRoute (App Router page, frontend-dev, 2026-07-03) — Shows active tables that waiters can open to build orders. Deps: `@/lib/db/index` — table query; `drizzle-orm` — active filter/order; `next/link` — route links.

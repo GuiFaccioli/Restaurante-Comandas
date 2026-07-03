@@ -1,0 +1,1 @@
+﻿KitchenDashboardRoute (App Router page, backend-dev, 2026-07-03) — Loads open comandas for the kitchen visual-only board. Deps: `@/lib/db/index` — query source; `drizzle-orm` — joins/filter; `@/components/cozinha/kanban-board` — live board component.

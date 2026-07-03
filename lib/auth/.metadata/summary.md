@@ -1,0 +1,1 @@
+﻿AuthCore (Authentication/authorization module, backend-dev, 2026-07-03) — Implements local password sessions, access routing, and provider/client placeholders. Deps: `next/headers` — cookies; `node:crypto` — token hashing; `drizzle-orm` — session/user lookups; `next/navigation` — redirects.

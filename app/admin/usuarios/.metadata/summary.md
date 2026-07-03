@@ -1,0 +1,1 @@
+﻿AdminUsersRoute (App Router page, backend-dev, 2026-07-03) — Lists users and their configured operational accesses for admin audit. Deps: `@/lib/db/index` — users/accesses; `@/lib/auth/access` — admin guard; `drizzle-orm` — joins/order.

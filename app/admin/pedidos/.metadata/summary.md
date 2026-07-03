@@ -1,0 +1,1 @@
+﻿AdminOrdersRoute (App Router page + live client component, frontend-dev, 2026-07-03) — Shows persisted orders for cashier/admin review and updates rows from SSE events. Deps: `@/lib/auth/access` — requires caixa access; `@/lib/db/index` — persisted order queries; `@/components/cozinha/sse-listener` — live updates; `@/lib/date-format` — deterministic date formatting.

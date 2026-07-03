@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+﻿import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -42,5 +42,16 @@ describe('admin management area', () => {
     expect(reportsPage).toContain('Faturamento estimado')
     expect(reportsPage).toContain('Produtos mais vendidos')
     expect(reportsPage).toContain('Ideias possíveis')
+  })
+
+  it('reports page derives delivery timing metrics from delivered orders only', () => {
+    const reportsPage = source('app/admin/relatorios/page.tsx')
+
+    expect(reportsPage).toContain('entregueEm: pedido.entregueEm')
+    expect(reportsPage).toContain('deliveryDurations')
+    expect(reportsPage).toContain("order.status === 'entregue'")
+    expect(reportsPage).toContain('order.entregueEm')
+    expect(reportsPage).toContain('Tempo médio de entrega')
+    expect(reportsPage).toContain('Pedidos entregues medidos')
   })
 })

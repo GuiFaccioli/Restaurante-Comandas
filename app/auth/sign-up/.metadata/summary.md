@@ -1,0 +1,1 @@
+﻿SignUpRoute (App Router page, frontend-dev, 2026-07-03) — Renders owner/admin account creation form. Deps: `@/lib/actions/auth` — owner sign-up action; shadcn UI inputs/buttons/labels — form controls.

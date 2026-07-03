@@ -1,0 +1,1 @@
+﻿SharedLib (Utilities, backend-dev, 2026-07-03) — Contains small shared utilities for class names, money, dates, and SSE. Deps: `clsx`/`tailwind-merge` — class merging; `Intl` — pt-BR date/money formatting; Web Streams — SSE encoding.

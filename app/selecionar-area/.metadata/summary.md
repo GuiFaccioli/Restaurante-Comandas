@@ -1,0 +1,1 @@
+﻿AreaSelectionRoute (App Router page, frontend-dev, 2026-07-03) — Lets multi-access users choose the operational area with force-dynamic cookie-backed routing. Deps: `@/lib/auth/access`, `next/navigation`.

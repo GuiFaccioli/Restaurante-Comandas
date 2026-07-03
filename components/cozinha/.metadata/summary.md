@@ -1,0 +1,1 @@
+﻿KitchenComponents (React client components, frontend-dev, 2026-07-03) — Renders live kitchen comandas and listens for SSE updates. Deps: `@/lib/sse` — event types; `@/lib/kitchen/order-items` — item grouping; `@/components/live-elapsed-timer` — open-order timer.

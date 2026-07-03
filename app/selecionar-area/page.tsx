@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { getCurrentAccesses, redirectForAccesses } from '@/lib/auth/access'
 import type { AcessoUsuario } from '@/lib/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 const AREA_LABEL: Record<AcessoUsuario, string> = {
   admin: 'Administração',
   caixa: 'Caixa',

@@ -1,0 +1,1 @@
+﻿DevSeedScript (Development script, backend-dev, 2026-07-03) — Seeds the local SQLite database with dev users, tables, categories, and products. Deps: `better-sqlite3` — local DB; `drizzle-orm/better-sqlite3` — inserts; `@/lib/dev/test-users` and `@/lib/menu/default-menu` — fixtures.

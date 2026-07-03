@@ -1,0 +1,1 @@
+﻿DatabaseSchema (Database module, backend-dev, 2026-07-03) — Defines Drizzle schemas and DB bootstrap, skipping mutable SQLite pragmas during production build workers. Deps: `drizzle-orm`, `better-sqlite3`, `@neondatabase/serverless`.

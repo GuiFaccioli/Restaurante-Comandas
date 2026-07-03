@@ -1,0 +1,1 @@
+﻿AdminTablesRoute (App Router page + client component, frontend-dev, 2026-07-03) — Loads tables and lets admins create/toggle active restaurant tables through a force-dynamic guarded page. Deps: `@/lib/db/index`, `@/lib/actions/mesas`, `sonner`.

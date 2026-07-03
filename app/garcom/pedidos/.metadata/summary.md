@@ -1,0 +1,1 @@
+﻿WaiterPendingDeliveriesRoute (App Router page, frontend-dev, 2026-07-03) — Shows all open orders that waiters need to deliver and confirm. Deps: `@/lib/auth/access` — garcom guard; `@/lib/db/index` — open order query; `@/components/garcom/pending-deliveries-client` — delivery queue.

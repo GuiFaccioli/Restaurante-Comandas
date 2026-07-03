@@ -1,0 +1,1 @@
+﻿AdminMenuRoute (App Router page + client component, frontend-dev, 2026-07-03) — Loads categories/products and renders force-dynamic admin menu CRUD interactions. Deps: `@/lib/db/index`, `drizzle-orm`, `@/lib/actions/produtos`, `sonner`.

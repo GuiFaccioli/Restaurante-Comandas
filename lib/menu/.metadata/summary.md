@@ -1,0 +1,1 @@
+﻿DefaultMenu (Seed data module, backend-dev, 2026-07-03) — Defines default categories and products seeded into the local development database. Deps: Plain TypeScript only; consumed by `scripts/seed.ts`.
