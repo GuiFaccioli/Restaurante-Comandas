@@ -5,6 +5,7 @@ import { mesa, categoria, produto } from '@/lib/db/schema'
 import { notFound } from 'next/navigation'
 import { MesaPageClient } from './client'
 import { requireAccess } from '@/lib/auth/access'
+import { getTenantMesaOrders } from '@/lib/orders/queries'
 
 export default async function MesaPage({ params }: { params: Promise<{ id: string }> }) {
   const { tenantId } = await requireAccess('garcom')
@@ -30,12 +31,14 @@ export default async function MesaPage({ params }: { params: Promise<{ id: strin
     ...c,
     produtos: produtos.filter((p) => p.categoriaId === c.id),
   }))
+  const initialPedidos = await getTenantMesaOrders({ tenantId, mesaId: m.id })
 
   return (
     <MesaPageClient
       mesaNumero={m.numero}
       mesaId={m.id}
       categorias={categoriaComProdutos}
+      initialPedidos={initialPedidos}
     />
   )
 }
