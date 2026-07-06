@@ -1,54 +1,104 @@
 'use client'
-import { useCallback, useState } from 'react'
-import { SseListener } from '@/components/cozinha/sse-listener'
+
+import { FormEvent, useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import type { KitchenEvent } from '@/lib/sse'
-import type { StatusPedido } from '@/lib/db/schema'
+
+import { SseListener } from '@/components/cozinha/sse-listener'
+import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import { formatPedidoCriadoEm } from '@/lib/date-format'
+import { registrarPagamentoPedido } from '@/lib/actions/pedidos'
+import type { FormaPagamento } from '@/lib/db/schema'
+import type { KitchenEvent } from '@/lib/sse'
+import type { CashierOrder } from '@/lib/orders/queries'
 
-type Item = { nome: string; quantidade: number; observacao?: string | null }
-
-type Pedido = {
-  id: string
-  status: StatusPedido
-  criadoEm: string
-  mesaNumero: number
-  itens: Item[]
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value)
 }
 
-export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Pedido[] }) {
+const paymentMethods: Array<{ value: FormaPagamento; label: string }> = [
+  { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'pix', label: 'Pix' },
+  { value: 'credito', label: 'Crédito' },
+  { value: 'debito', label: 'Débito' },
+  { value: 'outro', label: 'Outro' },
+]
+
+export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOrder[] }) {
   const [pedidos, setPedidos] = useState(initialPedidos)
+  const [expandedId, setExpandedId] = useState<string | null>(initialPedidos[0]?.id ?? null)
+  const [paymentFormPedidoId, setPaymentFormPedidoId] = useState<string | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<FormaPagamento>('pix')
+  const [paymentAmount, setPaymentAmount] = useState('')
   const [lastEvent, setLastEvent] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  const refreshPedidos = useCallback(async () => {
+    const response = await fetch('/api/caixa/pedidos', { cache: 'no-store' })
+    if (!response.ok) return
+
+    const data = (await response.json()) as { pedidos: CashierOrder[] }
+    setPedidos(data.pedidos)
+    setExpandedId((current) => {
+      if (current && data.pedidos.some((pedido) => pedido.id === current)) return current
+      return data.pedidos[0]?.id ?? null
+    })
+    setPaymentFormPedidoId((current) => {
+      if (current && data.pedidos.some((pedido) => pedido.id === current)) return current
+      return null
+    })
+  }, [])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void refreshPedidos()
+    }, 5000)
+
+    return () => window.clearInterval(interval)
+  }, [refreshPedidos])
 
   const handleEvent = useCallback((event: KitchenEvent) => {
     if (event.type === 'novo_pedido') {
-      const { pedidoId, mesaNumero, itens } = event.payload
-      const novoPedido: Pedido = {
-        id: pedidoId,
-        mesaNumero,
-        status: 'novo',
-        criadoEm: new Date().toISOString(),
-        itens: itens.map((item) => ({
-          quantidade: item.quantidade,
-          nome: item.nome,
-          observacao: item.observacao,
-        })),
-      }
-
-      setPedidos((prev) => [novoPedido, ...prev])
-      const message = `Pedido recebido da Mesa ${mesaNumero}`
-      setLastEvent(message)
-      toast.info(message)
+      setLastEvent(`Pedido recebido da Mesa ${event.payload.mesaNumero}`)
+      toast.info(`Pedido recebido da Mesa ${event.payload.mesaNumero}`)
+      void refreshPedidos()
     }
 
     if (event.type === 'status_atualizado') {
-      const { pedidoId, status } = event.payload
-      setPedidos((prev) => prev.map((p) => (p.id === pedidoId ? { ...p, status: status as StatusPedido } : p)))
-      const message = `Pedido ${pedidoId.slice(0, 8)} atualizado para ${status}`
-      setLastEvent(message)
-      toast.info(message)
+      setLastEvent(`Pedido ${event.payload.pedidoId.slice(0, 8)} atualizado`)
+      toast.info(`Pedido atualizado para ${event.payload.status}`)
+      void refreshPedidos()
     }
-  }, [])
+  }, [refreshPedidos])
+
+  function openPaymentForm(pedido: CashierOrder) {
+    setExpandedId(pedido.id)
+    setPaymentFormPedidoId(pedido.id)
+    setPaymentAmount(pedido.total.toFixed(2).replace('.', ','))
+  }
+
+  function handlePaymentSubmit(event: FormEvent<HTMLFormElement>, pedido: CashierOrder) {
+    event.preventDefault()
+
+    startTransition(async () => {
+      try {
+        await registrarPagamentoPedido({
+          pedidoId: pedido.id,
+          formaPagamento: paymentMethod,
+          valor: paymentAmount,
+        })
+        toast.success('Pagamento registrado.')
+        setPaymentFormPedidoId(null)
+        await refreshPedidos()
+      } catch (error) {
+        console.error('Failed to register payment', error)
+        toast.error('Não foi possível registrar o pagamento.')
+      }
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -63,25 +113,111 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Pedido[] 
       {pedidos.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum pedido encontrado.</p>
       ) : (
-        <div className="rounded-md border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left">
-              <tr>
-                <th className="px-4 py-3 font-medium">Mesa</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Criado em</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pedidos.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="px-4 py-3">Mesa {item.mesaNumero}</td>
-                  <td className="px-4 py-3">{item.status}</td>
-                  <td className="px-4 py-3">{formatPedidoCriadoEm(item.criadoEm)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid gap-3">
+          {pedidos.map((pedido) => {
+            const expanded = expandedId === pedido.id
+            const paymentFormOpen = paymentFormPedidoId === pedido.id
+            const canPay = pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente'
+
+            return (
+              <article key={pedido.id} className="rounded-[var(--radius)] border bg-card p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-semibold">Mesa {pedido.mesaNumero}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Pedido {pedido.id.slice(0, 8)} · {formatPedidoCriadoEm(pedido.criadoEm)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <StatusBadge status={pedido.status} />
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
+                      {pedido.pagamentoStatus === 'pago' ? 'Pago' : 'Pagamento pendente'}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExpandedId(expanded ? null : pedido.id)}
+                    >
+                      {expanded ? 'Fechar itens' : 'Abrir pedido'}
+                    </Button>
+                  </div>
+                </div>
+
+                {expanded && (
+                  <div className="space-y-3">
+                    <div>
+                      <h2 className="text-sm font-semibold">Itens do pedido</h2>
+                      <ul className="mt-2 space-y-1 text-sm">
+                        {pedido.itens.map((item, index) => (
+                          <li key={`${pedido.id}-${item.nome}-${index}`} className="flex justify-between gap-3">
+                            <span>
+                              {item.quantidade}x {item.nome}
+                              {item.observacao ? ` · ${item.observacao}` : ''}
+                            </span>
+                            <span>{formatCurrency(item.quantidade * Number(item.precoUnitario))}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t pt-3 font-semibold">
+                      <span>Total</span>
+                      <span>{formatCurrency(pedido.total)}</span>
+                    </div>
+
+                    {canPay && !paymentFormOpen && (
+                      <Button type="button" variant="success" onClick={() => openPaymentForm(pedido)}>
+                        Registrar pagamento
+                      </Button>
+                    )}
+
+                    {paymentFormOpen && (
+                      <form className="grid gap-3 rounded-md border p-3" onSubmit={(event) => handlePaymentSubmit(event, pedido)}>
+                        <label className="grid gap-1 text-sm">
+                          Forma de pagamento
+                          <select
+                            value={paymentMethod}
+                            onChange={(event) => setPaymentMethod(event.target.value as FormaPagamento)}
+                            className="h-10 rounded-md border border-input bg-background px-3"
+                          >
+                            {paymentMethods.map((method) => (
+                              <option key={method.value} value={method.value}>
+                                {method.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-sm">
+                          Valor recebido
+                          <input
+                            value={paymentAmount}
+                            onChange={(event) => setPaymentAmount(event.target.value)}
+                            className="h-10 rounded-md border border-input bg-background px-3"
+                            inputMode="decimal"
+                            required
+                          />
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="submit" variant="success" disabled={isPending}>
+                            {isPending ? 'Registrando...' : 'Registrar pagamento'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => setPaymentFormPedidoId(null)}
+                            disabled={isPending}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
+              </article>
+            )
+          })}
         </div>
       )}
     </div>
