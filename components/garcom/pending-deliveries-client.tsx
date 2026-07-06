@@ -45,7 +45,7 @@ function PendingDeliveryCard({
             Aberto há <LiveElapsedTimer startedAt={pedido.criadoEm} />
           </p>
         </div>
-        <Button onClick={handleConfirm} disabled={pending}>
+        <Button variant="success" onClick={handleConfirm} disabled={pending}>
           {pending ? 'Confirmando...' : 'Confirmar entrega'}
         </Button>
       </div>
@@ -111,7 +111,7 @@ export function PendingDeliveriesClient({ initialPedidos }: { initialPedidos: Pe
           <p className="text-sm text-muted-foreground">
             Quando a cozinha chamar na campainha, os pedidos abertos aparecem aqui.
           </p>
-          <Link href="/garcom/mesas" className={cn(buttonVariants())}>
+          <Link href="/garcom/mesas" className={cn(buttonVariants({ variant: 'success' }))}>
             Abrir mesas
           </Link>
         </div>

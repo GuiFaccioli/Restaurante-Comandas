@@ -12,6 +12,7 @@ export function CartFab({ onClick }: { onClick: () => void }) {
   return (
     <Button
       size="lg"
+      variant="success"
       className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 p-0"
       onClick={onClick}
     >

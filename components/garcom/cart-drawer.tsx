@@ -75,7 +75,7 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
                     <Minus className="h-3 w-3" />
                   </Button>
                   <span className="w-6 text-center text-sm">{item.quantidade}</span>
-                  <Button size="sm" className="h-7 w-7 p-0"
+                  <Button size="sm" variant="success" className="h-7 w-7 p-0"
                     onClick={() => addItem({ produtoId: item.produtoId, nome: item.nome, preco: item.preco })}>
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -93,9 +93,12 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
             <span>R$ {total.toFixed(2)}</span>
           </div>
           {error && <p className="px-4 text-sm text-destructive">{error}</p>}
-          <DrawerFooter>
-            <Button size="lg" className="h-12 w-full" onClick={handleConfirmar} disabled={sending || items.length === 0}>
+          <DrawerFooter className="gap-2">
+            <Button size="lg" variant="success" className="h-12 w-full" onClick={handleConfirmar} disabled={sending || items.length === 0}>
               {sending ? 'Confirmando...' : 'Confirmar pedido'}
+            </Button>
+            <Button size="lg" variant="destructive" className="h-12 w-full" onClick={onClose} disabled={sending}>
+              Cancelar
             </Button>
           </DrawerFooter>
         </DrawerContent>
