@@ -1,4 +1,4 @@
----
+﻿---
 title: Changelog do Wiki
 type: meta
 updated: 2026-07-03
@@ -6,6 +6,18 @@ tags: [meta, histÃƒÂ³rico]
 ---
 
 # Changelog
+
+## 2026-07-06 — Fundação multi-tenant, caixa e limpeza de dependências
+
+- Adicionado: `tenant`, `tenant_user`, `auth_session.selected_tenant_id` e `tenant_id` nas tabelas operacionais.
+- Atualizado: autenticação first-party para selecionar empresa quando o usuário pertence a múltiplos tenants.
+- Adicionado: `/selecionar-empresa`.
+- Atualizado: ações de mesas, produtos/categorias e pedidos para usarem `tenantId` do `requireAccess`.
+- Adicionado: `pagamento_pedido` e `registrarPagamentoPedido` para caixa v1 com pagamento externo.
+- Removido: Neon Auth legado, Prisma tooling e `next-pwa`; Neon Postgres foi mantido.
+- Atualizado: build para `next build`.
+- Verificado: `npm test -- --maxWorkers=1`, `npm run build` e `npm audit --json`.
+- Resultado do audit: 0 high/critical; 6 moderadas restantes em Next/PostCSS e DrizzleKit/esbuild, sem aplicar downgrades inseguros.
 
 ## 2026-07-03 — Build de produção estabilizado
 
@@ -82,3 +94,4 @@ tags: [meta, histÃƒÂ³rico]
 - DecisÃ£o: `requireAccess(access)` protege pÃ¡ginas, Route Handlers e Server Actions.
 - DecisÃ£o: `/cozinha/dashboard` e `/api/events` exigem acesso `cozinha`.
 - DecisÃ£o: pagamentos sÃ£o apenas registros externos; o app nÃ£o processa pagamentos.
+

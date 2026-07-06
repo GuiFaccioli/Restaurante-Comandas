@@ -14,6 +14,7 @@ describe('auth API route', () => {
 
     expect(route).not.toContain('@/lib/auth/server')
     expect(route).not.toContain('auth.handler')
+    expect(route).not.toContain('@neondatabase/auth')
     expect(route).toContain('First-party auth uses Server Actions')
   })
 })

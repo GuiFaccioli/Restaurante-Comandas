@@ -17,9 +17,23 @@ sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
 
 const db = drizzle(sqlite, { schema })
+const DEV_TENANT_ID = '00000000-0000-4000-8000-000000000001'
 
 async function seed() {
   console.log('Seeding dev database at', dbPath, '...')
+
+  sqlite
+    .prepare(
+      `
+      INSERT INTO tenant (id, nome, slug, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?)
+      ON CONFLICT(slug) DO UPDATE SET
+        nome = excluded.nome,
+        status = excluded.status,
+        updated_at = excluded.updated_at
+    `
+    )
+    .run(DEV_TENANT_ID, 'Restaurante Dev', 'restaurante-dev', Date.now(), Date.now())
 
   const upsertUser = sqlite.prepare(`
     INSERT INTO usuario (id, nome, email, role, password_hash, created_at, updated_at)
@@ -31,68 +45,80 @@ async function seed() {
       updated_at = excluded.updated_at
   `)
   const deleteAccesses = sqlite.prepare('DELETE FROM usuario_acesso WHERE usuario_id = ?')
+  const upsertTenantUser = sqlite.prepare(`
+    INSERT INTO tenant_user (id, tenant_id, usuario_id, status, created_at, updated_at)
+    VALUES (?, ?, ?, 'active', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      status = excluded.status,
+      updated_at = excluded.updated_at
+  `)
   const insertAccess = sqlite.prepare(`
-    INSERT INTO usuario_acesso (id, usuario_id, acesso)
-    VALUES (?, ?, ?)
+    INSERT INTO usuario_acesso (id, tenant_user_id, usuario_id, acesso)
+    VALUES (?, ?, ?, ?)
   `)
   const passwordHash = await hashPassword(DEV_TEST_PASSWORD)
   const now = Date.now()
 
   for (const user of DEV_TEST_USERS) {
+    const tenantUserId = `tu-${user.id}`
     upsertUser.run(user.id, user.name, user.email, user.access, passwordHash, now, now)
+    upsertTenantUser.run(tenantUserId, DEV_TENANT_ID, user.id, now, now)
     deleteAccesses.run(user.id)
 
     for (const access of user.accesses) {
-      insertAccess.run(crypto.randomUUID(), user.id, access)
+      insertAccess.run(crypto.randomUUID(), tenantUserId, user.id, access)
     }
   }
 
   // 10 mesas
   for (let i = 1; i <= 10; i++) {
-    db.insert(schema.mesa).values({ numero: i }).onConflictDoNothing().run()
+    db.insert(schema.mesa).values({ tenantId: DEV_TENANT_ID, numero: i }).onConflictDoNothing().run()
   }
 
   const categoryIdsByName = new Map<string, string>()
   const existingCategories = db.select().from(schema.categoria).all()
-  const updateCategoryOrder = sqlite.prepare('UPDATE categoria SET ordem = ? WHERE id = ?')
+  const updateCategoryOrder = sqlite.prepare('UPDATE categoria SET ordem = ? WHERE id = ? AND tenant_id = ?')
 
   for (const category of DEFAULT_MENU_CATEGORIES) {
-    const existingCategory = existingCategories.find((item) => item.nome === category.nome)
+    const existingCategory = existingCategories.find(
+      (item) => item.nome === category.nome && item.tenantId === DEV_TENANT_ID
+    )
 
     if (existingCategory) {
-      updateCategoryOrder.run(category.ordem, existingCategory.id)
+      updateCategoryOrder.run(category.ordem, existingCategory.id, DEV_TENANT_ID)
       categoryIdsByName.set(category.nome, existingCategory.id)
       continue
     }
 
     const id = crypto.randomUUID()
     db.insert(schema.categoria)
-      .values({ id, nome: category.nome, ordem: category.ordem })
+      .values({ id, tenantId: DEV_TENANT_ID, nome: category.nome, ordem: category.ordem })
       .run()
     categoryIdsByName.set(category.nome, id)
   }
 
   // Insert products only if they don't exist by name and category (idempotent).
   const insertProduct = sqlite.prepare(`
-    INSERT INTO produto (id, categoria_id, nome, descricao, preco, imagem_url, disponivel)
-    VALUES (?, ?, ?, ?, ?, ?, 1)
+    INSERT INTO produto (id, tenant_id, categoria_id, nome, descricao, preco, imagem_url, disponivel)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT DO NOTHING
   `)
   const updateProduct = sqlite.prepare(`
-    UPDATE produto SET imagem_url = ?, descricao = ?, preco = ? WHERE nome = ? AND categoria_id = ?
+    UPDATE produto SET imagem_url = ?, descricao = ?, preco = ? WHERE nome = ? AND categoria_id = ? AND tenant_id = ?
   `)
-  const findProduct = sqlite.prepare('SELECT id FROM produto WHERE nome = ? AND categoria_id = ?')
+  const findProduct = sqlite.prepare('SELECT id FROM produto WHERE nome = ? AND categoria_id = ? AND tenant_id = ?')
 
   for (const category of DEFAULT_MENU_CATEGORIES) {
     const categoryId = categoryIdsByName.get(category.nome)
     if (!categoryId) throw new Error(`Missing category id for ${category.nome}`)
 
     for (const product of category.produtos) {
-      const existingProduct = findProduct.get(product.nome, categoryId)
+      const existingProduct = findProduct.get(product.nome, categoryId, DEV_TENANT_ID)
 
       if (!existingProduct) {
         insertProduct.run(
           crypto.randomUUID(),
+          DEV_TENANT_ID,
           categoryId,
           product.nome,
           product.descricao,
@@ -107,7 +133,8 @@ async function seed() {
         product.descricao,
         product.preco,
         product.nome,
-        categoryId
+        categoryId,
+        DEV_TENANT_ID
       )
     }
   }

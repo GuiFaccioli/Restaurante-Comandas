@@ -137,11 +137,14 @@ describe('Drizzle schema', () => {
       expect(sqlSchema).toContain('status_pagamento')
     })
 
-    it('keeps prisma schema aligned with pedido.entregueEm for tooling', () => {
-      const prismaSchema = readFileSync(join(process.cwd(), 'prisma/schema.prisma'), 'utf8')
+    it('uses Drizzle and SQL references as schema sources of truth after Prisma removal', () => {
+      const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
 
-      expect(prismaSchema).toContain('entregueEm')
-      expect(prismaSchema).toContain('@map("entregue_em")')
+      expect(packageJson.dependencies).not.toHaveProperty('@prisma/client')
+      expect(packageJson.devDependencies).not.toHaveProperty('prisma')
+      expect(packageJson.scripts).not.toHaveProperty('prisma:generate')
+      expect(packageJson.scripts).not.toHaveProperty('prisma:studio')
+      expect(packageJson.scripts).not.toHaveProperty('prisma:validate')
     })
   })
 

@@ -1,8 +1,15 @@
-# Wiki Index
+﻿# Wiki Index
 
-> ÃƒÅ¡ltima atualizaÃƒÂ§ÃƒÂ£o: 2026-06-20
-> Total de pÃƒÂ¡ginas: 16
+> Última atualização: 2026-07-06
+> Total de páginas: 16
 
+## Estado atual do projeto
+
+Sistema de gestão de comandas para restaurante/pizzaria. A stack operacional atual é **Next.js 16 + Neon Postgres + Drizzle + autenticação first-party tenant-aware + SSE + Tailwind/Shadcn-style UI**.
+
+Neon continua sendo a fundação do banco de produção. Neon Auth, Prisma tooling e next-pwa foram removidos como dependências ativas. O projeto agora caminha para multi-tenant real: um usuário pode pertencer a múltiplos restaurantes, a sessão guarda `selectedTenantId`, e as ações operacionais usam esse tenant para escopo de dados.
+
+Caixa v1 registra pagamentos externos por pedido entregue; o app não processa pagamento real.
 ## SumÃƒÂ¡rio Executivo
 
 Sistema de gestÃƒÂ£o de pedidos para pizzaria: garÃƒÂ§om (PWA mobile) Ã¢â€ â€™ cozinha (display PC). **Stack definida: Next.js 16 + Neon (DB + Auth) + Prisma + SSE + Shadcn/UI + Tailwind + Zustand + PWA.** Supabase descartado em favor do Neon. Real-time via SSE (Route Handler) jÃƒÂ¡ que Neon nÃƒÂ£o tem Realtime nativo. PizzaQL ÃƒÂ© referÃƒÂªncia arquitetural com stack completamente atualizada.
@@ -25,7 +32,7 @@ Sistema de gestÃƒÂ£o de pedidos para pizzaria: garÃƒÂ§om (PWA mobile) Ã
 | GraphQL Code-First (Nexus+Prisma) | Schema GraphQL gerado de TypeScript (ref. PizzaQL, serÃƒÂ¡ substituÃƒÂ­do) | [nexus-prisma-graphql](concepts/nexus-prisma-graphql.md) |
 | App Router | Roteamento file-system do Next.js Ã¢â‚¬â€ padrÃƒÂ£o recomendado | [app-router](concepts/app-router.md) |
 | Server Actions | Mutations sem API layer Ã¢â‚¬â€ substitui GraphQL/REST | [server-actions](concepts/server-actions.md) |
-| Neon Auth | Auth integrado ao Neon via `@neondatabase/auth` | [neon-auth](concepts/neon-auth.md) |
+| Neon Auth (legado) | Referência histórica; auth ativa é first-party tenant-aware | [neon-auth](concepts/neon-auth.md) |
 | Geist Design System | Sistema de design da Vercel Ã¢â‚¬â€ tokens, cores, tipografia | [geist-design-system](concepts/geist-design-system.md) |
 
 ## Fontes Ingeridas
@@ -72,7 +79,9 @@ Sistema de gestÃƒÂ£o de pedidos para pizzaria: garÃƒÂ§om (PWA mobile) Ã
 - Fonte de verdade operacional do app segue sendo Drizzle: `lib/db/schema.ts` e `lib/db/schema-sqlite.ts`.
 ## Atualização 2026-07-03 — Build de produção validado
 
-- `npm run build` agora usa `next build --webpack`, alinhado ao uso de `next-pwa`.
+- Histórico: build usou `next build --webpack` enquanto `next-pwa` estava ativo; em 2026-07-06 voltou para `next build` após remover `next-pwa`.
 - Páginas que leem cookies foram marcadas como `force-dynamic` para evitar tentativa de geração estática.
 - A rota legada `/api/auth/[...path]` foi desativada como proxy Neon Auth; autenticação atual é first-party via Server Actions.
 - Bootstrap SQLite ignora pragmas mutáveis durante `phase-production-build` para evitar lock entre workers do Next.
+
+

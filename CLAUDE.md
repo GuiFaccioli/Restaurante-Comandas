@@ -1,4 +1,4 @@
-# Project Wiki ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â InstruÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes para Claude
+﻿# Project Wiki ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â InstruÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes para Claude
 
 ## Carregamento obrigatÃƒÆ’Ã‚Â³rio
 
@@ -88,6 +88,6 @@ wiki/
 | [lib/menu/](lib/menu/) | Defines default categories and products seeded into the local development database. | backend-dev | 2026-07-03 |
 | [lib/store/](lib/store/) | Holds waiter cart items, quantities, observations, and total before order confirmation. | frontend-dev | 2026-07-03 |
 | [lib/time/](lib/time/) | Formats elapsed durations for open orders. | backend-dev | 2026-07-03 |
-| [prisma/](prisma/) | Contains a Prisma schema for SQLite tooling/studio. | backend-dev | 2026-07-03 |
 | [scripts/](scripts/) | Seeds the local SQLite database with dev users, tables, categories, and products. | backend-dev | 2026-07-03 |
 <!-- /context-sync -->
+
