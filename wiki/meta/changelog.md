@@ -7,6 +7,15 @@ tags: [meta, histÃƒÂ³rico]
 
 # Changelog
 
+## 2026-07-06 — UX operacional mobile, garçom e caixa
+
+- Adicionado: login lembrando apenas o último e-mail no aparelho, sem persistir senha manualmente.
+- Atualizado: botões operacionais positivos com variante verde `success` e ações de cancelamento em vermelho.
+- Adicionado: monitor de pedidos dentro da tela da mesa do garçom, com link para voltar às mesas e polling seguro de 5 segundos.
+- Atualizado: `/admin/pedidos` para abrir pedidos, mostrar mesa, itens, totais, status de pagamento e registrar pagamento externo.
+- Adicionado: endpoints JSON leves para atualização automática de pedidos por mesa e caixa.
+- Documentado: regra mobile/no-F5 em `docs/OPERATIONS.md`.
+
 ## 2026-07-06 — Fundação multi-tenant, caixa e limpeza de dependências
 
 - Adicionado: `tenant`, `tenant_user`, `auth_session.selected_tenant_id` e `tenant_id` nas tabelas operacionais.

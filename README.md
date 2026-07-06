@@ -1,4 +1,4 @@
-# Restaurante Comandas
+﻿# Restaurante Comandas
 
 Sistema de comandas para restaurante/pizzaria com fluxo de garçom, cozinha, administração, caixa e relatórios.
 
@@ -12,7 +12,7 @@ Sistema de comandas para restaurante/pizzaria com fluxo de garçom, cozinha, adm
 - Autenticação first-party com sessão HTTP-only
 - Multi-tenant por `tenant` + `tenantUser` + `authSession.selectedTenantId`
 - Server Actions para mutações
-- SSE para atualização da cozinha
+- SSE e polling seguro de 5s para telas operacionais sem depender de F5
 - Vitest para testes unitários
 
 ## Decisões importantes
@@ -22,6 +22,13 @@ Sistema de comandas para restaurante/pizzaria com fluxo de garçom, cozinha, adm
 - Prisma tooling foi removido; Drizzle é a fonte de verdade.
 - `next-pwa` foi removido para eliminar a cadeia vulnerável Workbox/serialize-javascript.
 - Caixa v1 registra pagamento externo; o app não processa gateway, PIX ou cartão.
+- Login lembra somente o e-mail no aparelho; senha fica com o gerenciador do navegador.
+- Telas de pedidos/mesa/caixa devem atualizar sem limpar carrinho, drawer, modal ou formulários.
+
+## Operação
+
+Veja `docs/OPERATIONS.md` para a regra mobile/no-F5, login lembrado com e-mail
+somente, monitoramento de pedidos por mesa e fluxo de caixa.
 
 ## Comandos
 
@@ -40,3 +47,4 @@ npm run db:seed
 ```
 
 O seed cria um tenant local `Restaurante Dev`, usuários de teste e dados iniciais de mesas/cardápio.
+

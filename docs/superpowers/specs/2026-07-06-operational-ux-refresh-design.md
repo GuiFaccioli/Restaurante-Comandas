@@ -115,6 +115,13 @@ Do not rely on color alone; labels must remain explicit.
 
 Document that operational screens are mobile-first and must not depend on browser refresh. Any future screen that shows live orders, kitchen status, waiter deliveries, or cashier amounts must either subscribe to live events or poll safely.
 
+## Implementation Notes
+
+- Login stores only `restaurante:last-login-email`; password persistence remains delegated to the browser password manager.
+- Waiter table order monitoring uses `/api/garcom/mesa/[id]/pedidos` with 5-second polling and does not reset the cart drawer state.
+- Cashier order monitoring uses `/api/caixa/pedidos` with 5-second polling and preserves expanded orders/payment form state.
+- Shared order totals live in `lib/orders/totals.ts`; shared tenant-scoped order view models live in `lib/orders/queries.ts`.
+
 ## Testing Requirements
 
 - Login remember-email test or source-level test.

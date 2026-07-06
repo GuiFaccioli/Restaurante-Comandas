@@ -61,7 +61,8 @@ describe('pedido business flow', () => {
     const adminSource = source(adminPedidosPath)
 
     expect(kitchenSource).toContain('from(pedido)')
-    expect(adminSource).toContain('from(pedido)')
+    expect(adminSource).toContain('getCashierOrders')
+    expect(source('lib/orders/queries.ts')).toContain('from(pedido)')
     expect(adminClient).toContain('SseListener')
     expect(adminClient).toContain('Pedido recebido da Mesa')
     expect(kitchenSource).not.toContain('useCart')
