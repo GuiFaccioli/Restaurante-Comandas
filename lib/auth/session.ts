@@ -15,7 +15,10 @@ async function cookieStore() {
   return cookies()
 }
 
-export async function createAuthSession(usuarioId: string): Promise<void> {
+export async function createAuthSession(
+  usuarioId: string,
+  selectedTenantId: string | null = null
+): Promise<void> {
   const token = randomBytes(32).toString('hex')
   const tokenHash = hashToken(token)
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
@@ -23,7 +26,7 @@ export async function createAuthSession(usuarioId: string): Promise<void> {
   await db.insert(authSession).values({
     id: crypto.randomUUID(),
     usuarioId,
-    selectedTenantId: null,
+    selectedTenantId,
     tokenHash,
     expiresAt,
     createdAt: new Date(),
@@ -43,6 +46,7 @@ export async function getCurrentSession(): Promise<{
   usuarioId: string
   email: string
   nome: string
+  selectedTenantId: string | null
 } | null> {
   const store = await cookieStore()
   const token = store.get(SESSION_COOKIE)?.value
@@ -51,6 +55,7 @@ export async function getCurrentSession(): Promise<{
   const [session] = await db
     .select({
       usuarioId: authSession.usuarioId,
+      selectedTenantId: authSession.selectedTenantId,
     })
     .from(authSession)
     .where(and(eq(authSession.tokenHash, hashToken(token)), gt(authSession.expiresAt, new Date())))
@@ -64,7 +69,23 @@ export async function getCurrentSession(): Promise<{
 
   if (!user) return null
 
-  return { usuarioId: user.id, email: user.email, nome: user.nome }
+  return {
+    usuarioId: user.id,
+    email: user.email,
+    nome: user.nome,
+    selectedTenantId: session.selectedTenantId ?? null,
+  }
+}
+
+export async function setSelectedTenant(tenantId: string): Promise<void> {
+  const store = await cookieStore()
+  const token = store.get(SESSION_COOKIE)?.value
+  if (!token) return
+
+  await db
+    .update(authSession)
+    .set({ selectedTenantId: tenantId })
+    .where(and(eq(authSession.tokenHash, hashToken(token)), gt(authSession.expiresAt, new Date())))
 }
 
 export async function destroyCurrentSession(): Promise<void> {

@@ -8,6 +8,8 @@ const state = vi.hoisted(() => ({
   }),
   createAuthSessionMock: vi.fn(),
   destroyCurrentSessionMock: vi.fn(),
+  setSelectedTenantMock: vi.fn(),
+  currentSession: null as { usuarioId: string; email: string; nome: string; selectedTenantId?: string | null } | null,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -29,6 +31,8 @@ vi.mock('@/lib/auth/password', () => ({
 vi.mock('@/lib/auth/session', () => ({
   createAuthSession: state.createAuthSessionMock,
   destroyCurrentSession: state.destroyCurrentSessionMock,
+  setSelectedTenant: state.setSelectedTenantMock,
+  getCurrentSession: vi.fn(async () => state.currentSession),
 }))
 
 vi.mock('@/lib/db/schema', () => ({
@@ -41,7 +45,20 @@ vi.mock('@/lib/db/schema', () => ({
   },
   usuarioAcesso: {
     usuarioId: 'usuario_acesso.usuario_id',
+    tenantUserId: 'usuario_acesso.tenant_user_id',
     acesso: 'usuario_acesso.acesso',
+  },
+  tenant: {
+    id: 'tenant.id',
+    nome: 'tenant.nome',
+    slug: 'tenant.slug',
+    status: 'tenant.status',
+  },
+  tenantUser: {
+    id: 'tenant_user.id',
+    tenantId: 'tenant_user.tenant_id',
+    usuarioId: 'tenant_user.usuario_id',
+    status: 'tenant_user.status',
   },
 }))
 
@@ -53,6 +70,9 @@ vi.mock('@/lib/db/index', () => ({
   db: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({
+          where: vi.fn(async () => state.selectResults.shift() ?? []),
+        })),
         where: vi.fn(async () => state.selectResults.shift() ?? []),
       })),
     })),
@@ -74,19 +94,38 @@ beforeEach(() => {
 })
 
 describe('auth actions', () => {
-  it('rejects duplicate sign-up email', async () => {
+  it('reuses an existing identity when sign-up creates another tenant', async () => {
     state.selectResults = [[{ id: 'existing-user' }]]
 
     await expect(
-      signUpOwner({ nome: 'Ana', email: 'ana@example.com', password: 'senha-certa' })
-    ).rejects.toThrow('E-mail já cadastrado')
+      signUpOwner({ nome: 'Ana', email: 'ana@example.com', password: 'senha-certa', tenantNome: 'Pizza Centro' })
+    ).rejects.toThrow('REDIRECT:/selecionar-area')
+
+    expect(state.insertValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          nome: 'Pizza Centro',
+          slug: expect.stringMatching(/^pizza-centro/),
+          status: 'active',
+        }),
+        expect.objectContaining({
+          tenantId: expect.any(String),
+          usuarioId: 'existing-user',
+          status: 'active',
+        }),
+        expect.objectContaining({
+          tenantUserId: expect.any(String),
+          acesso: 'admin',
+        }),
+      ])
+    )
   })
 
-  it('creates owner with hashed password and admin access', async () => {
+  it('creates owner tenant membership with hashed password and admin access', async () => {
     state.selectResults = [[]]
 
     await expect(
-      signUpOwner({ nome: 'Ana', email: 'ANA@example.com', password: 'senha-certa' })
+      signUpOwner({ nome: 'Ana', email: 'ANA@example.com', password: 'senha-certa', tenantNome: 'Pizza Boa' })
     ).rejects.toThrow('REDIRECT:/selecionar-area')
 
     expect(state.insertValues).toEqual(
@@ -101,11 +140,24 @@ describe('auth actions', () => {
         }),
         expect.objectContaining({
           id: expect.any(String),
+          nome: 'Pizza Boa',
+          slug: expect.stringMatching(/^pizza-boa/),
+          status: 'active',
+        }),
+        expect.objectContaining({
+          id: expect.any(String),
+          tenantId: expect.any(String),
+          usuarioId: expect.any(String),
+          status: 'active',
+        }),
+        expect.objectContaining({
+          id: expect.any(String),
+          tenantUserId: expect.any(String),
           acesso: 'admin',
         }),
       ])
     )
-    expect(state.createAuthSessionMock).toHaveBeenCalled()
+    expect(state.createAuthSessionMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
   })
 
   it('rejects invalid login credentials', async () => {
@@ -116,14 +168,31 @@ describe('auth actions', () => {
     )
   })
 
-  it('creates a session and redirects by user accesses on valid login', async () => {
+  it('creates a session, selects the only tenant, and redirects by user accesses on valid login', async () => {
     state.selectResults = [
       [{ id: 'user-1', passwordHash: 'hashed-password' }],
+      [{ id: 'tenant-user-1', tenantId: 'tenant-1', nome: 'Pizza Boa' }],
       [{ acesso: 'garcom' }, { acesso: 'cozinha' }],
     ]
 
     await expect(signIn({ email: 'ana@example.com', password: 'senha-certa' })).rejects.toThrow(
       'REDIRECT:/selecionar-area'
+    )
+
+    expect(state.createAuthSessionMock).toHaveBeenCalledWith('user-1', 'tenant-1')
+  })
+
+  it('redirects multi-tenant users to company selection after login', async () => {
+    state.selectResults = [
+      [{ id: 'user-1', passwordHash: 'hashed-password' }],
+      [
+        { id: 'tenant-user-1', tenantId: 'tenant-1', nome: 'Pizza Boa' },
+        { id: 'tenant-user-2', tenantId: 'tenant-2', nome: 'Pizza Centro' },
+      ],
+    ]
+
+    await expect(signIn({ email: 'ana@example.com', password: 'senha-certa' })).rejects.toThrow(
+      'REDIRECT:/selecionar-empresa'
     )
 
     expect(state.createAuthSessionMock).toHaveBeenCalledWith('user-1')

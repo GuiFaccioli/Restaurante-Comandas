@@ -14,6 +14,10 @@ export default function SignUpPage() {
             <Input id="nome" name="nome" required />
           </div>
           <div>
+            <Label htmlFor="tenantNome">Restaurante</Label>
+            <Input id="tenantNome" name="tenantNome" required />
+          </div>
+          <div>
             <Label htmlFor="email">E-mail</Label>
             <Input id="email" name="email" type="email" required />
           </div>

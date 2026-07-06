@@ -4,7 +4,7 @@ const state = vi.hoisted(() => ({
   redirectMock: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`)
   }),
-  currentSession: null as { usuarioId: string; email: string; nome: string } | null,
+  currentSession: null as { usuarioId: string; email: string; nome: string; selectedTenantId?: string | null } | null,
   accessRows: [] as Array<{ acesso: 'admin' | 'caixa' | 'cozinha' | 'garcom' }>,
 }))
 
@@ -19,11 +19,19 @@ vi.mock('@/lib/auth/session', () => ({
 vi.mock('@/lib/db/schema', () => ({
   usuarioAcesso: {
     usuarioId: 'usuario_acesso.usuario_id',
+    tenantUserId: 'usuario_acesso.tenant_user_id',
     acesso: 'usuario_acesso.acesso',
+  },
+  tenantUser: {
+    id: 'tenant_user.id',
+    tenantId: 'tenant_user.tenant_id',
+    usuarioId: 'tenant_user.usuario_id',
+    status: 'tenant_user.status',
   },
 }))
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions) => conditions),
   eq: vi.fn((left, right) => ({ left, right })),
 }))
 
@@ -31,6 +39,9 @@ vi.mock('@/lib/db/index', () => ({
   db: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({
+          where: vi.fn(async () => state.accessRows),
+        })),
         where: vi.fn(async () => state.accessRows),
       })),
     })),
@@ -51,24 +62,31 @@ describe('access guard', () => {
   })
 
   it('returns current accesses for authenticated users', async () => {
-    state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana' }
+    state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana', selectedTenantId: 'tenant-1' }
     state.accessRows = [{ acesso: 'garcom' }, { acesso: 'cozinha' }]
 
     await expect(getCurrentAccesses()).resolves.toEqual(['garcom', 'cozinha'])
   })
 
   it('allows a matching permission', async () => {
-    state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana' }
+    state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana', selectedTenantId: 'tenant-1' }
     state.accessRows = [{ acesso: 'cozinha' }]
 
     await expect(requireAccess('cozinha')).resolves.toEqual({
       usuarioId: 'user-1',
+      tenantId: 'tenant-1',
       access: 'cozinha',
     })
   })
 
+  it('redirects authenticated users without a selected tenant to company selection', async () => {
+    state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana', selectedTenantId: null }
+
+    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/selecionar-empresa')
+  })
+
   it('redirects when the user lacks the required permission', async () => {
-    state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana' }
+    state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana', selectedTenantId: 'tenant-1' }
     state.accessRows = [{ acesso: 'garcom' }]
 
     await expect(requireAccess('cozinha')).rejects.toThrow('REDIRECT:/sem-acesso')

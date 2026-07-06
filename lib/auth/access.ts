@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db/index'
-import { usuarioAcesso } from '@/lib/db/schema'
+import { tenantUser, usuarioAcesso } from '@/lib/db/schema'
 import type { AcessoUsuario } from '@/lib/db/schema'
 import { getCurrentSession } from '@/lib/auth/session'
 
@@ -15,11 +15,18 @@ const ACCESS_DESTINATION: Record<AcessoUsuario, string> = {
 export async function getCurrentAccesses(): Promise<AcessoUsuario[]> {
   const session = await getCurrentSession()
   if (!session) return []
+  if (!session.selectedTenantId) return []
 
   const rows = await db
     .select({ acesso: usuarioAcesso.acesso })
     .from(usuarioAcesso)
-    .where(eq(usuarioAcesso.usuarioId, session.usuarioId))
+    .innerJoin(tenantUser, eq(usuarioAcesso.tenantUserId, tenantUser.id))
+    .where(
+      and(
+        eq(usuarioAcesso.usuarioId, session.usuarioId),
+        eq(tenantUser.tenantId, session.selectedTenantId)
+      )
+    )
 
   return rows.map((row) => row.acesso)
 }
@@ -32,12 +39,13 @@ export function redirectForAccesses(accesses: AcessoUsuario[]): string {
 
 export async function requireAccess(
   access: AcessoUsuario
-): Promise<{ usuarioId: string; access: AcessoUsuario }> {
+): Promise<{ usuarioId: string; tenantId: string; access: AcessoUsuario }> {
   const session = await getCurrentSession()
   if (!session) redirect('/auth/sign-in')
+  if (!session.selectedTenantId) redirect('/selecionar-empresa')
 
   const accesses = await getCurrentAccesses()
   if (!accesses.includes(access)) redirect('/sem-acesso')
 
-  return { usuarioId: session.usuarioId, access }
+  return { usuarioId: session.usuarioId, tenantId: session.selectedTenantId, access }
 }
