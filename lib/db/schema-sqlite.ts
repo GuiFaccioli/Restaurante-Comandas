@@ -5,6 +5,8 @@ export type RoleUsuario = 'garcom' | 'admin'
 export type AcessoUsuario = 'admin' | 'caixa' | 'cozinha' | 'garcom'
 export type TenantStatus = 'active' | 'inactive'
 export type TenantUserStatus = 'active' | 'inactive'
+export type FormaPagamento = 'dinheiro' | 'pix' | 'credito' | 'debito' | 'outro'
+export type StatusPagamento = 'registrado' | 'estornado'
 
 export const tenant = sqliteTable('tenant', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -112,6 +114,22 @@ export const authSession = sqliteTable('auth_session', {
   tokenHash: text('token_hash').notNull().unique(),
   expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+})
+
+export const pagamentoPedido = sqliteTable('pagamento_pedido', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId: text('tenant_id').notNull().references(() => tenant.id),
+  pedidoId: text('pedido_id').notNull().references(() => pedido.id, { onDelete: 'cascade' }),
+  registradoPorUsuarioId: text('registrado_por_usuario_id').notNull().references(() => usuario.id),
+  formaPagamento: text('forma_pagamento', {
+    enum: ['dinheiro', 'pix', 'credito', 'debito', 'outro'],
+  }).notNull(),
+  valor: text('valor').notNull(),
+  status: text('status', { enum: ['registrado', 'estornado'] }).notNull().default('registrado'),
+  observacao: text('observacao'),
+  registradoEm: integer('registrado_em', { mode: 'timestamp' })
     .notNull()
     .$defaultFn(() => new Date()),
 })

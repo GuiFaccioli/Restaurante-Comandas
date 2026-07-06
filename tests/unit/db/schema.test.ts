@@ -15,6 +15,7 @@ import {
   acessoUsuarioEnum,
   tenant,
   tenantUser,
+  pagamentoPedido,
 } from '@/lib/db/schema'
 
 describe('Drizzle schema', () => {
@@ -131,6 +132,9 @@ describe('Drizzle schema', () => {
       expect(sqlSchema).toContain('CREATE TABLE tenant_user')
       expect(sqlSchema).toContain('tenant_id')
       expect(sqlSchema).toContain('selected_tenant_id')
+      expect(sqlSchema).toContain('CREATE TABLE pagamento_pedido')
+      expect(sqlSchema).toContain('forma_pagamento')
+      expect(sqlSchema).toContain('status_pagamento')
     })
 
     it('keeps prisma schema aligned with pedido.entregueEm for tooling', () => {
@@ -177,6 +181,19 @@ describe('Drizzle schema', () => {
       expect(Object.keys(tenantUser)).toContain('status')
       expect(Object.keys(tenantUser)).toContain('createdAt')
       expect(Object.keys(tenantUser)).toContain('updatedAt')
+    })
+  })
+
+  describe('pagamentoPedido table', () => {
+    it('stores external payment records by tenant and order', () => {
+      expect(Object.keys(pagamentoPedido)).toContain('id')
+      expect(Object.keys(pagamentoPedido)).toContain('tenantId')
+      expect(Object.keys(pagamentoPedido)).toContain('pedidoId')
+      expect(Object.keys(pagamentoPedido)).toContain('registradoPorUsuarioId')
+      expect(Object.keys(pagamentoPedido)).toContain('formaPagamento')
+      expect(Object.keys(pagamentoPedido)).toContain('valor')
+      expect(Object.keys(pagamentoPedido)).toContain('status')
+      expect(Object.keys(pagamentoPedido)).toContain('registradoEm')
     })
   })
 

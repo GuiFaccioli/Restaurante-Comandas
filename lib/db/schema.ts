@@ -29,6 +29,14 @@ export const acessoUsuarioEnum = pgEnum('acesso_usuario', [
 ])
 export const tenantStatusEnum = pgEnum('tenant_status', ['active', 'inactive'])
 export const tenantUserStatusEnum = pgEnum('tenant_user_status', ['active', 'inactive'])
+export const formaPagamentoEnum = pgEnum('forma_pagamento', [
+  'dinheiro',
+  'pix',
+  'credito',
+  'debito',
+  'outro',
+])
+export const statusPagamentoEnum = pgEnum('status_pagamento', ['registrado', 'estornado'])
 
 // ============================================================
 // TypeScript Type Exports
@@ -39,6 +47,8 @@ export type RoleUsuario = 'garcom' | 'admin'
 export type AcessoUsuario = 'admin' | 'caixa' | 'cozinha' | 'garcom'
 export type TenantStatus = 'active' | 'inactive'
 export type TenantUserStatus = 'active' | 'inactive'
+export type FormaPagamento = 'dinheiro' | 'pix' | 'credito' | 'debito' | 'outro'
+export type StatusPagamento = 'registrado' | 'estornado'
 
 // ============================================================
 // Tables
@@ -159,4 +169,22 @@ export const authSession = pgTable('auth_session', {
   tokenHash: text('token_hash').notNull().unique(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const pagamentoPedido = pgTable('pagamento_pedido', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id),
+  pedidoId: uuid('pedido_id')
+    .notNull()
+    .references(() => pedido.id, { onDelete: 'cascade' }),
+  registradoPorUsuarioId: uuid('registrado_por_usuario_id')
+    .notNull()
+    .references(() => usuario.id),
+  formaPagamento: formaPagamentoEnum('forma_pagamento').notNull(),
+  valor: numeric('valor', { precision: 10, scale: 2 }).notNull(),
+  status: statusPagamentoEnum('status').notNull().default('registrado'),
+  observacao: text('observacao'),
+  registradoEm: timestamp('registrado_em', { withTimezone: true }).notNull().defaultNow(),
 })

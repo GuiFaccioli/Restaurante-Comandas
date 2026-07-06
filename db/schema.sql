@@ -54,6 +54,8 @@ CREATE TABLE produto (
 -- Pedidos
 -- ------------------------------------------------------------
 CREATE TYPE status_pedido AS ENUM ('novo', 'em_preparo', 'pronto', 'entregue');
+CREATE TYPE forma_pagamento AS ENUM ('dinheiro', 'pix', 'credito', 'debito', 'outro');
+CREATE TYPE status_pagamento AS ENUM ('registrado', 'estornado');
 
 CREATE TABLE pedido (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -90,6 +92,18 @@ CREATE TABLE usuario (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE pagamento_pedido (
+  id                         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id                  UUID NOT NULL REFERENCES tenant(id),
+  pedido_id                  UUID NOT NULL REFERENCES pedido(id) ON DELETE CASCADE,
+  registrado_por_usuario_id  UUID NOT NULL REFERENCES usuario(id),
+  forma_pagamento            forma_pagamento NOT NULL,
+  valor                      NUMERIC(10,2) NOT NULL,
+  status                     status_pagamento NOT NULL DEFAULT 'registrado',
+  observacao                 TEXT,
+  registrado_em              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE tenant_user (
   id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id  UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
@@ -122,6 +136,8 @@ CREATE INDEX idx_pedido_mesa_id   ON pedido(mesa_id);
 CREATE INDEX idx_pedido_tenant_id ON pedido(tenant_id);
 CREATE INDEX idx_pedido_status    ON pedido(status);
 CREATE INDEX idx_item_pedido_id   ON item_pedido(pedido_id);
+CREATE INDEX idx_pagamento_pedido_tenant_id ON pagamento_pedido(tenant_id);
+CREATE INDEX idx_pagamento_pedido_pedido_id ON pagamento_pedido(pedido_id);
 CREATE INDEX idx_produto_cat      ON produto(categoria_id);
 CREATE INDEX idx_produto_tenant_id ON produto(tenant_id);
 CREATE INDEX idx_mesa_tenant_id ON mesa(tenant_id);

@@ -1,11 +1,12 @@
 'use server'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
-import { categoria, pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
-import type { StatusPedido } from '@/lib/db/schema'
+import { categoria, pagamentoPedido, pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
+import type { FormaPagamento, StatusPedido } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
 import { isSQLiteDatabase } from '@/lib/db/compat'
+import { normalizeCurrencyToDecimal } from '@/lib/money'
 
 export type ConfirmarPedidoItem = {
   produtoId: string
@@ -188,4 +189,42 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
   } catch (error) {
     console.error('Failed to notify kitchen about delivery confirmation', error)
   }
+}
+
+export async function registrarPagamentoPedido(input: {
+  pedidoId: string
+  formaPagamento: FormaPagamento
+  valor: string
+  observacao?: string
+}): Promise<void> {
+  const { usuarioId, tenantId } = await requireAccess('caixa')
+  let valor: string
+
+  try {
+    valor = normalizeCurrencyToDecimal(input.valor)
+  } catch {
+    throw new Error('Valor de pagamento inválido')
+  }
+
+  if (Number(valor) <= 0) throw new Error('Valor de pagamento inválido')
+
+  const [current] = await db
+    .select({ id: pedido.id, status: pedido.status })
+    .from(pedido)
+    .where(and(eq(pedido.id, input.pedidoId), eq(pedido.tenantId, tenantId)))
+
+  if (!current) throw new Error('Pedido não encontrado')
+  if (current.status !== 'entregue') throw new Error('Apenas pedidos entregues podem ser pagos')
+
+  await db.insert(pagamentoPedido).values({
+    id: crypto.randomUUID(),
+    tenantId,
+    pedidoId: input.pedidoId,
+    registradoPorUsuarioId: usuarioId,
+    formaPagamento: input.formaPagamento,
+    valor,
+    status: 'registrado',
+    observacao: input.observacao?.trim() || null,
+    registradoEm: new Date(),
+  })
 }
