@@ -1,11 +1,13 @@
 import Link from 'next/link'
-import { asc, sql, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { mesa } from '@/lib/db/schema'
+import { requireAccess } from '@/lib/auth/access'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MesasGarcomPage() {
+  const { tenantId } = await requireAccess('garcom')
   const mesas = await db
     .select({
       id: mesa.id,
@@ -13,7 +15,7 @@ export default async function MesasGarcomPage() {
       ativa: mesa.ativa,
     })
     .from(mesa)
-    .where(sql`${mesa.ativa} = 1`)
+    .where(and(eq(mesa.tenantId, tenantId), sql`${mesa.ativa} = 1`))
     .orderBy(asc(mesa.numero))
 
   return (

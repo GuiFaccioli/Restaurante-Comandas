@@ -1,11 +1,13 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { mesa } from '@/lib/db/schema'
 import { notFound, redirect } from 'next/navigation'
+import { requireAccess } from '@/lib/auth/access'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MesaIdAliasPage({ params }: { params: Promise<{ id: string }> }) {
+  const { tenantId } = await requireAccess('garcom')
   const { id } = await params
   const numeroMesa = Number(id)
 
@@ -14,7 +16,7 @@ export default async function MesaIdAliasPage({ params }: { params: Promise<{ id
   const [m] = await db
     .select({ id: mesa.id, ativa: mesa.ativa })
     .from(mesa)
-    .where(eq(mesa.numero, numeroMesa))
+    .where(and(eq(mesa.tenantId, tenantId), eq(mesa.numero, numeroMesa)))
 
   if (!m || !m.ativa) notFound()
 

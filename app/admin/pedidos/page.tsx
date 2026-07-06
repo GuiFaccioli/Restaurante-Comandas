@@ -7,7 +7,7 @@ import { requireAccess } from '@/lib/auth/access'
 export const dynamic = 'force-dynamic'
 
 export default async function AdminPedidosPage() {
-  await requireAccess('caixa')
+  const { tenantId } = await requireAccess('caixa')
   const pedidosAtivos = await db
     .select({
       id: pedido.id,
@@ -17,6 +17,7 @@ export default async function AdminPedidosPage() {
     })
     .from(pedido)
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
+    .where(eq(pedido.tenantId, tenantId))
     .orderBy(desc(pedido.criadoEm))
 
   const pedidoIds = pedidosAtivos.map((p) => p.id)

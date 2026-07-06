@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { requireAccess } from '@/lib/auth/access'
 import { categoria, itemPedido, mesa, pedido, produto } from '@/lib/db/schema'
@@ -8,7 +8,7 @@ import { PendingDeliveriesClient } from '@/components/garcom/pending-deliveries-
 export const dynamic = 'force-dynamic'
 
 export default async function PedidosPage() {
-  await requireAccess('garcom')
+  const { tenantId } = await requireAccess('garcom')
 
   const pedidosPendentes = await db
     .select({
@@ -19,7 +19,7 @@ export default async function PedidosPage() {
     })
     .from(pedido)
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
-    .where(eq(pedido.status, 'novo'))
+    .where(and(eq(pedido.tenantId, tenantId), eq(pedido.status, 'novo')))
     .orderBy(desc(pedido.criadoEm))
 
   const pedidoIds = pedidosPendentes.map((p) => p.id)

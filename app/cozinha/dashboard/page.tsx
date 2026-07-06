@@ -1,12 +1,14 @@
 // app/(cozinha)/dashboard/page.tsx
 import { db } from '@/lib/db/index'
-import { desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { categoria, pedido, itemPedido, produto, mesa } from '@/lib/db/schema'
 import { KanbanBoard } from '@/components/cozinha/kanban-board'
+import { requireAccess } from '@/lib/auth/access'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
+  const { tenantId } = await requireAccess('cozinha')
   const pedidosAtivos = await db
     .select({
       id: pedido.id,
@@ -16,7 +18,7 @@ export default async function DashboardPage() {
     })
     .from(pedido)
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
-    .where(eq(pedido.status, 'novo'))
+    .where(and(eq(pedido.tenantId, tenantId), eq(pedido.status, 'novo')))
     .orderBy(desc(pedido.criadoEm))
 
   const pedidoIds = pedidosAtivos.map((p) => p.id)

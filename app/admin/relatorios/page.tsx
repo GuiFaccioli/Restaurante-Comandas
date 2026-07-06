@@ -24,7 +24,7 @@ function formatDuration(ms: number): string {
 }
 
 export default async function RelatoriosAdminPage() {
-  await requireAccess('admin')
+  const { tenantId } = await requireAccess('admin')
 
   const pedidos = await db
     .select({
@@ -36,6 +36,7 @@ export default async function RelatoriosAdminPage() {
     })
     .from(pedido)
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
+    .where(eq(pedido.tenantId, tenantId))
     .orderBy(desc(pedido.criadoEm))
 
   const itens = await db
@@ -50,6 +51,7 @@ export default async function RelatoriosAdminPage() {
     .innerJoin(itemPedido, eq(itemPedido.pedidoId, pedido.id))
     .innerJoin(produto, eq(itemPedido.produtoId, produto.id))
     .innerJoin(categoria, eq(produto.categoriaId, categoria.id))
+    .where(eq(pedido.tenantId, tenantId))
 
   const faturamentoEstimado = itens.reduce(
     (total, item) => total + Number(item.precoUnitario) * item.quantidade,
