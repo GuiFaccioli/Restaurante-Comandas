@@ -5,10 +5,26 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ------------------------------------------------------------
+-- Tenants
+-- ------------------------------------------------------------
+CREATE TYPE tenant_status AS ENUM ('active', 'inactive');
+CREATE TYPE tenant_user_status AS ENUM ('active', 'inactive');
+
+CREATE TABLE tenant (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nome        TEXT NOT NULL,
+  slug        TEXT NOT NULL UNIQUE,
+  status      tenant_status NOT NULL DEFAULT 'active',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ------------------------------------------------------------
 -- Mesas
 -- ------------------------------------------------------------
 CREATE TABLE mesa (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL REFERENCES tenant(id),
   numero      INTEGER NOT NULL UNIQUE,
   ativa       BOOLEAN NOT NULL DEFAULT true
 );
@@ -17,13 +33,15 @@ CREATE TABLE mesa (
 -- Cardápio
 -- ------------------------------------------------------------
 CREATE TABLE categoria (
-  id     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  nome   TEXT NOT NULL,
-  ordem  INTEGER NOT NULL DEFAULT 0
+  id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id UUID NOT NULL REFERENCES tenant(id),
+  nome      TEXT NOT NULL,
+  ordem     INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE produto (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL REFERENCES tenant(id),
   categoria_id UUID NOT NULL REFERENCES categoria(id),
   nome        TEXT NOT NULL,
   descricao   TEXT,
@@ -39,6 +57,7 @@ CREATE TYPE status_pedido AS ENUM ('novo', 'em_preparo', 'pronto', 'entregue');
 
 CREATE TABLE pedido (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id    UUID NOT NULL REFERENCES tenant(id),
   mesa_id      UUID NOT NULL REFERENCES mesa(id),
   status       status_pedido NOT NULL DEFAULT 'novo',
   criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -71,27 +90,45 @@ CREATE TABLE usuario (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE usuario_acesso (
+CREATE TABLE tenant_user (
   id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
   usuario_id UUID NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
-  acesso     acesso_usuario NOT NULL
+  status     tenant_user_status NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE usuario_acesso (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_user_id UUID REFERENCES tenant_user(id) ON DELETE CASCADE,
+  usuario_id     UUID NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+  acesso         acesso_usuario NOT NULL
 );
 
 CREATE TABLE auth_session (
-  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  usuario_id UUID NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  usuario_id         UUID NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+  selected_tenant_id UUID REFERENCES tenant(id) ON DELETE SET NULL,
+  token_hash         TEXT NOT NULL UNIQUE,
+  expires_at         TIMESTAMPTZ NOT NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ------------------------------------------------------------
 -- Índices
 -- ------------------------------------------------------------
 CREATE INDEX idx_pedido_mesa_id   ON pedido(mesa_id);
+CREATE INDEX idx_pedido_tenant_id ON pedido(tenant_id);
 CREATE INDEX idx_pedido_status    ON pedido(status);
 CREATE INDEX idx_item_pedido_id   ON item_pedido(pedido_id);
 CREATE INDEX idx_produto_cat      ON produto(categoria_id);
+CREATE INDEX idx_produto_tenant_id ON produto(tenant_id);
+CREATE INDEX idx_mesa_tenant_id ON mesa(tenant_id);
+CREATE INDEX idx_categoria_tenant_id ON categoria(tenant_id);
+CREATE INDEX idx_tenant_user_tenant_id ON tenant_user(tenant_id);
+CREATE INDEX idx_tenant_user_usuario_id ON tenant_user(usuario_id);
+CREATE INDEX idx_usuario_acesso_tenant_user_id ON usuario_acesso(tenant_user_id);
 CREATE INDEX idx_usuario_acesso_usuario_id ON usuario_acesso(usuario_id);
 CREATE INDEX idx_auth_session_usuario_id   ON auth_session(usuario_id);
 

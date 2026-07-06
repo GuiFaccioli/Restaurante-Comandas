@@ -23,6 +23,7 @@ export async function createAuthSession(usuarioId: string): Promise<void> {
   await db.insert(authSession).values({
     id: crypto.randomUUID(),
     usuarioId,
+    selectedTenantId: null,
     tokenHash,
     expiresAt,
     createdAt: new Date(),

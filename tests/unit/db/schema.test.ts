@@ -13,12 +13,15 @@ import {
   usuarioAcesso,
   authSession,
   acessoUsuarioEnum,
+  tenant,
+  tenantUser,
 } from '@/lib/db/schema'
 
 describe('Drizzle schema', () => {
   describe('mesa table', () => {
     it('has required columns', () => {
       expect(Object.keys(mesa)).toContain('id')
+      expect(Object.keys(mesa)).toContain('tenantId')
       expect(Object.keys(mesa)).toContain('numero')
       expect(Object.keys(mesa)).toContain('ativa')
     })
@@ -27,6 +30,7 @@ describe('Drizzle schema', () => {
   describe('categoria table', () => {
     it('has required columns', () => {
       expect(Object.keys(categoria)).toContain('id')
+      expect(Object.keys(categoria)).toContain('tenantId')
       expect(Object.keys(categoria)).toContain('nome')
       expect(Object.keys(categoria)).toContain('ordem')
     })
@@ -35,6 +39,7 @@ describe('Drizzle schema', () => {
   describe('produto table', () => {
     it('has required columns', () => {
       expect(Object.keys(produto)).toContain('id')
+      expect(Object.keys(produto)).toContain('tenantId')
       expect(Object.keys(produto)).toContain('categoriaId')
       expect(Object.keys(produto)).toContain('nome')
       expect(Object.keys(produto)).toContain('preco')
@@ -50,6 +55,7 @@ describe('Drizzle schema', () => {
   describe('pedido table', () => {
     it('has required columns', () => {
       expect(Object.keys(pedido)).toContain('id')
+      expect(Object.keys(pedido)).toContain('tenantId')
       expect(Object.keys(pedido)).toContain('mesaId')
       expect(Object.keys(pedido)).toContain('status')
       expect(Object.keys(pedido)).toContain('criadoEm')
@@ -101,6 +107,15 @@ describe('Drizzle schema', () => {
 
       expect(sqliteSchema).toContain("entregueEm: integer('entregue_em'")
     })
+
+    it('mirrors tenant-scoped operational schema', () => {
+      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
+
+      expect(sqliteSchema).toContain("export const tenant = sqliteTable('tenant'")
+      expect(sqliteSchema).toContain("export const tenantUser = sqliteTable('tenant_user'")
+      expect(sqliteSchema).toContain("tenantId: text('tenant_id')")
+      expect(sqliteSchema).toContain("selectedTenantId: text('selected_tenant_id')")
+    })
   })
 
   describe('schema reference files', () => {
@@ -112,6 +127,10 @@ describe('Drizzle schema', () => {
       expect(sqlSchema).toContain('CREATE TABLE usuario_acesso')
       expect(sqlSchema).toContain('CREATE TABLE auth_session')
       expect(sqlSchema).toContain('password_hash')
+      expect(sqlSchema).toContain('CREATE TABLE tenant')
+      expect(sqlSchema).toContain('CREATE TABLE tenant_user')
+      expect(sqlSchema).toContain('tenant_id')
+      expect(sqlSchema).toContain('selected_tenant_id')
     })
 
     it('keeps prisma schema aligned with pedido.entregueEm for tooling', () => {
@@ -123,9 +142,9 @@ describe('Drizzle schema', () => {
   })
 
   describe('usuarioAcesso table', () => {
-    it('stores explicit area permissions per user', () => {
+    it('stores explicit area permissions per tenant membership', () => {
       expect(Object.keys(usuarioAcesso)).toContain('id')
-      expect(Object.keys(usuarioAcesso)).toContain('usuarioId')
+      expect(Object.keys(usuarioAcesso)).toContain('tenantUserId')
       expect(Object.keys(usuarioAcesso)).toContain('acesso')
     })
   })
@@ -137,6 +156,27 @@ describe('Drizzle schema', () => {
       expect(Object.keys(authSession)).toContain('tokenHash')
       expect(Object.keys(authSession)).toContain('expiresAt')
       expect(Object.keys(authSession)).toContain('createdAt')
+      expect(Object.keys(authSession)).toContain('selectedTenantId')
+    })
+  })
+
+  describe('tenant tables', () => {
+    it('defines restaurant tenants', () => {
+      expect(Object.keys(tenant)).toContain('id')
+      expect(Object.keys(tenant)).toContain('nome')
+      expect(Object.keys(tenant)).toContain('slug')
+      expect(Object.keys(tenant)).toContain('status')
+      expect(Object.keys(tenant)).toContain('createdAt')
+      expect(Object.keys(tenant)).toContain('updatedAt')
+    })
+
+    it('links users to tenants independently of identity', () => {
+      expect(Object.keys(tenantUser)).toContain('id')
+      expect(Object.keys(tenantUser)).toContain('tenantId')
+      expect(Object.keys(tenantUser)).toContain('usuarioId')
+      expect(Object.keys(tenantUser)).toContain('status')
+      expect(Object.keys(tenantUser)).toContain('createdAt')
+      expect(Object.keys(tenantUser)).toContain('updatedAt')
     })
   })
 

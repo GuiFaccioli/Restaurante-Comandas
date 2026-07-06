@@ -20,6 +20,7 @@ vi.mock('@/lib/db/schema', () => ({
     id: 'auth_session.id',
     usuarioId: 'auth_session.usuario_id',
     tokenHash: 'auth_session.token_hash',
+    selectedTenantId: 'auth_session.selected_tenant_id',
     expiresAt: 'auth_session.expires_at',
     createdAt: 'auth_session.created_at',
   },
@@ -72,6 +73,7 @@ describe('auth session', () => {
         id: expect.any(String),
         usuarioId: 'user-1',
         tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        selectedTenantId: null,
         expiresAt: expect.any(Date),
         createdAt: expect.any(Date),
       })
