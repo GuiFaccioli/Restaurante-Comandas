@@ -1,5 +1,5 @@
 'use server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, produto } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
@@ -16,31 +16,35 @@ type NovoProduto = {
 }
 
 export async function criarCategoria(nome: string): Promise<{ id: string }> {
-  await requireAccess('admin')
-  const max = await db.select({ ordem: categoria.ordem }).from(categoria)
+  const { tenantId } = await requireAccess('admin')
+  const max = await db
+    .select({ ordem: categoria.ordem })
+    .from(categoria)
+    .where(eq(categoria.tenantId, tenantId))
   const ordem = max.length ? Math.max(...max.map((c) => c.ordem)) + 1 : 0
   const [cat] = await db
     .insert(categoria)
-    .values({ id: crypto.randomUUID(), nome, ordem })
+    .values({ id: crypto.randomUUID(), tenantId, nome, ordem })
     .returning({ id: categoria.id })
   return { id: cat.id }
 }
 
 export async function reordenarCategorias(ids: string[]): Promise<void> {
-  await requireAccess('admin')
+  const { tenantId } = await requireAccess('admin')
   await Promise.all(
     ids.map((id, ordem) =>
-      db.update(categoria).set({ ordem }).where(eq(categoria.id, id))
+      db.update(categoria).set({ ordem }).where(and(eq(categoria.id, id), eq(categoria.tenantId, tenantId)))
     )
   )
 }
 
 export async function criarProduto(data: NovoProduto): Promise<{ id: string }> {
-  await requireAccess('admin')
+  const { tenantId } = await requireAccess('admin')
   const [prod] = await db
     .insert(produto)
     .values({
       id: crypto.randomUUID(),
+      tenantId,
       categoriaId: data.categoriaId,
       nome: data.nome,
       descricao: data.descricao ?? null,
@@ -56,7 +60,7 @@ export async function editarProduto(
   id: string,
   data: Partial<NovoProduto>
 ): Promise<void> {
-  await requireAccess('admin')
+  const { tenantId } = await requireAccess('admin')
   await db
     .update(produto)
     .set({
@@ -66,21 +70,21 @@ export async function editarProduto(
       ...(data.imagemUrl !== undefined && { imagemUrl: data.imagemUrl }),
       ...(data.categoriaId && { categoriaId: data.categoriaId }),
     })
-    .where(eq(produto.id, id))
+    .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
 }
 
 export async function toggleDisponivel(id: string): Promise<void> {
-  await requireAccess('admin')
+  const { tenantId } = await requireAccess('admin')
   const [prod] = await db
     .select({ id: produto.id, disponivel: produto.disponivel })
     .from(produto)
-    .where(eq(produto.id, id))
+    .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
 
   const novoEstado = !Boolean(prod.disponivel)
   await db
     .update(produto)
     .set({ disponivel: dbBoolean(novoEstado) as boolean })
-    .where(eq(produto.id, id))
+    .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
 
   if (!novoEstado) {
     try {

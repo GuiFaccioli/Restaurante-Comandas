@@ -1,5 +1,5 @@
 'use server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, pedido, itemPedido, mesa, produto } from '@/lib/db/schema'
 import type { StatusPedido } from '@/lib/db/schema'
@@ -17,7 +17,7 @@ export async function confirmarPedido(
   mesaId: string,
   items: ConfirmarPedidoItem[]
 ): Promise<{ id: string }> {
-  await requireAccess('garcom')
+  const { tenantId } = await requireAccess('garcom')
   if (!mesaId) throw new Error('Mesa inválida')
   if (items.length === 0) throw new Error('Pedido vazio')
   if (items.some((item) => !item.produtoId || item.quantidade <= 0)) {
@@ -34,7 +34,7 @@ export async function confirmarPedido(
       .select({ nome: produto.nome, preco: produto.preco, categoriaNome: categoria.nome })
       .from(produto)
       .innerJoin(categoria, eq(produto.categoriaId, categoria.id))
-      .where(eq(produto.id, item.produtoId))
+      .where(and(eq(produto.id, item.produtoId), eq(produto.tenantId, tenantId)))
 
     if (!prod) throw new Error('Produto inválido')
 
@@ -51,12 +51,13 @@ export async function confirmarPedido(
   const [mesaAtual] = await db
     .select({ numero: mesa.numero })
     .from(mesa)
-    .where(eq(mesa.id, mesaId))
+    .where(and(eq(mesa.id, mesaId), eq(mesa.tenantId, tenantId)))
 
   const novoPedidoId = crypto.randomUUID()
   const now = new Date()
   const pedidoValues = {
     id: novoPedidoId,
+    tenantId,
     mesaId,
     status: 'novo' as const,
     criadoEm: now,
@@ -135,12 +136,12 @@ export async function atualizarStatus(
   pedidoId: string,
   status: StatusPedido
 ): Promise<void> {
-  await requireAccess('cozinha')
+  const { tenantId } = await requireAccess('cozinha')
 
   const [current] = await db
     .select({ status: pedido.status })
     .from(pedido)
-    .where(eq(pedido.id, pedidoId))
+    .where(and(eq(pedido.id, pedidoId), eq(pedido.tenantId, tenantId)))
 
   if (!current) throw new Error('Pedido não encontrado')
   const expectedNext = STATUS_FLOW[current.status]
@@ -151,7 +152,7 @@ export async function atualizarStatus(
   await db
     .update(pedido)
     .set({ status, atualizadoEm: new Date() })
-    .where(eq(pedido.id, pedidoId))
+    .where(and(eq(pedido.id, pedidoId), eq(pedido.tenantId, tenantId)))
 
   try {
     notifyKitchen({ type: 'status_atualizado', payload: { pedidoId, status } })
@@ -161,12 +162,12 @@ export async function atualizarStatus(
 }
 
 export async function confirmarEntrega(pedidoId: string): Promise<void> {
-  await requireAccess('garcom')
+  const { tenantId } = await requireAccess('garcom')
 
   const [current] = await db
     .select({ status: pedido.status })
     .from(pedido)
-    .where(eq(pedido.id, pedidoId))
+    .where(and(eq(pedido.id, pedidoId), eq(pedido.tenantId, tenantId)))
 
   if (!current) throw new Error('Pedido não encontrado')
   if (current.status !== 'novo') {
@@ -177,7 +178,7 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
   await db
     .update(pedido)
     .set({ status: 'entregue', entregueEm: now, atualizadoEm: now })
-    .where(eq(pedido.id, pedidoId))
+    .where(and(eq(pedido.id, pedidoId), eq(pedido.tenantId, tenantId)))
 
   try {
     notifyKitchen({

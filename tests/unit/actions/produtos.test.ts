@@ -14,7 +14,7 @@ vi.mock('@/lib/db/index', () => ({
 }))
 vi.mock('@/lib/sse', () => ({ notifyKitchen: vi.fn() }))
 vi.mock('@/lib/auth/access', () => ({
-  requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', access: 'admin' })),
+  requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', tenantId: 'tenant-1', access: 'admin' })),
 }))
 
 import { db } from '@/lib/db/index'
@@ -35,6 +35,7 @@ describe('criarCategoria', () => {
     expect(await criarCategoria('Pizzas')).toEqual({ id: 'cat-1' })
     expect(values).toHaveBeenCalledWith({
       id: expect.any(String),
+      tenantId: 'tenant-1',
       nome: 'Pizzas',
       ordem: 0,
     })
@@ -53,6 +54,7 @@ describe('criarProduto', () => {
     expect(result).toEqual({ id: 'prod-1' })
     expect(values).toHaveBeenCalledWith({
       id: expect.any(String),
+      tenantId: 'tenant-1',
       categoriaId: 'cat-1',
       nome: 'Margherita',
       descricao: null,
@@ -92,6 +94,7 @@ describe('criarMesa', () => {
     expect(await criarMesa(5)).toEqual({ id: 'mesa-1' })
     expect(values).toHaveBeenCalledWith({
       id: expect.any(String),
+      tenantId: 'tenant-1',
       numero: 5,
       ativa: 1,
     })

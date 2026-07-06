@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => {
     redirect: vi.fn(),
     notifyKitchen: vi.fn(),
     db,
-    requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', access: 'garcom' })),
+    requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', tenantId: 'tenant-1', access: 'garcom' })),
   }
 })
 
@@ -37,6 +37,7 @@ vi.mock('@/lib/auth/access', () => ({
 vi.mock('@/lib/db/schema', () => ({
   pedido: {
     id: 'pedido.id',
+    tenantId: 'pedido.tenant_id',
     mesaId: 'pedido.mesa_id',
     status: 'pedido.status',
     criadoEm: 'pedido.criado_em',
@@ -52,14 +53,17 @@ vi.mock('@/lib/db/schema', () => ({
   },
   categoria: {
     id: 'categoria.id',
+    tenantId: 'categoria.tenant_id',
     nome: 'categoria.nome',
   },
   mesa: {
     id: 'mesa.id',
+    tenantId: 'mesa.tenant_id',
     numero: 'mesa.numero',
   },
   produto: {
     id: 'produto.id',
+    tenantId: 'produto.tenant_id',
     categoriaId: 'produto.categoria_id',
     nome: 'produto.nome',
     preco: 'produto.preco',
@@ -123,6 +127,7 @@ describe('confirmarPedido', () => {
     expect(mocks.db.select).toHaveBeenCalledTimes(2)
     expect(itemValues).toHaveBeenNthCalledWith(1, {
       id: expect.any(String),
+      tenantId: 'tenant-1',
       mesaId: 'mesa-1',
       status: 'novo',
       criadoEm: expect.any(Date),
