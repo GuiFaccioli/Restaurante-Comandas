@@ -40,12 +40,19 @@ export function redirectForAccesses(accesses: AcessoUsuario[]): string {
 export async function requireAccess(
   access: AcessoUsuario
 ): Promise<{ usuarioId: string; tenantId: string; access: AcessoUsuario }> {
+  return requireAnyAccess([access])
+}
+
+export async function requireAnyAccess(
+  allowedAccesses: readonly AcessoUsuario[]
+): Promise<{ usuarioId: string; tenantId: string; access: AcessoUsuario }> {
   const session = await getCurrentSession()
   if (!session) redirect('/auth/sign-in')
   if (!session.selectedTenantId) redirect('/selecionar-empresa')
 
   const accesses = await getCurrentAccesses()
-  if (!accesses.includes(access)) redirect('/sem-acesso')
+  const matchedAccess = allowedAccesses.find((access) => accesses.includes(access))
+  if (!matchedAccess) redirect('/sem-acesso')
 
-  return { usuarioId: session.usuarioId, tenantId: session.selectedTenantId, access }
+  return { usuarioId: session.usuarioId, tenantId: session.selectedTenantId, access: matchedAccess }
 }

@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
 import { addClient, removeClient } from '@/lib/sse'
-import { requireAccess } from '@/lib/auth/access'
+import { requireAnyAccess } from '@/lib/auth/access'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  await requireAccess('cozinha')
+  await requireAnyAccess(['cozinha', 'garcom', 'caixa'])
   let controller: ReadableStreamDefaultController
 
   const stream = new ReadableStream({
