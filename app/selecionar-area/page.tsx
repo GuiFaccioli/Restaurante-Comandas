@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { LogoutButton } from '@/components/auth/logout-button'
 import { getCurrentAccesses, redirectForAccesses } from '@/lib/auth/access'
 import type { AcessoUsuario } from '@/lib/db/schema'
 
@@ -26,6 +27,7 @@ export default async function SelecionarAreaPage() {
 
   return (
     <main className="min-h-screen p-6 flex items-center justify-center">
+      <LogoutButton />
       <div className="w-full max-w-lg space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Selecionar área</h1>

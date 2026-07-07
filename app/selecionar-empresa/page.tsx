@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { LogoutButton } from '@/components/auth/logout-button'
 import { listCurrentTenantMemberships, selectTenant } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
 
@@ -16,6 +17,7 @@ export default async function SelecionarEmpresaPage() {
 
   return (
     <main className="min-h-screen p-6 flex items-center justify-center">
+      <LogoutButton />
       <div className="w-full max-w-lg space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Selecionar empresa</h1>

@@ -1,3 +1,5 @@
+import { LogoutButton } from '@/components/auth/logout-button'
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const managementLinks = [
     { href: '/admin/relatorios', label: 'Relatórios', description: 'Indicadores e ideias de análise' },
@@ -7,6 +9,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-background">
+      <LogoutButton />
       <nav className="border-b px-6 py-3 flex gap-6">
         <a href="/admin/menu" className="text-sm font-medium hover:text-primary">Cardápio</a>
         <a href="/admin/mesas" className="text-sm font-medium hover:text-primary">Mesas</a>
