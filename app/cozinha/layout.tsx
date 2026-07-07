@@ -1,5 +1,5 @@
 // app/(cozinha)/layout.tsx
-import { LogoutButton } from '@/components/auth/logout-button'
+import { ProfileMenu } from '@/components/auth/profile-menu'
 import { requireAccess } from '@/lib/auth/access'
 
 export default async function CozinhaLayout({ children }: { children: React.ReactNode }) {
@@ -7,7 +7,9 @@ export default async function CozinhaLayout({ children }: { children: React.Reac
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <LogoutButton />
+      <div className="flex justify-end px-4 pt-4">
+        <ProfileMenu />
+      </div>
       {children}
     </div>
   )

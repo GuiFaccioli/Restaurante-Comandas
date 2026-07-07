@@ -8,17 +8,20 @@ function readProjectFile(path: string) {
   return readFileSync(join(root, path), 'utf8')
 }
 
-describe('logout button', () => {
-  it('submits the sign-out action and stays fixed in the top-right corner', () => {
-    const component = readProjectFile('components/auth/logout-button.tsx')
+describe('profile menu logout', () => {
+  it('hides the sign-out action inside a profile menu', () => {
+    const component = readProjectFile('components/auth/profile-menu.tsx')
 
     expect(component).toContain("import { signOut } from '@/lib/actions/auth'")
+    expect(component).toContain("import { getCurrentSession } from '@/lib/auth/session'")
+    expect(component).toContain('<details')
+    expect(component).toContain('<summary')
+    expect(component).toContain('Perfil')
     expect(component).toContain('action={signOut}')
     expect(component).toContain('Sair')
-    expect(component).toMatch(/fixed[\s\S]*top-4[\s\S]*right-4/)
   })
 
-  it('is available from protected operational screens', () => {
+  it('is available from protected operational screens without rendering the raw logout button', () => {
     const protectedFiles = [
       'app/admin/layout.tsx',
       'app/garcom/layout.tsx',
@@ -28,7 +31,10 @@ describe('logout button', () => {
     ]
 
     for (const path of protectedFiles) {
-      expect(readProjectFile(path), path).toContain('LogoutButton')
+      const source = readProjectFile(path)
+
+      expect(source, path).toContain('ProfileMenu')
+      expect(source, path).not.toContain('LogoutButton')
     }
   })
 })

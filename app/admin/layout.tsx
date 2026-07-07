@@ -1,4 +1,4 @@
-import { LogoutButton } from '@/components/auth/logout-button'
+import { ProfileMenu } from '@/components/auth/profile-menu'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const managementLinks = [
@@ -9,11 +9,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-background">
-      <LogoutButton />
-      <nav className="border-b px-6 py-3 flex gap-6">
+      <nav className="border-b px-6 py-3 flex flex-wrap items-center gap-6">
         <a href="/admin/menu" className="text-sm font-medium hover:text-primary">Cardápio</a>
         <a href="/admin/mesas" className="text-sm font-medium hover:text-primary">Mesas</a>
         <a href="/admin/pedidos" className="text-sm font-medium hover:text-primary">Pedidos</a>
+        <ProfileMenu className="ml-auto" />
       </nav>
       <div className="grid min-h-[calc(100vh-49px)] grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <main>{children}</main>

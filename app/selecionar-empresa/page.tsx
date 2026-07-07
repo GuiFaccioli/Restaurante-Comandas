@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { LogoutButton } from '@/components/auth/logout-button'
+import { ProfileMenu } from '@/components/auth/profile-menu'
 import { listCurrentTenantMemberships, selectTenant } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
 
@@ -16,8 +16,8 @@ export default async function SelecionarEmpresaPage() {
   }
 
   return (
-    <main className="min-h-screen p-6 flex items-center justify-center">
-      <LogoutButton />
+    <main className="relative min-h-screen p-6 flex items-center justify-center">
+      <ProfileMenu className="absolute right-4 top-4" />
       <div className="w-full max-w-lg space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Selecionar empresa</h1>
