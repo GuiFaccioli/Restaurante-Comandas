@@ -18,9 +18,17 @@ describe('permission boundaries', () => {
     expect(source('app/admin/pedidos/page.tsx')).toContain("requireAccess('caixa')")
   })
 
-  it('kitchen UI and SSE endpoint require cozinha access', () => {
+  it('kitchen UI requires cozinha access', () => {
     expect(source('app/cozinha/layout.tsx')).toContain("requireAccess('cozinha')")
-    expect(source('app/api/events/route.ts')).toContain("requireAccess('cozinha')")
+  })
+
+  it('operational SSE endpoint allows kitchen, waiter, and cashier subscribers', () => {
+    const eventsRoute = source('app/api/events/route.ts')
+
+    expect(eventsRoute).toContain('requireAnyAccess')
+    expect(eventsRoute).toContain("'cozinha'")
+    expect(eventsRoute).toContain("'garcom'")
+    expect(eventsRoute).toContain("'caixa'")
   })
 
   it('waiter UI and order confirmation require garcom access', () => {
