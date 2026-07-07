@@ -53,7 +53,7 @@ CREATE TABLE produto (
 -- ------------------------------------------------------------
 -- Pedidos
 -- ------------------------------------------------------------
-CREATE TYPE status_pedido AS ENUM ('novo', 'em_preparo', 'pronto', 'entregue');
+CREATE TYPE status_pedido AS ENUM ('novo', 'em_preparo', 'pronto', 'entregue', 'cancelado');
 CREATE TYPE forma_pagamento AS ENUM ('dinheiro', 'pix', 'credito', 'debito', 'outro');
 CREATE TYPE status_pagamento AS ENUM ('registrado', 'estornado');
 

@@ -35,7 +35,7 @@ export function KanbanBoard({ initialPedidos }: { initialPedidos: Pedido[] }) {
 
     if (event.type === 'status_atualizado') {
       const { pedidoId, status } = event.payload
-      if (status === 'entregue') {
+      if (status === 'entregue' || status === 'cancelado') {
         setPedidos((prev) => prev.filter((p) => p.id !== pedidoId))
       }
     }

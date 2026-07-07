@@ -34,4 +34,17 @@ describe('cashier order control', () => {
     expect(client).toContain('expandedId')
     expect(client).toContain('paymentFormPedidoId')
   })
+
+  it('preserves the user choice to keep cashier order items collapsed during polling', () => {
+    const client = readProjectFile('app/admin/pedidos/client.tsx')
+
+    expect(client).toContain('if (current === null) return null')
+  })
+
+  it('keeps canceled orders out of cashier receivables', () => {
+    const queries = readProjectFile('lib/orders/queries.ts')
+
+    expect(queries).toContain('getCashierOrders')
+    expect(queries).toContain("ne(pedido.status, 'cancelado')")
+  })
 })

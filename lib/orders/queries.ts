@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne } from 'drizzle-orm'
 
 import { db } from '@/lib/db/index'
 import { itemPedido, mesa, pagamentoPedido, pedido, produto } from '@/lib/db/schema'
@@ -43,7 +43,9 @@ export async function getTenantMesaOrders(input: {
       and(
         eq(pedido.tenantId, input.tenantId),
         eq(mesa.tenantId, input.tenantId),
-        eq(mesa.id, input.mesaId)
+        eq(mesa.id, input.mesaId),
+        ne(pedido.status, 'entregue'),
+        ne(pedido.status, 'cancelado')
       )
     )
     .orderBy(desc(pedido.criadoEm))
@@ -91,7 +93,13 @@ export async function getCashierOrders(input: { tenantId: string }): Promise<Cas
     })
     .from(pedido)
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
-    .where(and(eq(pedido.tenantId, input.tenantId), eq(mesa.tenantId, input.tenantId)))
+    .where(
+      and(
+        eq(pedido.tenantId, input.tenantId),
+        eq(mesa.tenantId, input.tenantId),
+        ne(pedido.status, 'cancelado')
+      )
+    )
     .orderBy(desc(pedido.criadoEm))
 
   const orderIds = orders.map((order) => order.id)

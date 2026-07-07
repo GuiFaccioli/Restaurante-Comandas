@@ -6,6 +6,7 @@ const statusConfig: Record<StatusPedido, { label: string; className: string }> =
   em_preparo: { label: 'Em Preparo', className: 'bg-amber-500 text-white' },
   pronto:     { label: 'Pronto',     className: 'bg-green-600 text-white' },
   entregue:   { label: 'Entregue',   className: 'bg-muted text-muted-foreground' },
+  cancelado:  { label: 'Cancelado',  className: 'bg-destructive text-destructive-foreground' },
 }
 
 export function StatusBadge({ status }: { status: StatusPedido }) {

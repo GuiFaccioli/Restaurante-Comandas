@@ -1,6 +1,6 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 
-export type StatusPedido = 'novo' | 'em_preparo' | 'pronto' | 'entregue'
+export type StatusPedido = 'novo' | 'em_preparo' | 'pronto' | 'entregue' | 'cancelado'
 export type RoleUsuario = 'garcom' | 'admin'
 export type AcessoUsuario = 'admin' | 'caixa' | 'cozinha' | 'garcom'
 export type TenantStatus = 'active' | 'inactive'
@@ -50,7 +50,7 @@ export const pedido = sqliteTable('pedido', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   tenantId: text('tenant_id').notNull().references(() => tenant.id),
   mesaId: text('mesa_id').notNull().references(() => mesa.id),
-  status: text('status', { enum: ['novo', 'em_preparo', 'pronto', 'entregue'] })
+  status: text('status', { enum: ['novo', 'em_preparo', 'pronto', 'entregue', 'cancelado'] })
     .notNull()
     .default('novo'),
   criadoEm: integer('criado_em', { mode: 'timestamp' })

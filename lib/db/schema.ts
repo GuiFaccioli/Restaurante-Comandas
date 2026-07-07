@@ -18,6 +18,7 @@ export const statusPedidoEnum = pgEnum('status_pedido', [
   'em_preparo',
   'pronto',
   'entregue',
+  'cancelado',
 ])
 
 export const roleUsuarioEnum = pgEnum('role_usuario', ['garcom', 'admin'])
@@ -42,7 +43,7 @@ export const statusPagamentoEnum = pgEnum('status_pagamento', ['registrado', 'es
 // TypeScript Type Exports
 // ============================================================
 
-export type StatusPedido = 'novo' | 'em_preparo' | 'pronto' | 'entregue'
+export type StatusPedido = 'novo' | 'em_preparo' | 'pronto' | 'entregue' | 'cancelado'
 export type RoleUsuario = 'garcom' | 'admin'
 export type AcessoUsuario = 'admin' | 'caixa' | 'cozinha' | 'garcom'
 export type TenantStatus = 'active' | 'inactive'

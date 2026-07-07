@@ -131,6 +131,7 @@ const STATUS_FLOW: Record<StatusPedido, StatusPedido | null> = {
   em_preparo: 'pronto',
   pronto: 'entregue',
   entregue: null,
+  cancelado: null,
 }
 
 export async function atualizarStatus(
@@ -188,6 +189,34 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
     })
   } catch (error) {
     console.error('Failed to notify kitchen about delivery confirmation', error)
+  }
+}
+
+export async function cancelarPedido(pedidoId: string): Promise<void> {
+  const { tenantId } = await requireAccess('garcom')
+
+  const [current] = await db
+    .select({ status: pedido.status })
+    .from(pedido)
+    .where(and(eq(pedido.id, pedidoId), eq(pedido.tenantId, tenantId)))
+
+  if (!current) throw new Error('Pedido não encontrado')
+  if (current.status !== 'novo') {
+    throw new Error('Só pedidos abertos podem ser cancelados')
+  }
+
+  await db
+    .update(pedido)
+    .set({ status: 'cancelado', atualizadoEm: new Date() })
+    .where(and(eq(pedido.id, pedidoId), eq(pedido.tenantId, tenantId)))
+
+  try {
+    notifyKitchen({
+      type: 'status_atualizado',
+      payload: { pedidoId, status: 'cancelado' },
+    })
+  } catch (error) {
+    console.error('Failed to notify kitchen about order cancellation', error)
   }
 }
 

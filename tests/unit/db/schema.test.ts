@@ -206,6 +206,21 @@ describe('Drizzle schema', () => {
       expect(statusPedidoEnum.enumName).toBe('status_pedido')
     })
 
+    it('supports canceled orders as a first-class status', () => {
+      const pgSchema = readFileSync(join(process.cwd(), 'lib/db/schema.ts'), 'utf8')
+      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
+      const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
+      const migration = readFileSync(
+        join(process.cwd(), 'db/migrations/202607071018_add_cancelado_status.sql'),
+        'utf8'
+      )
+
+      expect(pgSchema).toContain("'cancelado'")
+      expect(sqliteSchema).toContain("'cancelado'")
+      expect(sqlSchema).toContain("'cancelado'")
+      expect(migration).toContain("ADD VALUE IF NOT EXISTS 'cancelado'")
+    })
+
     it('roleUsuarioEnum is defined', () => {
       expect(roleUsuarioEnum).toBeDefined()
       expect(roleUsuarioEnum.enumName).toBe('role_usuario')

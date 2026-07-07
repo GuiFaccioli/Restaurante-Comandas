@@ -333,3 +333,66 @@ describe('confirmarEntrega', () => {
     })
   })
 })
+
+describe('cancelarPedido', () => {
+  it('requires waiter access before canceling an order', async () => {
+    const { cancelarPedido } = await import('@/lib/actions/pedidos')
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ status: 'novo' }]),
+      }),
+    })
+    mocks.db.update.mockReturnValueOnce({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+    })
+
+    await cancelarPedido('pedido-1')
+
+    expect(mocks.requireAccess).toHaveBeenCalledWith('garcom')
+  })
+
+  it('rejects cancellation for a non-new order', async () => {
+    const { cancelarPedido } = await import('@/lib/actions/pedidos')
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ status: 'entregue' }]),
+      }),
+    })
+
+    await expect(cancelarPedido('pedido-1')).rejects.toThrow(
+      'Só pedidos abertos podem ser cancelados'
+    )
+
+    expect(mocks.db.update).not.toHaveBeenCalled()
+    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
+  })
+
+  it('marks a new order as canceled and emits status_atualizado', async () => {
+    const { cancelarPedido } = await import('@/lib/actions/pedidos')
+    const set = vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(undefined),
+    })
+
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ status: 'novo' }]),
+      }),
+    })
+    mocks.db.update.mockReturnValueOnce({ set })
+
+    await cancelarPedido('pedido-1')
+
+    expect(set).toHaveBeenCalledWith({
+      status: 'cancelado',
+      atualizadoEm: expect.any(Date),
+    })
+    expect(mocks.notifyKitchen).toHaveBeenCalledWith({
+      type: 'status_atualizado',
+      payload: { pedidoId: 'pedido-1', status: 'cancelado' },
+    })
+  })
+})

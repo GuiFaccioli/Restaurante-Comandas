@@ -43,6 +43,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
     const data = (await response.json()) as { pedidos: CashierOrder[] }
     setPedidos(data.pedidos)
     setExpandedId((current) => {
+      if (current === null) return null
       if (current && data.pedidos.some((pedido) => pedido.id === current)) return current
       return data.pedidos[0]?.id ?? null
     })

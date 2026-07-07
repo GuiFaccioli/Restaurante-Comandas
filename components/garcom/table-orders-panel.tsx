@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { confirmarEntrega } from '@/lib/actions/pedidos'
+import { cancelarPedido, confirmarEntrega } from '@/lib/actions/pedidos'
 import type { TableOrder } from '@/lib/orders/queries'
 
 type Props = {
@@ -24,6 +24,7 @@ function statusLabel(status: TableOrder['status']) {
     em_preparo: 'Em preparo',
     pronto: 'Pronto',
     entregue: 'Entregue',
+    cancelado: 'Cancelado',
   }
 
   return labels[status]
@@ -33,6 +34,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   const [pedidos, setPedidos] = useState(initialPedidos)
   const [expandedId, setExpandedId] = useState<string | null>(initialPedidos[0]?.id ?? null)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [pendingAction, setPendingAction] = useState<'cancelar' | 'confirmar' | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const refreshPedidos = useCallback(async () => {
@@ -45,6 +47,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
     const data = (await response.json()) as { pedidos: TableOrder[] }
     setPedidos(data.pedidos)
     setExpandedId((current) => {
+      if (current === null) return null
       if (current && data.pedidos.some((pedido) => pedido.id === current)) return current
       return data.pedidos[0]?.id ?? null
     })
@@ -60,10 +63,29 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
 
   function handleConfirmarEntrega(pedidoId: string) {
     setPendingId(pedidoId)
+    setPendingAction('confirmar')
     startTransition(async () => {
-      await confirmarEntrega(pedidoId)
-      await refreshPedidos()
-      setPendingId(null)
+      try {
+        await confirmarEntrega(pedidoId)
+        await refreshPedidos()
+      } finally {
+        setPendingId(null)
+        setPendingAction(null)
+      }
+    })
+  }
+
+  function handleCancelarPedido(pedidoId: string) {
+    setPendingId(pedidoId)
+    setPendingAction('cancelar')
+    startTransition(async () => {
+      try {
+        await cancelarPedido(pedidoId)
+        await refreshPedidos()
+      } finally {
+        setPendingId(null)
+        setPendingAction(null)
+      }
     })
   }
 
@@ -82,6 +104,8 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
         <div className="space-y-3">
           {pedidos.map((pedido) => {
             const expanded = expandedId === pedido.id
+            const canceling = isPending && pendingId === pedido.id && pendingAction === 'cancelar'
+            const confirming = isPending && pendingId === pedido.id && pendingAction === 'confirmar'
 
             return (
               <article key={pedido.id} className="rounded-md border p-3 space-y-2">
@@ -93,13 +117,24 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                     </p>
                   </div>
                   <div className="flex flex-wrap justify-end gap-2">
+                    {pedido.status === 'novo' && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={isPending && pendingId === pedido.id}
+                        onClick={() => handleCancelarPedido(pedido.id)}
+                      >
+                        {canceling ? 'Cancelando...' : 'Cancelar'}
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => setExpandedId(expanded ? null : pedido.id)}
                     >
-                      Ver itens
+                      Itens
                     </Button>
                     {pedido.status === 'novo' && (
                       <Button
@@ -109,9 +144,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                         disabled={isPending && pendingId === pedido.id}
                         onClick={() => handleConfirmarEntrega(pedido.id)}
                       >
-                        {isPending && pendingId === pedido.id
-                          ? 'Confirmando...'
-                          : 'Confirmar entrega'}
+                        {confirming ? 'Confirmando...' : 'Confirmar'}
                       </Button>
                     )}
                   </div>

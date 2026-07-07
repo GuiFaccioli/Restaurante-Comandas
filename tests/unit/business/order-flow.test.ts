@@ -83,6 +83,7 @@ describe('pedido business flow', () => {
     expect(cardSource).toContain('LiveElapsedTimer')
     expect(boardSource).not.toContain('COLUMNS')
     expect(boardSource).toContain("status === 'entregue'")
+    expect(boardSource).toContain("status === 'cancelado'")
   })
 
   test('waiter pending deliveries page is the first waiter workflow screen', () => {
