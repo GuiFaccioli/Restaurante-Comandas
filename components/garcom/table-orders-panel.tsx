@@ -160,12 +160,8 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                   <ul className="space-y-1 text-sm">
                     {pedido.itens.map((item, index) => (
                       <li key={`${pedido.id}-${item.nome}-${index}`}>
-                        <span className="font-medium">
-                          {item.quantidade}x {item.nome}
-                        </span>{' '}
-                        <span className="text-muted-foreground">
-                          {formatCurrency(item.quantidade * Number(item.precoUnitario))}
-                        </span>
+                        <span className="font-medium">{item.nome}</span>{' '}
+                        <span className="text-muted-foreground">Qtd. {item.quantidade}</span>
                         {item.observacao && (
                           <span className="text-muted-foreground"> · {item.observacao}</span>
                         )}

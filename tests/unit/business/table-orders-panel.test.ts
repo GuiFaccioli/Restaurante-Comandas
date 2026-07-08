@@ -58,6 +58,14 @@ describe('table order monitoring', () => {
     expect(panel).not.toContain('Nenhum pedido aberto para esta mesa')
   })
 
+  it('keeps expanded item rows clean without duplicate prices or 2x prefixes', () => {
+    const panel = readProjectFile('components/garcom/table-orders-panel.tsx')
+
+    expect(panel).not.toContain('Number(item.precoUnitario)')
+    expect(panel).not.toContain('}x {item.nome}')
+    expect(panel).toContain('Qtd. {item.quantidade}')
+  })
+
   it('keeps delivered orders out of the waiter table monitoring history', () => {
     const queries = readProjectFile('lib/orders/queries.ts')
 
