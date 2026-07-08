@@ -1,23 +1,13 @@
 import { redirect } from 'next/navigation'
 import { ProfileMenu } from '@/components/auth/profile-menu'
-import { getCurrentAccesses, redirectForAccesses } from '@/lib/auth/access'
-import type { AcessoUsuario } from '@/lib/db/schema'
+import {
+  ACCESS_DESCRIPTION,
+  ACCESS_LABEL,
+  getCurrentAccesses,
+  redirectForAccesses,
+} from '@/lib/auth/access'
 
 export const dynamic = 'force-dynamic'
-
-const AREA_LABEL: Record<AcessoUsuario, string> = {
-  admin: 'Administração',
-  caixa: 'Caixa',
-  cozinha: 'Cozinha',
-  garcom: 'Garçom',
-}
-
-const AREA_DESCRIPTION: Record<AcessoUsuario, string> = {
-  admin: 'Gerenciar cardápio, mesas e configuração.',
-  caixa: 'Fechar comandas e registrar pagamentos externos.',
-  cozinha: 'Acompanhar e atualizar preparo dos pedidos.',
-  garcom: 'Selecionar mesas e confirmar pedidos.',
-}
 
 export default async function SelecionarAreaPage() {
   const accesses = await getCurrentAccesses()
@@ -42,8 +32,8 @@ export default async function SelecionarAreaPage() {
               href={redirectForAccesses([access])}
               className="border rounded-[12px] p-4 hover:bg-muted transition-colors"
             >
-              <p className="font-medium">{AREA_LABEL[access]}</p>
-              <p className="text-sm text-muted-foreground">{AREA_DESCRIPTION[access]}</p>
+              <p className="font-medium">{ACCESS_LABEL[access]}</p>
+              <p className="text-sm text-muted-foreground">{ACCESS_DESCRIPTION[access]}</p>
             </a>
           ))}
         </div>

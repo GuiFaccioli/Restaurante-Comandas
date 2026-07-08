@@ -5,7 +5,21 @@ import { tenantUser, usuarioAcesso } from '@/lib/db/schema'
 import type { AcessoUsuario } from '@/lib/db/schema'
 import { getCurrentSession } from '@/lib/auth/session'
 
-const ACCESS_DESTINATION: Record<AcessoUsuario, string> = {
+export const ACCESS_LABEL: Record<AcessoUsuario, string> = {
+  admin: 'Administração',
+  caixa: 'Caixa',
+  cozinha: 'Cozinha',
+  garcom: 'Garçom',
+}
+
+export const ACCESS_DESCRIPTION: Record<AcessoUsuario, string> = {
+  admin: 'Gerenciar cardápio, mesas e configuração.',
+  caixa: 'Fechar comandas e registrar pagamentos externos.',
+  cozinha: 'Acompanhar e atualizar preparo dos pedidos.',
+  garcom: 'Selecionar mesas e confirmar pedidos.',
+}
+
+export const ACCESS_DESTINATION: Record<AcessoUsuario, string> = {
   admin: '/admin/menu',
   caixa: '/admin/pedidos',
   cozinha: '/cozinha/dashboard',

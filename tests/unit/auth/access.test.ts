@@ -48,7 +48,14 @@ vi.mock('@/lib/db/index', () => ({
   },
 }))
 
-import { getCurrentAccesses, redirectForAccesses, requireAccess } from '@/lib/auth/access'
+import {
+  ACCESS_DESCRIPTION,
+  ACCESS_DESTINATION,
+  ACCESS_LABEL,
+  getCurrentAccesses,
+  redirectForAccesses,
+  requireAccess,
+} from '@/lib/auth/access'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -97,5 +104,13 @@ describe('access guard', () => {
     expect(redirectForAccesses(['cozinha'])).toBe('/cozinha/dashboard')
     expect(redirectForAccesses(['admin', 'caixa'])).toBe('/selecionar-area')
     expect(redirectForAccesses([])).toBe('/sem-acesso')
+  })
+
+  it('exposes shared access labels, descriptions, and destinations', () => {
+    expect(ACCESS_LABEL.garcom).toBe('Garçom')
+    expect(ACCESS_LABEL.cozinha).toBe('Cozinha')
+    expect(ACCESS_DESTINATION.garcom).toBe('/garcom/pedidos')
+    expect(ACCESS_DESTINATION.cozinha).toBe('/cozinha/dashboard')
+    expect(ACCESS_DESCRIPTION.garcom).toContain('Selecionar mesas')
   })
 })
