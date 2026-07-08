@@ -14,11 +14,22 @@ describe('profile menu logout', () => {
     const clientComponent = readProjectFile('components/auth/profile-menu-client.tsx')
 
     expect(component).toContain("import { signOut } from '@/lib/actions/auth'")
+    expect(component).toContain('getCurrentAccesses')
     expect(component).toContain("import { getCurrentSession } from '@/lib/auth/session'")
     expect(component).toContain('ProfileMenuClient')
     expect(clientComponent).toContain('Perfil')
     expect(component).toContain('action={signOut}')
     expect(component).toContain('Sair')
+  })
+
+  it('renders permitted area switching inside the profile menu', () => {
+    const component = readProjectFile('components/auth/profile-menu.tsx')
+
+    expect(component).toContain('currentAccess?: AcessoUsuario')
+    expect(component).toContain('Acessos')
+    expect(component).toContain('Atual')
+    expect(component).toContain('ACCESS_LABEL[access]')
+    expect(component).toContain('ACCESS_DESTINATION[access]')
   })
 
   it('closes the profile menu when the user clicks outside it', () => {
