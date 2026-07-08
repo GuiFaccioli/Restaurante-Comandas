@@ -7,7 +7,7 @@ export default async function GarcomLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-background">
       <div className="flex items-center justify-end gap-3 px-4 pt-4">
-        <ProfileMenu />
+        <ProfileMenu currentAccess="garcom" />
       </div>
       {children}
     </div>

@@ -20,26 +20,20 @@ describe('access navigation controls', () => {
     expect(page).not.toContain('<Button asChild')
   })
 
-  it('lets multi-area operational layouts return to area selection', () => {
+  it('keeps protected operational area switching inside the profile menu', () => {
     const layouts = [
-      'app/admin/layout.tsx',
-      'app/cozinha/layout.tsx',
+      { path: 'app/admin/layout.tsx', currentAccess: 'admin' },
+      { path: 'app/cozinha/layout.tsx', currentAccess: 'cozinha' },
+      { path: 'app/garcom/layout.tsx', currentAccess: 'garcom' },
     ]
 
-    for (const path of layouts) {
+    for (const { path, currentAccess } of layouts) {
       const layout = source(path)
 
-      expect(layout, path).toContain('href="/selecionar-area"')
-      expect(layout, path).toContain('Trocar área')
+      expect(layout, path).not.toContain('href="/selecionar-area"')
+      expect(layout, path).not.toContain('Trocar área')
       expect(layout, path).toContain('ProfileMenu')
+      expect(layout, path).toContain(`currentAccess="${currentAccess}"`)
     }
-  })
-
-  it('keeps waiter layout focused on the waiter workflow', () => {
-    const layout = source('app/garcom/layout.tsx')
-
-    expect(layout).not.toContain('href="/selecionar-area"')
-    expect(layout).not.toContain('Trocar Ã¡rea')
-    expect(layout).toContain('ProfileMenu')
   })
 })
