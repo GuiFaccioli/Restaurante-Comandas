@@ -27,17 +27,22 @@ describe('table order monitoring', () => {
     expect(panel).toContain('cancelarPedido')
     expect(panel).toContain('Cancelar')
     expect(panel).toContain('Itens')
-    expect(panel).toContain('Confirmar')
+    expect(panel).toContain('Entregue')
     expect(panel).toContain('5000')
     expect(panel).toContain('/api/garcom/mesa/')
   })
 
-  it('puts cancel, items, and confirm actions in the same order action row', () => {
+  it('lays out each table order with time, total, status, and separated actions', () => {
     const panel = readProjectFile('components/garcom/table-orders-panel.tsx')
 
+    expect(panel).toContain('formatOrderTime(pedido.criadoEm)')
+    expect(panel).toContain('Pedido:')
+    expect(panel).toContain('formatCurrency(pedido.total)')
+    expect(panel).not.toContain('pedido.id.slice')
+    expect(panel).toMatch(/statusLabel\(pedido\.status\)[\s\S]*Cancelar/)
     expect(panel).toMatch(/variant="destructive"[\s\S]*Cancelar/)
     expect(panel).toMatch(/variant="outline"[\s\S]*Itens/)
-    expect(panel).toMatch(/variant="success"[\s\S]*Confirmar/)
+    expect(panel).toMatch(/ml-auto[\s\S]*variant="success"[\s\S]*Entregue/)
   })
 
   it('preserves the user choice to keep table order items collapsed during polling', () => {

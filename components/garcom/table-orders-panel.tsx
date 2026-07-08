@@ -18,6 +18,13 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
+function formatOrderTime(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
 function statusLabel(status: TableOrder['status']) {
   const labels: Record<TableOrder['status'], string> = {
     novo: 'Aberto',
@@ -103,46 +110,50 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
             const confirming = isPending && pendingId === pedido.id && pendingAction === 'confirmar'
 
             return (
-              <article key={pedido.id} className="rounded-md border p-3 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">Pedido {pedido.id.slice(0, 8)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {statusLabel(pedido.status)} · {formatCurrency(pedido.total)}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    {pedido.status === 'novo' && (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        disabled={isPending && pendingId === pedido.id}
-                        onClick={() => handleCancelarPedido(pedido.id)}
-                      >
-                        {canceling ? 'Cancelando...' : 'Cancelar'}
-                      </Button>
-                    )}
+              <article key={pedido.id} className="rounded-md border p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium">Pedido: {formatOrderTime(pedido.criadoEm)}</p>
+                  <p className="font-semibold">{formatCurrency(pedido.total)}</p>
+                </div>
+
+                <div className="flex justify-end">
+                  <span className="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">
+                    {statusLabel(pedido.status)}
+                  </span>
+                </div>
+
+                <div className="flex w-full items-center gap-2">
+                  {pedido.status === 'novo' && (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="destructive"
                       size="sm"
-                      onClick={() => setExpandedId(expanded ? null : pedido.id)}
+                      disabled={isPending && pendingId === pedido.id}
+                      onClick={() => handleCancelarPedido(pedido.id)}
                     >
-                      Itens
+                      {canceling ? 'Cancelando...' : 'Cancelar'}
                     </Button>
-                    {pedido.status === 'novo' && (
-                      <Button
-                        type="button"
-                        variant="success"
-                        size="sm"
-                        disabled={isPending && pendingId === pedido.id}
-                        onClick={() => handleConfirmarEntrega(pedido.id)}
-                      >
-                        {confirming ? 'Confirmando...' : 'Confirmar'}
-                      </Button>
-                    )}
-                  </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setExpandedId(expanded ? null : pedido.id)}
+                  >
+                    Itens
+                  </Button>
+                  {pedido.status === 'novo' && (
+                    <Button
+                      type="button"
+                      className="ml-auto"
+                      variant="success"
+                      size="sm"
+                      disabled={isPending && pendingId === pedido.id}
+                      onClick={() => handleConfirmarEntrega(pedido.id)}
+                    >
+                      {confirming ? 'Entregando...' : 'Entregue'}
+                    </Button>
+                  )}
                 </div>
 
                 {expanded && (
