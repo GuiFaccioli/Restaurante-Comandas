@@ -97,6 +97,7 @@ describe('pedido business flow', () => {
     expect(pageSource).toContain("eq(pedido.status, 'novo')")
     expect(pageSource).toContain('PendingDeliveriesClient')
     expect(pageSource).not.toContain("redirect('/garcom/mesas')")
+    expect(pageSource).not.toContain('href="/garcom/mesas"')
     expect(clientSource).toContain('confirmarEntrega')
     expect(clientSource).toContain('Confirmar entrega')
     expect(clientSource).toContain("href=\"/garcom/mesas\"")

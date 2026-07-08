@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { requireAccess } from '@/lib/auth/access'
@@ -47,16 +46,13 @@ export default async function PedidosPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-start justify-between gap-3">
+      <div>
         <div>
           <h1 className="text-2xl font-bold">Entregas pendentes</h1>
           <p className="text-sm text-muted-foreground">
             Confira primeiro os pedidos chamados pela cozinha.
           </p>
         </div>
-        <Link href="/garcom/mesas" className="rounded-md border px-3 py-2 text-sm font-medium">
-          Mesas
-        </Link>
       </div>
       <PendingDeliveriesClient initialPedidos={initialPedidos} />
     </div>
