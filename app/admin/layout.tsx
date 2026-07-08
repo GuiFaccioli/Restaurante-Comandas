@@ -13,6 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <a href="/admin/menu" className="text-sm font-medium hover:text-primary">Cardápio</a>
         <a href="/admin/mesas" className="text-sm font-medium hover:text-primary">Mesas</a>
         <a href="/admin/pedidos" className="text-sm font-medium hover:text-primary">Pedidos</a>
+        <a href="/selecionar-area" className="text-sm font-medium hover:text-primary">Trocar área</a>
         <ProfileMenu className="ml-auto" />
       </nav>
       <div className="grid min-h-[calc(100vh-49px)] grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">

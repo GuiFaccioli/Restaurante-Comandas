@@ -18,4 +18,20 @@ describe('access navigation controls', () => {
     expect(page).toContain('href="/selecionar-area"')
     expect(page).toContain('Trocar área')
   })
+
+  it('lets protected operational layouts return to area selection', () => {
+    const layouts = [
+      'app/admin/layout.tsx',
+      'app/garcom/layout.tsx',
+      'app/cozinha/layout.tsx',
+    ]
+
+    for (const path of layouts) {
+      const layout = source(path)
+
+      expect(layout, path).toContain('href="/selecionar-area"')
+      expect(layout, path).toContain('Trocar área')
+      expect(layout, path).toContain('ProfileMenu')
+    }
+  })
 })
