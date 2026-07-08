@@ -93,14 +93,9 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
     <section className="rounded-[var(--radius)] border bg-card p-4 space-y-3">
       <div>
         <h2 className="text-lg font-semibold">Pedidos desta mesa</h2>
-        <p className="text-sm text-muted-foreground">
-          Atualiza automaticamente a cada 5 segundos sem mexer no carrinho.
-        </p>
       </div>
 
-      {pedidos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum pedido aberto para esta mesa.</p>
-      ) : (
+      {pedidos.length > 0 && (
         <div className="space-y-3">
           {pedidos.map((pedido) => {
             const expanded = expandedId === pedido.id

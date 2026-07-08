@@ -42,7 +42,7 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
           <p className="text-sm text-muted-foreground">Monte pedidos e acompanhe entregas.</p>
         </div>
         <Link href="/garcom/mesas" className={cn(buttonVariants({ variant: 'destructive', size: 'sm' }))}>
-          Voltar para mesas
+          Voltar
         </Link>
       </div>
       <TableOrdersPanel mesaId={mesaId} initialPedidos={initialPedidos} />

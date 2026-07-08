@@ -46,6 +46,13 @@ describe('table order monitoring', () => {
     expect(panel).toContain('if (current === null) return null')
   })
 
+  it('does not show noisy automatic refresh or empty order messages', () => {
+    const panel = readProjectFile('components/garcom/table-orders-panel.tsx')
+
+    expect(panel).not.toContain('Atualiza automaticamente')
+    expect(panel).not.toContain('Nenhum pedido aberto para esta mesa')
+  })
+
   it('keeps delivered orders out of the waiter table monitoring history', () => {
     const queries = readProjectFile('lib/orders/queries.ts')
 
