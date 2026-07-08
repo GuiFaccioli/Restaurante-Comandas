@@ -11,14 +11,24 @@ function readProjectFile(path: string) {
 describe('profile menu logout', () => {
   it('hides the sign-out action inside a profile menu', () => {
     const component = readProjectFile('components/auth/profile-menu.tsx')
+    const clientComponent = readProjectFile('components/auth/profile-menu-client.tsx')
 
     expect(component).toContain("import { signOut } from '@/lib/actions/auth'")
     expect(component).toContain("import { getCurrentSession } from '@/lib/auth/session'")
-    expect(component).toContain('<details')
-    expect(component).toContain('<summary')
-    expect(component).toContain('Perfil')
+    expect(component).toContain('ProfileMenuClient')
+    expect(clientComponent).toContain('Perfil')
     expect(component).toContain('action={signOut}')
     expect(component).toContain('Sair')
+  })
+
+  it('closes the profile menu when the user clicks outside it', () => {
+    const clientComponent = readProjectFile('components/auth/profile-menu-client.tsx')
+
+    expect(clientComponent).toContain("'use client'")
+    expect(clientComponent).toContain('document.addEventListener')
+    expect(clientComponent).toContain('pointerdown')
+    expect(clientComponent).toContain('contains(event.target)')
+    expect(clientComponent).toContain('setOpen(false)')
   })
 
   it('is available from protected operational screens without rendering the raw logout button', () => {
