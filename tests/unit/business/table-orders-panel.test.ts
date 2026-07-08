@@ -32,7 +32,7 @@ describe('table order monitoring', () => {
     expect(panel).toContain('/api/garcom/mesa/')
   })
 
-  it('lays out each table order with time, total, status, and separated actions', () => {
+  it('lays out each table order with header, items in the middle, and actions at the bottom', () => {
     const panel = readProjectFile('components/garcom/table-orders-panel.tsx')
 
     expect(panel).toContain('formatOrderTime(pedido.criadoEm)')
@@ -40,11 +40,13 @@ describe('table order monitoring', () => {
     expect(panel).toContain('formatCurrency(pedido.total)')
     expect(panel).toContain('order-card')
     expect(panel).toContain('order-header')
-    expect(panel).toContain('order-status')
-    expect(panel).toContain('status-circle')
+    expect(panel).toContain('order-items')
     expect(panel).toContain('order-actions')
+    expect(panel).not.toContain('order-status')
+    expect(panel).not.toContain('status-circle')
     expect(panel).not.toContain('statusLabel')
     expect(panel).not.toContain('pedido.id.slice')
+    expect(panel).toMatch(/order-header[\s\S]*order-items[\s\S]*order-actions/)
     expect(panel).toMatch(/variant="destructive"[\s\S]*Cancelar/)
     expect(panel).toMatch(/variant="outline"[\s\S]*Itens/)
     expect(panel).toMatch(/ml-auto[\s\S]*variant="success"[\s\S]*Entregue/)

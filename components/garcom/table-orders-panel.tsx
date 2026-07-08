@@ -105,12 +105,19 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                   <strong>{formatCurrency(pedido.total)}</strong>
                 </div>
 
-                <div className="order-status flex justify-end">
-                  <span
-                    aria-hidden="true"
-                    className="status-circle h-3 w-3 rounded-full border border-muted-foreground bg-transparent"
-                  />
-                </div>
+                {expanded && (
+                  <ul className="order-items space-y-1 text-sm">
+                    {pedido.itens.map((item, index) => (
+                      <li key={`${pedido.id}-${item.nome}-${index}`}>
+                        <span className="font-medium">{item.nome}</span>{' '}
+                        <span className="text-muted-foreground">Qtd. {item.quantidade}</span>
+                        {item.observacao && (
+                          <span className="text-muted-foreground"> · {item.observacao}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
                 <div className="order-actions flex w-full items-center gap-2">
                   <div className="flex min-w-0 flex-wrap gap-2">
@@ -133,30 +140,16 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                     </Button>
                   </div>
                   <Button
-                      type="button"
-                      className="ml-auto"
-                      variant="success"
-                      size="sm"
-                      disabled={actionDisabled}
-                      onClick={() => handleConfirmarEntrega(pedido.id)}
-                    >
-                      {confirming ? 'Entregando...' : 'Entregue'}
-                    </Button>
+                    type="button"
+                    className="ml-auto"
+                    variant="success"
+                    size="sm"
+                    disabled={actionDisabled}
+                    onClick={() => handleConfirmarEntrega(pedido.id)}
+                  >
+                    {confirming ? 'Entregando...' : 'Entregue'}
+                  </Button>
                 </div>
-
-                {expanded && (
-                  <ul className="space-y-1 text-sm">
-                    {pedido.itens.map((item, index) => (
-                      <li key={`${pedido.id}-${item.nome}-${index}`}>
-                        <span className="font-medium">{item.nome}</span>{' '}
-                        <span className="text-muted-foreground">Qtd. {item.quantidade}</span>
-                        {item.observacao && (
-                          <span className="text-muted-foreground"> · {item.observacao}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </article>
             )
           })}
