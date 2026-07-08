@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { signOut } from '@/lib/actions/auth'
 
 export default function SemAcessoPage() {
@@ -15,9 +15,12 @@ export default function SemAcessoPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/selecionar-area">Trocar área</Link>
-          </Button>
+          <Link
+            href="/selecionar-area"
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            Trocar área
+          </Link>
           <form action={signOut}>
             <Button type="submit" variant="destructive">
               Sair

@@ -17,6 +17,7 @@ describe('access navigation controls', () => {
     expect(page).toContain('Sair')
     expect(page).toContain('href="/selecionar-area"')
     expect(page).toContain('Trocar área')
+    expect(page).not.toContain('<Button asChild')
   })
 
   it('lets protected operational layouts return to area selection', () => {
