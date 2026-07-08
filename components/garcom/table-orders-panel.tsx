@@ -25,18 +25,6 @@ function formatOrderTime(value: string) {
   }).format(new Date(value))
 }
 
-function statusLabel(status: TableOrder['status']) {
-  const labels: Record<TableOrder['status'], string> = {
-    novo: 'Aberto',
-    em_preparo: 'Em preparo',
-    pronto: 'Pronto',
-    entregue: 'Entregue',
-    cancelado: 'Cancelado',
-  }
-
-  return labels[status]
-}
-
 export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   const [pedidos, setPedidos] = useState(initialPedidos)
   const [expandedId, setExpandedId] = useState<string | null>(initialPedidos[0]?.id ?? null)
@@ -108,52 +96,52 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
             const expanded = expandedId === pedido.id
             const canceling = isPending && pendingId === pedido.id && pendingAction === 'cancelar'
             const confirming = isPending && pendingId === pedido.id && pendingAction === 'confirmar'
+            const actionDisabled = pedido.status !== 'novo' || (isPending && pendingId === pedido.id)
 
             return (
-              <article key={pedido.id} className="rounded-md border p-3 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium">Pedido: {formatOrderTime(pedido.criadoEm)}</p>
-                  <p className="font-semibold">{formatCurrency(pedido.total)}</p>
+              <article key={pedido.id} className="order-card rounded-md border p-3 space-y-5">
+                <div className="order-header flex items-start justify-between gap-3">
+                  <span className="font-medium">Pedido: {formatOrderTime(pedido.criadoEm)}</span>
+                  <strong>{formatCurrency(pedido.total)}</strong>
                 </div>
 
-                <div className="flex justify-end">
-                  <span className="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">
-                    {statusLabel(pedido.status)}
-                  </span>
+                <div className="order-status flex justify-end">
+                  <span
+                    aria-hidden="true"
+                    className="status-circle h-3 w-3 rounded-full border border-muted-foreground bg-transparent"
+                  />
                 </div>
 
-                <div className="flex w-full items-center gap-2">
-                  {pedido.status === 'novo' && (
+                <div className="order-actions flex w-full items-center gap-2">
+                  <div className="flex min-w-0 flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      disabled={isPending && pendingId === pedido.id}
+                      disabled={actionDisabled}
                       onClick={() => handleCancelarPedido(pedido.id)}
                     >
                       {canceling ? 'Cancelando...' : 'Cancelar'}
                     </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setExpandedId(expanded ? null : pedido.id)}
-                  >
-                    Itens
-                  </Button>
-                  {pedido.status === 'novo' && (
                     <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExpandedId(expanded ? null : pedido.id)}
+                    >
+                      Itens
+                    </Button>
+                  </div>
+                  <Button
                       type="button"
                       className="ml-auto"
                       variant="success"
                       size="sm"
-                      disabled={isPending && pendingId === pedido.id}
+                      disabled={actionDisabled}
                       onClick={() => handleConfirmarEntrega(pedido.id)}
                     >
                       {confirming ? 'Entregando...' : 'Entregue'}
                     </Button>
-                  )}
                 </div>
 
                 {expanded && (
