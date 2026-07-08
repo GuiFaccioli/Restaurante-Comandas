@@ -1,21 +1,49 @@
-import { db } from '@/lib/db/index'
 import { asc, eq } from 'drizzle-orm'
-import { usuario, usuarioAcesso } from '@/lib/db/schema'
+
+import { atualizarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/actions/usuarios'
 import { requireAccess } from '@/lib/auth/access'
+import { db } from '@/lib/db/index'
+import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
+import type { AcessoUsuario, RoleUsuario } from '@/lib/db/schema'
 
 export const dynamic = 'force-dynamic'
 
-export default async function UsuariosAdminPage() {
-  await requireAccess('admin')
+const ROLE_OPTIONS: Array<{ value: RoleUsuario; label: string }> = [
+  { value: 'garcom', label: 'Garçom' },
+  { value: 'admin', label: 'Admin' },
+]
 
-  const usuarios = await db.select().from(usuario).orderBy(asc(usuario.nome))
+const ACCESS_OPTIONS: Array<{ value: AcessoUsuario; label: string }> = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'caixa', label: 'Caixa' },
+  { value: 'cozinha', label: 'Cozinha' },
+  { value: 'garcom', label: 'Garçom' },
+]
+
+export default async function UsuariosAdminPage() {
+  const { tenantId, usuarioId: currentUserId } = await requireAccess('admin')
+
+  const usuarios = await db
+    .select({
+      id: usuario.id,
+      nome: usuario.nome,
+      email: usuario.email,
+      role: usuario.role,
+      tenantUserId: tenantUser.id,
+    })
+    .from(tenantUser)
+    .innerJoin(usuario, eq(tenantUser.usuarioId, usuario.id))
+    .where(eq(tenantUser.tenantId, tenantId))
+    .orderBy(asc(usuario.nome))
+
   const acessos = await db
     .select({
       usuarioId: usuarioAcesso.usuarioId,
       acesso: usuarioAcesso.acesso,
     })
     .from(usuarioAcesso)
-    .innerJoin(usuario, eq(usuarioAcesso.usuarioId, usuario.id))
+    .innerJoin(tenantUser, eq(usuarioAcesso.tenantUserId, tenantUser.id))
+    .where(eq(tenantUser.tenantId, tenantId))
 
   const accessesByUser = new Map<string, string[]>()
   for (const row of acessos) {
@@ -27,33 +55,75 @@ export default async function UsuariosAdminPage() {
       <div>
         <h1 className="text-2xl font-bold">Usuários cadastrados</h1>
         <p className="text-sm text-muted-foreground">
-          Lista operacional de usuários e áreas liberadas no sistema.
+          Edite cargos, acessos e remova usuários deste restaurante.
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-[var(--radius)] border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left">
-            <tr>
-              <th className="px-4 py-3 font-medium">Nome</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Perfil</th>
-              <th className="px-4 py-3 font-medium">Acessos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usuarios.map((user) => (
-              <tr key={user.id} className="border-t">
-                <td className="px-4 py-3 font-medium">{user.nome}</td>
-                <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                <td className="px-4 py-3">{user.role}</td>
-                <td className="px-4 py-3">
-                  {(accessesByUser.get(user.id) ?? []).join(', ') || 'Sem acessos'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid gap-3">
+        {usuarios.map((user) => {
+          const userAccesses = accessesByUser.get(user.id) ?? []
+          const isCurrentUser = user.id === currentUserId
+
+          return (
+            <article key={user.tenantUserId} className="rounded-[var(--radius)] border bg-card p-4">
+              <form action={atualizarUsuarioAdmin} className="grid gap-4 md:grid-cols-[1fr_180px_1fr_auto] md:items-end">
+                <input type="hidden" name="usuarioId" value={user.id} />
+
+                <div>
+                  <p className="font-medium">{user.nome}</p>
+                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                </div>
+
+                <label className="grid gap-1 text-sm">
+                  Cargo
+                  <select
+                    name="role"
+                    defaultValue={user.role}
+                    className="h-10 rounded-md border border-input bg-background px-3"
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium">Acessos</legend>
+                  <div className="flex flex-wrap gap-3">
+                    {ACCESS_OPTIONS.map((access) => (
+                      <label key={access.value} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          name="acessos"
+                          value={access.value}
+                          defaultChecked={userAccesses.includes(access.value)}
+                          className="size-4 rounded border-input"
+                        />
+                        {access.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <button className="h-10 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                  Salvar usuário
+                </button>
+              </form>
+
+              <form action={removerUsuarioDoRestaurante} className="mt-3">
+                <input type="hidden" name="usuarioId" value={user.id} />
+                <button
+                  className="h-9 rounded-full bg-destructive/10 px-4 text-sm font-medium text-destructive hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50"
+                  disabled={isCurrentUser}
+                >
+                  Remover usuário
+                </button>
+              </form>
+            </article>
+          )
+        })}
       </div>
     </div>
   )

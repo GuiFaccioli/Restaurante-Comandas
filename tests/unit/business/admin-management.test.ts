@@ -47,6 +47,24 @@ describe('admin management area', () => {
     expect(existsSync(join(root, 'app/admin/configuracoes/page.tsx'))).toBe(true)
   })
 
+  it('users admin can update roles, accesses, and remove tenant membership', () => {
+    const usersPage = source('app/admin/usuarios/page.tsx')
+    const userActions = source('lib/actions/usuarios.ts')
+
+    expect(userActions).toContain('atualizarUsuarioAdmin')
+    expect(userActions).toContain('removerUsuarioDoRestaurante')
+    expect(userActions).toContain("requireAccess('admin')")
+    expect(userActions).toContain('tenantUser')
+    expect(userActions).toContain('usuarioAcesso')
+
+    expect(usersPage).toContain('Cargo')
+    expect(usersPage).toContain('Acessos')
+    expect(usersPage).toContain('Salvar usuário')
+    expect(usersPage).toContain('Remover usuário')
+    expect(usersPage).toContain('atualizarUsuarioAdmin')
+    expect(usersPage).toContain('removerUsuarioDoRestaurante')
+  })
+
   it('reports page is backed by existing order, item, product, and category data', () => {
     const reportsPage = source('app/admin/relatorios/page.tsx')
 
