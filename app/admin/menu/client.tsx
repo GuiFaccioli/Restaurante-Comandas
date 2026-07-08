@@ -4,7 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Pencil } from 'lucide-react'
 import { ProdutoForm } from '@/components/admin/produto-form'
-import { criarCategoria, toggleDisponivel } from '@/lib/actions/produtos'
+import {
+  criarCategoria,
+  editarCategoria,
+  removerCategoria,
+  removerProduto,
+  toggleDisponivel,
+} from '@/lib/actions/produtos'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -17,6 +23,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
   const [formOpen, setFormOpen] = useState(false)
   const [editProduto, setEditProduto] = useState<Produto | undefined>()
   const [newCat, setNewCat] = useState('')
+  const [categoryName, setCategoryName] = useState(categorias[0]?.nome ?? '')
 
   const catAtual = categorias.find((c) => c.id === selected)
 
@@ -33,6 +40,46 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
     }
   }
 
+  async function handleRenameCategoria() {
+    if (!catAtual || !categoryName.trim()) return
+    try {
+      await editarCategoria(catAtual.id, categoryName.trim())
+      router.refresh()
+      toast.success('Categoria atualizada com sucesso.')
+    } catch (error) {
+      console.error('Failed to update category', error)
+      toast.error('Não foi possível renomear a categoria.')
+    }
+  }
+
+  async function handleRemoveCategoria() {
+    if (!catAtual) return
+    if (!window.confirm(`Excluir a categoria "${catAtual.nome}"?`)) return
+    try {
+      await removerCategoria(catAtual.id)
+      const nextCategory = categorias.find((categoria) => categoria.id !== catAtual.id)
+      setSelected(nextCategory?.id ?? '')
+      setCategoryName(nextCategory?.nome ?? '')
+      router.refresh()
+      toast.success('Categoria excluída com sucesso.')
+    } catch (error) {
+      console.error('Failed to remove category', error)
+      toast.error('Remova os produtos antes de excluir a categoria.')
+    }
+  }
+
+  async function handleRemoveProduto(produto: Produto) {
+    if (!window.confirm(`Excluir o produto "${produto.nome}"?`)) return
+    try {
+      await removerProduto(produto.id)
+      router.refresh()
+      toast.success('Produto excluído com sucesso.')
+    } catch (error) {
+      console.error('Failed to remove product', error)
+      toast.error('Não foi possível excluir o produto.')
+    }
+  }
+
   return (
     <div className="flex gap-6">
       {/* Sidebar */}
@@ -42,7 +89,10 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
           <button
             key={c.id}
             className={`w-full text-left px-3 py-2 rounded-[var(--radius)] text-sm ${selected === c.id ? 'bg-muted font-semibold' : 'hover:bg-muted/50'}`}
-            onClick={() => setSelected(c.id)}
+            onClick={() => {
+              setSelected(c.id)
+              setCategoryName(c.nome)
+            }}
           >
             {c.nome}
           </button>
@@ -67,11 +117,35 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
 
       {/* Products list */}
       <div className="flex-1">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="font-semibold">{catAtual?.nome}</h2>
-          <Button size="sm" onClick={() => { setEditProduto(undefined); setFormOpen(true) }}>
-            <Plus className="h-4 w-4 mr-1" /> Novo Produto
-          </Button>
+        <div className="mb-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold">{catAtual?.nome ?? 'Categorias'}</h2>
+            <Button size="sm" disabled={!catAtual} onClick={() => { setEditProduto(undefined); setFormOpen(true) }}>
+              <Plus className="h-4 w-4 mr-1" /> Novo Produto
+            </Button>
+          </div>
+
+          {catAtual && (
+            <div className="rounded-[var(--radius)] border p-3">
+              <label htmlFor="renomear-categoria" className="text-xs font-medium">
+                Renomear categoria
+              </label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input
+                  id="renomear-categoria"
+                  className="min-w-0 flex-1 rounded-[var(--radius)] border px-3 py-2 text-sm"
+                  value={categoryName}
+                  onChange={(event) => setCategoryName(event.target.value)}
+                />
+                <Button size="sm" variant="outline" onClick={handleRenameCategoria}>
+                  Salvar categoria
+                </Button>
+                <Button size="sm" variant="destructive" onClick={handleRemoveCategoria}>
+                  Excluir categoria
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           {catAtual?.produtos.map((p) => (
@@ -108,6 +182,9 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                 </Badge>
                 <Button size="sm" variant="ghost" onClick={() => { setEditProduto(p); setFormOpen(true) }}>
                   <Pencil className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => handleRemoveProduto(p)}>
+                  Excluir produto
                 </Button>
               </div>
             </div>

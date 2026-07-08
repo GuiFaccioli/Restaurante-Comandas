@@ -29,6 +29,33 @@ export async function criarCategoria(nome: string): Promise<{ id: string }> {
   return { id: cat.id }
 }
 
+export async function editarCategoria(id: string, nome: string): Promise<void> {
+  const { tenantId } = await requireAccess('admin')
+  const normalizedName = nome.trim()
+  if (!normalizedName) throw new Error('Informe o nome da categoria')
+
+  await db
+    .update(categoria)
+    .set({ nome: normalizedName })
+    .where(and(eq(categoria.id, id), eq(categoria.tenantId, tenantId)))
+}
+
+export async function removerCategoria(id: string): Promise<void> {
+  const { tenantId } = await requireAccess('admin')
+  const produtosDaCategoria = await db
+    .select({ id: produto.id })
+    .from(produto)
+    .where(and(eq(produto.categoriaId, id), eq(produto.tenantId, tenantId)))
+
+  if (produtosDaCategoria.length > 0) {
+    throw new Error('Remova os produtos antes de excluir a categoria')
+  }
+
+  await db
+    .delete(categoria)
+    .where(and(eq(categoria.id, id), eq(categoria.tenantId, tenantId)))
+}
+
 export async function reordenarCategorias(ids: string[]): Promise<void> {
   const { tenantId } = await requireAccess('admin')
   await Promise.all(
@@ -70,6 +97,13 @@ export async function editarProduto(
       ...(data.imagemUrl !== undefined && { imagemUrl: data.imagemUrl }),
       ...(data.categoriaId && { categoriaId: data.categoriaId }),
     })
+    .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
+}
+
+export async function removerProduto(id: string): Promise<void> {
+  const { tenantId } = await requireAccess('admin')
+  await db
+    .delete(produto)
     .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
 }
 

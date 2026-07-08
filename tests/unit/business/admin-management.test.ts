@@ -25,6 +25,22 @@ describe('admin management area', () => {
     expect(menuClient).toContain('Adicionar Categoria')
   })
 
+  it('menu admin can edit and remove products and categories intentionally', () => {
+    const menuClient = source('app/admin/menu/client.tsx')
+    const productActions = source('lib/actions/produtos.ts')
+
+    expect(productActions).toContain('editarCategoria')
+    expect(productActions).toContain('removerCategoria')
+    expect(productActions).toContain('removerProduto')
+    expect(productActions).toContain('requireAccess(\'admin\')')
+
+    expect(menuClient).toContain('Renomear categoria')
+    expect(menuClient).toContain('Excluir categoria')
+    expect(menuClient).toContain('Excluir produto')
+    expect(menuClient).toContain('removerProduto')
+    expect(menuClient).toContain('removerCategoria')
+  })
+
   it('has admin reports, users, and settings pages', () => {
     expect(existsSync(join(root, 'app/admin/relatorios/page.tsx'))).toBe(true)
     expect(existsSync(join(root, 'app/admin/usuarios/page.tsx'))).toBe(true)
