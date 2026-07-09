@@ -27,7 +27,9 @@ function formatOrderTime(value: string) {
 
 export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   const [pedidos, setPedidos] = useState(initialPedidos)
-  const [expandedId, setExpandedId] = useState<string | null>(initialPedidos[0]?.id ?? null)
+  const [expandedIds, setExpandedIds] = useState<string[]>(
+    initialPedidos[0]?.id ? [initialPedidos[0].id] : []
+  )
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<'cancelar' | 'confirmar' | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -41,10 +43,13 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
 
     const data = (await response.json()) as { pedidos: TableOrder[] }
     setPedidos(data.pedidos)
-    setExpandedId((current) => {
-      if (current === null) return null
-      if (current && data.pedidos.some((pedido) => pedido.id === current)) return current
-      return data.pedidos[0]?.id ?? null
+    setExpandedIds((current) => {
+      if (current.length === 0) return []
+
+      const visiblePedidoIds = new Set(data.pedidos.map((pedido) => pedido.id))
+      const stillVisible = current.filter((pedidoId) => visiblePedidoIds.has(pedidoId))
+
+      return stillVisible.length > 0 ? stillVisible : data.pedidos[0]?.id ? [data.pedidos[0].id] : []
     })
   }, [mesaId])
 
@@ -84,6 +89,14 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
     })
   }
 
+  function toggleExpanded(pedidoId: string) {
+    setExpandedIds((current) =>
+      current.includes(pedidoId)
+        ? current.filter((expandedPedidoId) => expandedPedidoId !== pedidoId)
+        : [...current, pedidoId]
+    )
+  }
+
   return (
     <section className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
       <div>
@@ -97,7 +110,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
       ) : (
         <div className="space-y-3">
           {pedidos.map((pedido) => {
-            const expanded = expandedId === pedido.id
+            const expanded = expandedIds.includes(pedido.id)
             const canceling = isPending && pendingId === pedido.id && pendingAction === 'cancelar'
             const confirming = isPending && pendingId === pedido.id && pendingAction === 'confirmar'
             const actionDisabled = pedido.status !== 'novo' || (isPending && pendingId === pedido.id)
@@ -138,7 +151,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setExpandedId(expanded ? null : pedido.id)}
+                      onClick={() => toggleExpanded(pedido.id)}
                     >
                       Itens
                     </Button>

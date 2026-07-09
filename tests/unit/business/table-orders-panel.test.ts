@@ -55,7 +55,7 @@ describe('table order monitoring', () => {
   it('preserves the user choice to keep table order items collapsed during polling', () => {
     const panel = readProjectFile('components/garcom/table-orders-panel.tsx')
 
-    expect(panel).toContain('if (current === null) return null')
+    expect(panel).toContain('if (current.length === 0) return []')
   })
 
   it('does not show noisy automatic refresh or empty order messages', () => {

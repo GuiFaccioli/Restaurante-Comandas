@@ -171,6 +171,10 @@ describe('pedido business flow', () => {
 
     expect(tableOrdersSource).toContain('Nenhum pedido confirmado nesta mesa')
     expect(tableOrdersSource).toContain('text-pretty')
+    expect(tableOrdersSource).toContain('expandedIds.includes(pedido.id)')
+    expect(tableOrdersSource).toContain('toggleExpanded')
+    expect(tableOrdersSource).not.toContain('expandedId === pedido.id')
+    expect(tableOrdersSource).not.toContain('setExpandedId(expanded ? null : pedido.id)')
 
     expect(fabSource).toContain('aria-label="Abrir carrinho"')
     expect(fabSource).toContain('bottom-4')
