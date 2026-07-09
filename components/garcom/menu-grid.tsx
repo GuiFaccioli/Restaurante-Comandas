@@ -16,15 +16,19 @@ type Categoria = { id: string; nome: string; produtos: Produto[] }
 export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
   return (
     <Tabs defaultValue={categorias[0]?.id}>
-      <TabsList className="w-full overflow-x-auto flex justify-start gap-1 mb-4">
+      <TabsList className="mb-4 flex w-full justify-start gap-1 overflow-x-auto">
         {categorias.map((c) => (
-          <TabsTrigger key={c.id} value={c.id} className="shrink-0">{c.nome}</TabsTrigger>
+          <TabsTrigger key={c.id} value={c.id} className="shrink-0">
+            {c.nome}
+          </TabsTrigger>
         ))}
       </TabsList>
       {categorias.map((c) => (
         <TabsContent key={c.id} value={c.id}>
-          <div className="grid grid-cols-2 gap-3">
-            {c.produtos.map((p) => <ItemCard key={p.id} produto={p} />)}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+            {c.produtos.map((p) => (
+              <ItemCard key={p.id} produto={p} />
+            ))}
           </div>
         </TabsContent>
       ))}

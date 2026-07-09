@@ -138,4 +138,41 @@ describe('pedido business flow', () => {
     expect(cardSource).toContain('break-words')
     expect(cardSource).toContain('Aberto há')
   })
+
+  test('waiter table ordering flow keeps touch-first visual structure', () => {
+    const clientSource = source('app/garcom/mesa/[id]/client.tsx')
+    const menuSource = source('components/garcom/menu-grid.tsx')
+    const itemSource = source('components/garcom/item-card.tsx')
+    const drawerSource = source('components/garcom/cart-drawer.tsx')
+    const sheetSource = source('components/garcom/observacao-sheet.tsx')
+    const tableOrdersSource = source('components/garcom/table-orders-panel.tsx')
+    const fabSource = source('components/garcom/cart-fab.tsx')
+
+    expect(clientSource).toContain('mx-auto')
+    expect(clientSource).toContain('max-w-4xl')
+    expect(clientSource).toContain('text-pretty')
+    expect(clientSource).toContain('w-full sm:w-auto')
+
+    expect(menuSource).toContain('grid-cols-1')
+    expect(menuSource).toContain('sm:grid-cols-2')
+    expect(menuSource).toContain('lg:grid-cols-3')
+
+    expect(itemSource).toContain('bg-card')
+    expect(itemSource).toContain('min-w-0')
+    expect(itemSource).toContain('break-words')
+    expect(itemSource).toContain('Indisponível')
+
+    expect(drawerSource).toContain('min-h-11')
+    expect(drawerSource).toContain('break-words')
+    expect(drawerSource).toContain('Observação')
+
+    expect(sheetSource).toContain('Observação')
+    expect(sheetSource).toContain('sem cebola, bem passado')
+
+    expect(tableOrdersSource).toContain('Nenhum pedido confirmado nesta mesa')
+    expect(tableOrdersSource).toContain('text-pretty')
+
+    expect(fabSource).toContain('aria-label="Abrir carrinho"')
+    expect(fabSource).toContain('bottom-4')
+  })
 })

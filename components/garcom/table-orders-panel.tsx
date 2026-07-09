@@ -85,12 +85,16 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   }
 
   return (
-    <section className="rounded-[var(--radius)] border bg-card p-4 space-y-3">
+    <section className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
       <div>
         <h2 className="text-lg font-semibold">Pedidos desta mesa</h2>
       </div>
 
-      {pedidos.length > 0 && (
+      {pedidos.length === 0 ? (
+        <p className="text-pretty text-sm text-muted-foreground">
+          Nenhum pedido confirmado nesta mesa. Adicione itens do cardápio para montar o pedido.
+        </p>
+      ) : (
         <div className="space-y-3">
           {pedidos.map((pedido) => {
             const expanded = expandedId === pedido.id
@@ -99,7 +103,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
             const actionDisabled = pedido.status !== 'novo' || (isPending && pendingId === pedido.id)
 
             return (
-              <article key={pedido.id} className="order-card rounded-md border p-3 space-y-5">
+              <article key={pedido.id} className="order-card space-y-5 rounded-md border p-3">
                 <div className="order-header flex items-start justify-between gap-3">
                   <span className="font-medium">Pedido: {formatOrderTime(pedido.criadoEm)}</span>
                   <strong>{formatCurrency(pedido.total)}</strong>
@@ -108,7 +112,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                 {expanded && (
                   <ul className="order-items space-y-1 text-sm">
                     {pedido.itens.map((item, index) => (
-                      <li key={`${pedido.id}-${item.nome}-${index}`}>
+                      <li key={`${pedido.id}-${item.nome}-${index}`} className="break-words">
                         <span className="font-medium">{item.nome}</span>{' '}
                         <span className="text-muted-foreground">Qtd. {item.quantidade}</span>
                         {item.observacao && (

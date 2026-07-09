@@ -35,13 +35,21 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
-    <div className="p-4 pb-24 space-y-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="mx-auto max-w-4xl space-y-4 p-4 pb-28 sm:p-6">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Mesa {mesaNumero}</h1>
-          <p className="text-sm text-muted-foreground">Monte pedidos e acompanhe entregas.</p>
+          <h1 className="text-2xl font-bold">Mesa {mesaNumero}</h1>
+          <p className="text-pretty text-sm text-muted-foreground">
+            Monte pedidos e acompanhe entregas sem sair da mesa.
+          </p>
         </div>
-        <Link href="/garcom/mesas" className={cn(buttonVariants({ variant: 'destructive', size: 'sm' }))}>
+        <Link
+          href="/garcom/mesas"
+          className={cn(
+            buttonVariants({ variant: 'destructive', size: 'sm' }),
+            'w-full sm:w-auto justify-center'
+          )}
+        >
           Voltar
         </Link>
       </div>

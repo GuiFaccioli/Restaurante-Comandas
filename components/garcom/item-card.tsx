@@ -1,6 +1,7 @@
 'use client'
+import { Minus, Plus } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
-import { Plus, Minus } from 'lucide-react'
 import { useCart } from '@/lib/store/cart'
 
 type Produto = {
@@ -18,26 +19,30 @@ export function ItemCard({ produto }: { produto: Produto }) {
   const preco = parseFloat(produto.preco)
 
   return (
-    <div className="border rounded-[var(--radius)] p-3 flex flex-col gap-2">
+    <div className="flex h-full min-w-0 flex-col gap-3 rounded-[var(--radius)] border bg-card p-4">
       {produto.imagemUrl ? (
         <img
           src={produto.imagemUrl}
           alt={produto.nome}
-          className="w-full h-32 object-cover rounded-[var(--radius)]"
+          className="h-36 w-full rounded-[var(--radius)] object-cover sm:h-32"
           loading="lazy"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          onError={(e) => {
+            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+          }}
         />
       ) : (
-        <div className="w-full h-32 rounded-[var(--radius)] bg-muted flex items-center justify-center text-4xl select-none">
+        <div className="flex h-36 w-full select-none items-center justify-center rounded-[var(--radius)] bg-muted text-4xl sm:h-32">
           🍕
         </div>
       )}
-      <div>
-        <p className="font-semibold text-sm">{produto.nome}</p>
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-sm font-semibold">{produto.nome}</p>
         {produto.descricao && (
-          <p className="text-xs text-muted-foreground line-clamp-2">{produto.descricao}</p>
+          <p className="line-clamp-2 break-words text-xs text-muted-foreground">
+            {produto.descricao}
+          </p>
         )}
-        <p className="text-sm font-medium mt-1">R$ {preco.toFixed(2)}</p>
+        <p className="mt-1 text-sm font-medium">R$ {preco.toFixed(2)}</p>
       </div>
       {!produto.disponivel ? (
         <p className="text-xs text-muted-foreground">Indisponível</p>
@@ -46,15 +51,15 @@ export function ItemCard({ produto }: { produto: Produto }) {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 w-8 p-0"
+            className="h-10 w-10 p-0"
             onClick={() => decrementItem(produto.id)}
           >
             <Minus className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium w-6 text-center">{cartItem.quantidade}</span>
+          <span className="w-8 text-center text-sm font-medium">{cartItem.quantidade}</span>
           <Button
             size="sm"
-            className="h-8 w-8 p-0"
+            className="h-10 w-10 p-0"
             onClick={() => addItem({ produtoId: produto.id, nome: produto.nome, preco })}
           >
             <Plus className="h-4 w-4" />
@@ -63,10 +68,10 @@ export function ItemCard({ produto }: { produto: Produto }) {
       ) : (
         <Button
           size="sm"
-          className="h-12 w-full"
+          className="min-h-11 w-full"
           onClick={() => addItem({ produtoId: produto.id, nome: produto.nome, preco })}
         >
-          <Plus className="h-4 w-4 mr-1" /> Adicionar
+          <Plus className="mr-1 h-4 w-4" /> Adicionar
         </Button>
       )}
     </div>
