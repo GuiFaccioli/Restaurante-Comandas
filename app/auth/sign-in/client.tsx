@@ -38,7 +38,7 @@ export function SignInClientForm({ action }: SignInClientFormProps) {
 
   return (
     <form action={action} onSubmit={handleSubmit} className="space-y-3">
-      <div>
+      <div className="space-y-1">
         <Label htmlFor="email">E-mail</Label>
         <Input
           id="email"
@@ -50,7 +50,7 @@ export function SignInClientForm({ action }: SignInClientFormProps) {
           required
         />
       </div>
-      <div>
+      <div className="space-y-1">
         <Label htmlFor="password">Senha</Label>
         <Input
           id="password"
@@ -70,7 +70,7 @@ export function SignInClientForm({ action }: SignInClientFormProps) {
         />
         Lembrar e-mail neste aparelho
       </label>
-      <Button type="submit" className="w-full h-12">
+      <Button type="submit" className="min-h-11 w-full">
         Entrar
       </Button>
     </form>

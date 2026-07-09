@@ -240,4 +240,37 @@ describe('pedido business flow', () => {
     expect(productFormSource).toContain('Preço (R$)')
     expect(productFormSource).toContain('Salvando…')
   })
+
+  test('access and auth screens keep readable responsive UI', () => {
+    const signInPageSource = source('app/auth/sign-in/page.tsx')
+    const signInClientSource = source('app/auth/sign-in/client.tsx')
+    const signUpSource = source('app/auth/sign-up/page.tsx')
+    const areaSource = source('app/selecionar-area/page.tsx')
+    const companySource = source('app/selecionar-empresa/page.tsx')
+    const deniedSource = source('app/sem-acesso/page.tsx')
+
+    expect(signInPageSource).toContain('min-h-dvh')
+    expect(signInPageSource).toContain('Não tem conta?')
+    expect(signInPageSource).toContain('rounded-[var(--radius)]')
+    expect(signInClientSource).toContain('min-h-11')
+
+    expect(signUpSource).toContain('min-h-dvh')
+    expect(signUpSource).toContain('Criar conta')
+    expect(signUpSource).toContain('Já tem conta?')
+    expect(signUpSource).toContain('min-h-11')
+
+    expect(areaSource).toContain('Selecionar área')
+    expect(areaSource).toContain('você')
+    expect(areaSource).toContain('text-pretty')
+    expect(areaSource).toContain('focus-visible:ring-2')
+
+    expect(companySource).toContain('Selecionar empresa')
+    expect(companySource).toContain('você')
+    expect(companySource).toContain('text-pretty')
+    expect(companySource).toContain('focus-visible:ring-2')
+
+    expect(deniedSource).toContain('Seu usuário não tem permissão')
+    expect(deniedSource).toContain('Trocar área')
+    expect(deniedSource).toContain('w-full sm:w-auto')
+  })
 })

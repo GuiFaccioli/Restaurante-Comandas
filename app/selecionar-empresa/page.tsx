@@ -16,12 +16,12 @@ export default async function SelecionarEmpresaPage() {
   }
 
   return (
-    <main className="relative min-h-screen p-6 flex items-center justify-center">
+    <main className="relative flex min-h-dvh items-center justify-center p-4 sm:p-6">
       <ProfileMenu className="absolute right-4 top-4" />
       <div className="w-full max-w-lg space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold">Selecionar empresa</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold">Selecionar empresa</h1>
+          <p className="text-pretty text-sm text-muted-foreground">
             Escolha qual restaurante você quer acessar agora.
           </p>
         </div>
@@ -29,7 +29,11 @@ export default async function SelecionarEmpresaPage() {
           {memberships.map((membership) => (
             <form key={membership.tenantId} action={selectTenant}>
               <input type="hidden" name="tenantId" value={membership.tenantId} />
-              <Button type="submit" variant="outline" className="w-full h-auto justify-start p-4">
+              <Button
+                type="submit"
+                variant="outline"
+                className="h-auto min-h-11 w-full justify-start p-4 text-left focus-visible:ring-2"
+              >
                 {membership.nome}
               </Button>
             </form>

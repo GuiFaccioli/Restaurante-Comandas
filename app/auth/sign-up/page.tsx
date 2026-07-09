@@ -5,33 +5,38 @@ import { Label } from '@/components/ui/label'
 
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-sm border rounded-[12px] p-6 space-y-4">
-        <h1 className="text-xl font-semibold">Criar Conta</h1>
+    <div className="flex min-h-dvh items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-4 rounded-[var(--radius)] border bg-card p-6">
+        <div>
+          <h1 className="text-2xl font-bold">Criar conta</h1>
+          <p className="text-pretty text-sm text-muted-foreground">
+            Cadastre o restaurante e crie o primeiro acesso administrativo.
+          </p>
+        </div>
         <form action={signUpOwner} className="space-y-3">
-          <div>
+          <div className="space-y-1">
             <Label htmlFor="nome">Nome</Label>
             <Input id="nome" name="nome" required />
           </div>
-          <div>
+          <div className="space-y-1">
             <Label htmlFor="tenantNome">Restaurante</Label>
             <Input id="tenantNome" name="tenantNome" required />
           </div>
-          <div>
+          <div className="space-y-1">
             <Label htmlFor="email">E-mail</Label>
             <Input id="email" name="email" type="email" required />
           </div>
-          <div>
+          <div className="space-y-1">
             <Label htmlFor="password">Senha</Label>
             <Input id="password" name="password" type="password" required minLength={8} />
           </div>
-          <Button type="submit" className="w-full h-12">
-            Criar Conta
+          <Button type="submit" className="min-h-11 w-full">
+            Criar conta
           </Button>
         </form>
-        <p className="text-sm text-center text-muted-foreground">
+        <p className="text-center text-sm text-muted-foreground">
           Já tem conta?{' '}
-          <a href="/auth/sign-in" className="underline">
+          <a href="/auth/sign-in" className="underline underline-offset-2">
             Entrar
           </a>
         </p>
