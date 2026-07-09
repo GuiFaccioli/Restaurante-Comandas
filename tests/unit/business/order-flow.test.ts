@@ -115,4 +115,27 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('w-full sm:w-auto')
     expect(clientSource).toContain('items-stretch')
   })
+
+  test('core operational screens keep mobile-first visual structure', () => {
+    const mesasSource = source('app/garcom/mesas/page.tsx')
+    const kitchenSource = source('app/cozinha/dashboard/page.tsx')
+    const boardSource = source('components/cozinha/kanban-board.tsx')
+    const cardSource = source('components/cozinha/pedido-card.tsx')
+
+    expect(mesasSource).toContain('mx-auto')
+    expect(mesasSource).toContain('max-w-4xl')
+    expect(mesasSource).toContain('focus-visible:ring-2')
+    expect(mesasSource).toContain('text-pretty')
+
+    expect(kitchenSource).toContain('min-h-[calc(100dvh-4rem)]')
+    expect(kitchenSource).toContain('text-pretty')
+    expect(kitchenSource).not.toContain('h-screen')
+
+    expect(boardSource).toContain('min-h-[10rem]')
+    expect(boardSource).toContain('text-pretty')
+
+    expect(cardSource).toContain('min-w-0')
+    expect(cardSource).toContain('break-words')
+    expect(cardSource).toContain('Aberto há')
+  })
 })

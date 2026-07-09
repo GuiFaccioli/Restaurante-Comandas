@@ -17,10 +17,10 @@ export function PedidoCard({ pedido }: { pedido: Pedido }) {
   const itemGroups = groupKitchenItemsByCategory(pedido.itens)
 
   return (
-    <div className="border rounded-[var(--radius)] p-3 space-y-2 bg-card">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-bold text-lg">Mesa {pedido.mesaNumero}</p>
+    <div className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-lg font-bold">Mesa {pedido.mesaNumero}</p>
           <p className="text-xs text-muted-foreground">
             Aberto há <LiveElapsedTimer startedAt={pedido.criadoEm} />
           </p>
@@ -33,9 +33,9 @@ export function PedidoCard({ pedido }: { pedido: Pedido }) {
             <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {group.category}
             </h3>
-            <ul className="text-sm space-y-1">
+            <ul className="space-y-1 text-sm">
               {group.items.map((item, i) => (
-                <li key={`${group.category}-${item.nome}-${i}`}>
+                <li key={`${group.category}-${item.nome}-${i}`} className="break-words">
                   <span className="font-medium">
                     {item.quantidade}x {item.nome}
                   </span>
@@ -51,3 +51,4 @@ export function PedidoCard({ pedido }: { pedido: Pedido }) {
     </div>
   )
 }
+

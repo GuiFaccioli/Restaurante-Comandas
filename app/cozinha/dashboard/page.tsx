@@ -45,8 +45,13 @@ export default async function DashboardPage() {
   }))
 
   return (
-    <div className="p-6 h-screen flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Cozinha</h1>
+    <div className="flex min-h-[calc(100dvh-4rem)] flex-col gap-4 p-4 sm:gap-6 sm:p-6">
+      <div>
+        <h1 className="text-2xl font-bold">Cozinha</h1>
+        <p className="text-pretty text-sm text-muted-foreground">
+          Acompanhe as comandas abertas chamadas pelo atendimento.
+        </p>
+      </div>
       <div className="flex-1 overflow-hidden">
         <KanbanBoard initialPedidos={initialPedidos} />
       </div>
