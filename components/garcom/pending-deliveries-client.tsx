@@ -37,15 +37,20 @@ function PendingDeliveryCard({
   }
 
   return (
-    <article className="rounded-[var(--radius)] border bg-card p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <article className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-lg font-bold">Mesa {pedido.mesaNumero}</h2>
           <p className="text-xs text-muted-foreground">
             Aberto há <LiveElapsedTimer startedAt={pedido.criadoEm} />
           </p>
         </div>
-        <Button variant="success" onClick={handleConfirm} disabled={pending}>
+        <Button
+          variant="success"
+          onClick={handleConfirm}
+          disabled={pending}
+          className="w-full sm:w-auto"
+        >
           {pending ? 'Confirmando...' : 'Confirmar entrega'}
         </Button>
       </div>
@@ -106,12 +111,15 @@ export function PendingDeliveriesClient({ initialPedidos }: { initialPedidos: Pe
     <>
       <SseListener onEvent={handleEvent} />
       {pedidos.length === 0 ? (
-        <div className="rounded-[var(--radius)] border bg-card p-6 space-y-3">
+        <div className="space-y-3 rounded-[var(--radius)] border bg-card p-6">
           <p className="font-medium">Nenhuma entrega pendente agora.</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-pretty text-sm text-muted-foreground">
             Quando a cozinha chamar na campainha, os pedidos abertos aparecem aqui.
           </p>
-          <Link href="/garcom/mesas" className={cn(buttonVariants({ variant: 'success' }))}>
+          <Link
+            href="/garcom/mesas"
+            className={cn(buttonVariants({ variant: 'success' }), 'w-full sm:w-auto')}
+          >
             Abrir mesas
           </Link>
         </div>

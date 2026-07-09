@@ -102,4 +102,17 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('Confirmar entrega')
     expect(clientSource).toContain("href=\"/garcom/mesas\"")
   })
+
+  test('waiter pending deliveries UI keeps mobile actions readable', () => {
+    const pageSource = source('app/garcom/pedidos/page.tsx')
+    const clientSource = source('components/garcom/pending-deliveries-client.tsx')
+
+    expect(pageSource).toContain('mx-auto')
+    expect(pageSource).toContain('max-w-3xl')
+    expect(pageSource).toContain('text-pretty')
+    expect(clientSource).toContain('flex-col')
+    expect(clientSource).toContain('sm:flex-row')
+    expect(clientSource).toContain('w-full sm:w-auto')
+    expect(clientSource).toContain('items-stretch')
+  })
 })

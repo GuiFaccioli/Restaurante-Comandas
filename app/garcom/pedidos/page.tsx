@@ -45,11 +45,11 @@ export default async function PedidosPage() {
   }))
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
       <div>
         <div>
           <h1 className="text-2xl font-bold">Entregas pendentes</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-pretty text-sm text-muted-foreground">
             Confira primeiro os pedidos chamados pela cozinha.
           </p>
         </div>
