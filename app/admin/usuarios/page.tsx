@@ -51,27 +51,27 @@ export default async function UsuariosAdminPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Usuários cadastrados</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-pretty text-sm text-muted-foreground">
           Edite cargos, acessos e remova usuários deste restaurante.
         </p>
       </div>
 
-      <div className="grid gap-3">
+      <div className="grid gap-3 sm:gap-4">
         {usuarios.map((user) => {
           const userAccesses = accessesByUser.get(user.id) ?? []
           const isCurrentUser = user.id === currentUserId
 
           return (
             <article key={user.tenantUserId} className="rounded-[var(--radius)] border bg-card p-4">
-              <form action={atualizarUsuarioAdmin} className="grid gap-4 md:grid-cols-[1fr_180px_1fr_auto] md:items-end">
+              <form action={atualizarUsuarioAdmin} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)_auto] md:items-end">
                 <input type="hidden" name="usuarioId" value={user.id} />
 
-                <div>
-                  <p className="font-medium">{user.nome}</p>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                <div className="min-w-0">
+                  <p className="break-words font-medium">{user.nome}</p>
+                  <p className="break-words text-sm text-muted-foreground">{user.email}</p>
                 </div>
 
                 <label className="grid gap-1 text-sm">
@@ -79,7 +79,7 @@ export default async function UsuariosAdminPage() {
                   <select
                     name="role"
                     defaultValue={user.role}
-                    className="h-10 rounded-md border border-input bg-background px-3"
+                    className="min-h-11 rounded-md border border-input bg-background px-3"
                   >
                     {ROLE_OPTIONS.map((role) => (
                       <option key={role.value} value={role.value}>
@@ -107,7 +107,7 @@ export default async function UsuariosAdminPage() {
                   </div>
                 </fieldset>
 
-                <button className="h-10 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <button className="min-h-11 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                   Salvar usuário
                 </button>
               </form>
@@ -115,7 +115,7 @@ export default async function UsuariosAdminPage() {
               <form action={removerUsuarioDoRestaurante} className="mt-3">
                 <input type="hidden" name="usuarioId" value={user.id} />
                 <button
-                  className="h-9 rounded-full bg-destructive/10 px-4 text-sm font-medium text-destructive hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50"
+                  className="min-h-11 rounded-full bg-destructive/10 px-4 text-sm font-medium text-destructive hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50"
                   disabled={isCurrentUser}
                 >
                   Remover usuário

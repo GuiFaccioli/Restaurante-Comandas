@@ -52,8 +52,8 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
           <DialogTitle>{produto ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} /></div>
-          <div><Label>Descrição</Label><Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} /></div>
+          <div className="space-y-1"><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} /></div>
+          <div className="space-y-1"><Label>Descrição</Label><Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} /></div>
           <div>
             <Label>Preço (R$)</Label>
             <Input
@@ -78,8 +78,8 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving || !nome || !preco}>
+          <Button className="min-h-11" variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button className="min-h-11" onClick={handleSave} disabled={saving || !nome || !preco}>
             {saving ? 'Salvando…' : 'Salvar'}
           </Button>
         </DialogFooter>

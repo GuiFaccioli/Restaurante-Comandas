@@ -102,15 +102,15 @@ export default async function RelatoriosAdminPage() {
   const topCategorias = Array.from(categoriasVendidas.values()).sort((a, b) => b.receita - a.receita)
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Relatórios</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-pretty text-sm text-muted-foreground">
           Primeira visão gerencial usando os dados já existentes de pedidos, itens, produtos e categorias.
         </p>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
         <div className="rounded-[var(--radius)] border bg-card p-4">
           <p className="text-sm text-muted-foreground">Faturamento estimado</p>
           <p className="mt-2 text-2xl font-bold">{formatMoney(faturamentoEstimado)}</p>
@@ -140,8 +140,8 @@ export default async function RelatoriosAdminPage() {
           <div className="mt-3 space-y-2">
             {topProdutos.length ? (
               topProdutos.map((item) => (
-                <div key={item.nome} className="flex items-center justify-between gap-3 text-sm">
-                  <span>{item.nome}</span>
+                <div key={item.nome} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <span className="break-words">{item.nome}</span>
                   <span className="text-muted-foreground">
                     {item.quantidade} un. · {formatMoney(item.receita)}
                   </span>
@@ -158,8 +158,8 @@ export default async function RelatoriosAdminPage() {
           <div className="mt-3 space-y-2">
             {topCategorias.length ? (
               topCategorias.map((item) => (
-                <div key={item.nome} className="flex items-center justify-between gap-3 text-sm">
-                  <span>{item.nome}</span>
+                <div key={item.nome} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <span className="break-words">{item.nome}</span>
                   <span className="text-muted-foreground">
                     {item.quantidade} itens · {formatMoney(item.receita)}
                   </span>
@@ -178,7 +178,7 @@ export default async function RelatoriosAdminPage() {
           <div className="mt-3 space-y-2">
             {Array.from(pedidosPorStatus.entries()).map(([status, count]) => (
               <div key={status} className="flex items-center justify-between gap-3 text-sm">
-                <span>{status}</span>
+                <span className="break-words">{status}</span>
                 <span className="text-muted-foreground">{count}</span>
               </div>
             ))}

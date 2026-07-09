@@ -29,23 +29,23 @@ export default async function ConfiguracoesAdminPage() {
   await requireAccess('admin')
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Configurações</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-pretty text-sm text-muted-foreground">
           Central de atalhos para configurar e revisar a operação do restaurante.
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4">
         {settings.map((setting) => (
           <a
             key={setting.href}
             href={setting.href}
-            className="rounded-[var(--radius)] border bg-card p-4 transition-colors hover:bg-muted/50"
+            className="rounded-[var(--radius)] border bg-card p-4 transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             <h2 className="font-semibold">{setting.title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{setting.description}</p>
+            <p className="mt-1 text-pretty text-sm text-muted-foreground">{setting.description}</p>
           </a>
         ))}
       </div>

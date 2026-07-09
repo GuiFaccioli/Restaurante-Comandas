@@ -81,14 +81,14 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
   }
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
       {/* Sidebar */}
-      <div className="w-48 space-y-1 shrink-0">
+      <div className="shrink-0 space-y-1 lg:w-48">
         <p className="text-xs uppercase text-muted-foreground font-medium mb-2">Categorias</p>
         {categorias.map((c) => (
           <button
             key={c.id}
-            className={`w-full text-left px-3 py-2 rounded-[var(--radius)] text-sm ${selected === c.id ? 'bg-muted font-semibold' : 'hover:bg-muted/50'}`}
+            className={`min-h-11 w-full rounded-[var(--radius)] px-3 py-2 text-left text-sm ${selected === c.id ? 'bg-muted font-semibold' : 'hover:bg-muted/50'}`}
             onClick={() => {
               setSelected(c.id)
               setCategoryName(c.nome)
@@ -97,50 +97,50 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
             {c.nome}
           </button>
         ))}
-        <div className="mt-4 space-y-2 rounded-[var(--radius)] border p-2">
+        <div className="mt-4 space-y-2 rounded-[var(--radius)] border bg-card p-3">
           <label htmlFor="nova-categoria" className="text-xs font-medium">
             Nome da nova categoria
           </label>
           <input
             id="nova-categoria"
-            className="w-full rounded-[var(--radius)] border px-2 py-1 text-xs"
+            className="min-h-11 w-full rounded-[var(--radius)] border px-3 py-2 text-sm"
             placeholder="Ex.: Sobremesas"
             value={newCat}
             onChange={(e) => setNewCat(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleNewCategoria()}
           />
-          <Button size="sm" className="w-full" onClick={handleNewCategoria}>
+          <Button size="sm" className="min-h-11 w-full" onClick={handleNewCategoria}>
             <Plus className="mr-1 h-4 w-4" /> Adicionar Categoria
           </Button>
         </div>
       </div>
 
       {/* Products list */}
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <div className="mb-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold">{catAtual?.nome ?? 'Categorias'}</h2>
-            <Button size="sm" disabled={!catAtual} onClick={() => { setEditProduto(undefined); setFormOpen(true) }}>
+            <Button size="sm" className="min-h-11" disabled={!catAtual} onClick={() => { setEditProduto(undefined); setFormOpen(true) }}>
               <Plus className="h-4 w-4 mr-1" /> Novo Produto
             </Button>
           </div>
 
           {catAtual && (
-            <div className="rounded-[var(--radius)] border p-3">
+            <div className="rounded-[var(--radius)] border bg-card p-3">
               <label htmlFor="renomear-categoria" className="text-xs font-medium">
                 Renomear categoria
               </label>
               <div className="mt-2 flex flex-wrap gap-2">
                 <input
                   id="renomear-categoria"
-                  className="min-w-0 flex-1 rounded-[var(--radius)] border px-3 py-2 text-sm"
+                  className="min-h-11 min-w-0 flex-1 rounded-[var(--radius)] border px-3 py-2 text-sm"
                   value={categoryName}
                   onChange={(event) => setCategoryName(event.target.value)}
                 />
-                <Button size="sm" variant="outline" onClick={handleRenameCategoria}>
+                <Button size="sm" className="min-h-11" variant="outline" onClick={handleRenameCategoria}>
                   Salvar categoria
                 </Button>
-                <Button size="sm" variant="destructive" onClick={handleRemoveCategoria}>
+                <Button size="sm" className="min-h-11" variant="destructive" onClick={handleRemoveCategoria}>
                   Excluir categoria
                 </Button>
               </div>
@@ -149,22 +149,22 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
         </div>
         <div className="space-y-2">
           {catAtual?.produtos.map((p) => (
-            <div key={p.id} className="border rounded-[var(--radius)] px-4 py-3 flex items-center justify-between gap-3">
+            <div key={p.id} className="flex flex-col gap-3 rounded-[var(--radius)] border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               {p.imagemUrl ? (
                 <img
                   src={p.imagemUrl}
                   alt={p.nome}
-                  className="w-12 h-12 object-cover rounded-[var(--radius)] shrink-0"
+                  className="h-12 w-12 shrink-0 rounded-[var(--radius)] object-cover"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                 />
               ) : (
-                <div className="w-12 h-12 rounded-[var(--radius)] bg-muted flex items-center justify-center text-xl shrink-0 select-none">🍕</div>
+                <div className="flex h-12 w-12 shrink-0 select-none items-center justify-center rounded-[var(--radius)] bg-muted text-xl">🍕</div>
               )}
               <div className="flex-1 min-w-0">
-                <span className="font-medium text-sm">{p.nome}</span>
-                <span className="text-muted-foreground text-sm ml-2">R$ {parseFloat(p.preco).toFixed(2)}</span>
+                <span className="break-words text-sm font-medium">{p.nome}</span>
+                <span className="ml-2 text-sm text-muted-foreground">R$ {parseFloat(p.preco).toFixed(2)}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge
                   className="cursor-pointer"
                   variant={p.disponivel ? 'default' : 'secondary'}
@@ -180,10 +180,10 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                 >
                   {p.disponivel ? 'Disponível' : 'Indisponível'}
                 </Badge>
-                <Button size="sm" variant="ghost" onClick={() => { setEditProduto(p); setFormOpen(true) }}>
+                <Button size="sm" className="min-h-11" variant="ghost" onClick={() => { setEditProduto(p); setFormOpen(true) }}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleRemoveProduto(p)}>
+                <Button size="sm" className="min-h-11" variant="destructive" onClick={() => handleRemoveProduto(p)}>
                   Excluir produto
                 </Button>
               </div>

@@ -28,23 +28,23 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
   }
 
   return (
-    <div className="max-w-md space-y-4">
-      <div className="flex gap-2">
+    <div className="mx-auto max-w-md space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           type="number"
-          className="border rounded-[var(--radius)] px-3 py-2 text-sm w-32"
+          className="min-h-11 rounded-[var(--radius)] border px-3 py-2 text-sm sm:w-32"
           placeholder="Nº da mesa"
           value={novoNumero}
           onChange={(e) => setNovoNumero(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleNovaMesa()}
         />
-        <Button size="sm" onClick={handleNovaMesa}>
+        <Button size="sm" className="min-h-11" onClick={handleNovaMesa}>
           <Plus className="h-4 w-4 mr-1" /> Adicionar Mesa
         </Button>
       </div>
       <div className="space-y-2">
         {mesas.map((m) => (
-          <div key={m.id} className="border rounded-[var(--radius)] px-4 py-3 flex justify-between items-center">
+          <div key={m.id} className="flex items-center justify-between rounded-[var(--radius)] border bg-card px-4 py-3">
             <span className="font-medium">Mesa {m.numero}</span>
             <Badge
               className="cursor-pointer"

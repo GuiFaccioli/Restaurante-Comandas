@@ -199,4 +199,45 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('min-h-11')
     expect(clientSource).toContain(' · ')
   })
+
+  test('admin management screens keep readable responsive UI', () => {
+    const configSource = source('app/admin/configuracoes/page.tsx')
+    const reportsSource = source('app/admin/relatorios/page.tsx')
+    const usersSource = source('app/admin/usuarios/page.tsx')
+    const mesasSource = source('app/admin/mesas/client.tsx')
+    const menuSource = source('app/admin/menu/client.tsx')
+    const productFormSource = source('components/admin/produto-form.tsx')
+
+    expect(configSource).toContain('mx-auto')
+    expect(configSource).toContain('max-w-5xl')
+    expect(configSource).toContain('Configurações')
+    expect(configSource).toContain('Cardápio')
+    expect(configSource).toContain('focus-visible:ring-2')
+
+    expect(reportsSource).toContain('mx-auto')
+    expect(reportsSource).toContain('max-w-6xl')
+    expect(reportsSource).toContain('Relatórios')
+    expect(reportsSource).toContain('Ticket médio estimado')
+    expect(reportsSource).toContain('break-words')
+
+    expect(usersSource).toContain('mx-auto')
+    expect(usersSource).toContain('max-w-5xl')
+    expect(usersSource).toContain('Usuários cadastrados')
+    expect(usersSource).toContain('Garçom')
+    expect(usersSource).toContain('min-h-11')
+
+    expect(mesasSource).toContain('mx-auto')
+    expect(mesasSource).toContain('max-w-md')
+    expect(mesasSource).toContain('Nº da mesa')
+    expect(mesasSource).toContain('min-h-11')
+
+    expect(menuSource).toContain('flex flex-col gap-4 lg:flex-row')
+    expect(menuSource).toContain('Disponível')
+    expect(menuSource).toContain('Indisponível')
+    expect(menuSource).toContain('min-h-11')
+
+    expect(productFormSource).toContain('Descrição')
+    expect(productFormSource).toContain('Preço (R$)')
+    expect(productFormSource).toContain('Salvando…')
+  })
 })
