@@ -181,6 +181,11 @@ describe('pedido business flow', () => {
     const pageSource = source('app/admin/pedidos/page.tsx')
     const clientSource = source('app/admin/pedidos/client.tsx')
 
+    expect(layoutSource).toContain('Painel admin')
+    expect(layoutSource).toContain('bg-muted/40')
+    expect(layoutSource).toContain('lg:grid-cols-[260px_minmax(0,1fr)]')
+    expect(layoutSource).toContain('rounded-full border')
+    expect(layoutSource).toContain('rounded-[var(--radius)] border bg-card p-4 sm:p-6')
     expect(layoutSource).toContain('Relatórios')
     expect(layoutSource).toContain('Usuários cadastrados')
     expect(layoutSource).toContain('Configurações')
