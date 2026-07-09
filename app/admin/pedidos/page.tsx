@@ -9,10 +9,12 @@ export default async function AdminPedidosPage() {
   const initialPedidos = await getCashierOrders({ tenantId })
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Pedidos</h1>
-        <p className="text-sm text-muted-foreground">Pedidos persistidos no sistema.</p>
+        <p className="text-pretty text-sm text-muted-foreground">
+          Acompanhe pedidos entregues e registre pagamentos sem perder o histórico da mesa.
+        </p>
       </div>
 
       <AdminPedidosLive initialPedidos={initialPedidos} />

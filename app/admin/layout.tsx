@@ -9,13 +9,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b px-6 py-3 flex flex-wrap items-center gap-6">
-        <a href="/admin/menu" className="text-sm font-medium hover:text-primary">Cardápio</a>
-        <a href="/admin/mesas" className="text-sm font-medium hover:text-primary">Mesas</a>
-        <a href="/admin/pedidos" className="text-sm font-medium hover:text-primary">Pedidos</a>
+      <nav className="flex items-center gap-4 overflow-x-auto border-b px-4 py-3 sm:px-6">
+        <a href="/admin/menu" className="text-sm font-medium whitespace-nowrap hover:text-primary">
+          Cardápio
+        </a>
+        <a href="/admin/mesas" className="text-sm font-medium whitespace-nowrap hover:text-primary">
+          Mesas
+        </a>
+        <a href="/admin/pedidos" className="text-sm font-medium whitespace-nowrap hover:text-primary">
+          Pedidos
+        </a>
         <ProfileMenu className="ml-auto" currentAccess="admin" />
       </nav>
-      <div className="grid min-h-[calc(100vh-49px)] grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="grid min-h-[calc(100dvh-49px)] grid-cols-1 gap-4 p-4 sm:gap-6 sm:p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <main>{children}</main>
         <aside className="rounded-[var(--radius)] border bg-card p-4 lg:sticky lg:top-6 lg:h-fit">
           <h2 className="text-sm font-semibold">Gestão</h2>

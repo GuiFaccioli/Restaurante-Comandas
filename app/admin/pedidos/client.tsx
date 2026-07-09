@@ -106,24 +106,26 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
       <SseListener onEvent={handleEvent} />
 
       {lastEvent && (
-        <div className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
+        <div className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-pretty text-sm">
           {lastEvent}
         </div>
       )}
 
       {pedidos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum pedido encontrado.</p>
+        <p className="text-pretty rounded-[var(--radius)] border bg-card p-4 text-sm text-muted-foreground">
+          Nenhum pedido encontrado. Quando uma mesa tiver pedidos confirmados, eles aparecem aqui.
+        </p>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-3 sm:gap-4">
           {pedidos.map((pedido) => {
             const expanded = expandedId === pedido.id
             const paymentFormOpen = paymentFormPedidoId === pedido.id
             const canPay = pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente'
 
             return (
-              <article key={pedido.id} className="rounded-[var(--radius)] border bg-card p-4 space-y-3">
+              <article key={pedido.id} className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-lg font-semibold">Mesa {pedido.mesaNumero}</p>
                     <p className="text-sm text-muted-foreground">
                       Pedido {pedido.id.slice(0, 8)} · {formatPedidoCriadoEm(pedido.criadoEm)}
@@ -151,12 +153,17 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                       <h2 className="text-sm font-semibold">Itens do pedido</h2>
                       <ul className="mt-2 space-y-1 text-sm">
                         {pedido.itens.map((item, index) => (
-                          <li key={`${pedido.id}-${item.nome}-${index}`} className="flex justify-between gap-3">
-                            <span>
+                          <li
+                            key={`${pedido.id}-${item.nome}-${index}`}
+                            className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"
+                          >
+                            <span className="min-w-0 break-words">
                               {item.quantidade}x {item.nome}
                               {item.observacao ? ` · ${item.observacao}` : ''}
                             </span>
-                            <span>{formatCurrency(item.quantidade * Number(item.precoUnitario))}</span>
+                            <span className="font-medium">
+                              {formatCurrency(item.quantidade * Number(item.precoUnitario))}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -168,19 +175,27 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                     </div>
 
                     {canPay && !paymentFormOpen && (
-                      <Button type="button" variant="success" onClick={() => openPaymentForm(pedido)}>
+                      <Button
+                        type="button"
+                        variant="success"
+                        className="min-h-11 w-full sm:w-auto"
+                        onClick={() => openPaymentForm(pedido)}
+                      >
                         Registrar pagamento
                       </Button>
                     )}
 
                     {paymentFormOpen && (
-                      <form className="grid gap-3 rounded-md border p-3" onSubmit={(event) => handlePaymentSubmit(event, pedido)}>
+                      <form
+                        className="grid gap-3 rounded-md border bg-muted/30 p-3"
+                        onSubmit={(event) => handlePaymentSubmit(event, pedido)}
+                      >
                         <label className="grid gap-1 text-sm">
                           Forma de pagamento
                           <select
                             value={paymentMethod}
                             onChange={(event) => setPaymentMethod(event.target.value as FormaPagamento)}
-                            className="h-10 rounded-md border border-input bg-background px-3"
+                            className="min-h-11 rounded-md border border-input bg-background px-3"
                           >
                             {paymentMethods.map((method) => (
                               <option key={method.value} value={method.value}>
@@ -194,18 +209,24 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                           <input
                             value={paymentAmount}
                             onChange={(event) => setPaymentAmount(event.target.value)}
-                            className="h-10 rounded-md border border-input bg-background px-3"
+                            className="min-h-11 rounded-md border border-input bg-background px-3"
                             inputMode="decimal"
                             required
                           />
                         </label>
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="submit" variant="success" disabled={isPending}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                          <Button
+                            type="submit"
+                            variant="success"
+                            className="min-h-11"
+                            disabled={isPending}
+                          >
                             {isPending ? 'Registrando...' : 'Registrar pagamento'}
                           </Button>
                           <Button
                             type="button"
                             variant="destructive"
+                            className="min-h-11"
                             onClick={() => setPaymentFormPedidoId(null)}
                             disabled={isPending}
                           >

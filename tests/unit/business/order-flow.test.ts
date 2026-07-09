@@ -175,4 +175,28 @@ describe('pedido business flow', () => {
     expect(fabSource).toContain('aria-label="Abrir carrinho"')
     expect(fabSource).toContain('bottom-4')
   })
+
+  test('cashier order management keeps readable payment UI', () => {
+    const layoutSource = source('app/admin/layout.tsx')
+    const pageSource = source('app/admin/pedidos/page.tsx')
+    const clientSource = source('app/admin/pedidos/client.tsx')
+
+    expect(layoutSource).toContain('Relatórios')
+    expect(layoutSource).toContain('Usuários cadastrados')
+    expect(layoutSource).toContain('Configurações')
+    expect(layoutSource).toContain('Gestão')
+    expect(layoutSource).toContain('overflow-x-auto')
+
+    expect(pageSource).toContain('mx-auto')
+    expect(pageSource).toContain('max-w-5xl')
+    expect(pageSource).toContain('text-pretty')
+
+    expect(clientSource).toContain('Crédito')
+    expect(clientSource).toContain('Débito')
+    expect(clientSource).toContain('Não foi possível registrar o pagamento.')
+    expect(clientSource).toContain('min-w-0')
+    expect(clientSource).toContain('break-words')
+    expect(clientSource).toContain('min-h-11')
+    expect(clientSource).toContain(' · ')
+  })
 })
