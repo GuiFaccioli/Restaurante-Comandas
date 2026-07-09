@@ -47,3 +47,8 @@ next-env.d.ts
 
 # Local git worktrees
 .worktrees/
+
+# Local agent/tool runtime state
+.claude/settings.local.json
+.codex/hooks.json
+.impeccable/config.local.json
