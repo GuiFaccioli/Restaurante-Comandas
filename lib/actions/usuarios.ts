@@ -5,10 +5,9 @@ import { revalidatePath } from 'next/cache'
 
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
-import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
-import type { AcessoUsuario, RoleUsuario } from '@/lib/db/schema'
+import { tenantUser, usuarioAcesso } from '@/lib/db/schema'
+import type { AcessoUsuario } from '@/lib/db/schema'
 
-const VALID_ROLES: RoleUsuario[] = ['admin', 'garcom']
 const VALID_ACCESSES: AcessoUsuario[] = ['admin', 'caixa', 'cozinha', 'garcom']
 
 function formString(data: FormData, key: string) {
@@ -18,7 +17,6 @@ function formString(data: FormData, key: string) {
 export async function atualizarUsuarioAdmin(data: FormData): Promise<void> {
   const { tenantId } = await requireAccess('admin')
   const usuarioId = formString(data, 'usuarioId')
-  const role = formString(data, 'role') as RoleUsuario
   const acessos = data
     .getAll('acessos')
     .map(String)
@@ -27,7 +25,6 @@ export async function atualizarUsuarioAdmin(data: FormData): Promise<void> {
     )
 
   if (!usuarioId) throw new Error('Usuário inválido')
-  if (!VALID_ROLES.includes(role)) throw new Error('Cargo inválido')
 
   const [membership] = await db
     .select({ id: tenantUser.id })
@@ -35,11 +32,6 @@ export async function atualizarUsuarioAdmin(data: FormData): Promise<void> {
     .where(and(eq(tenantUser.usuarioId, usuarioId), eq(tenantUser.tenantId, tenantId)))
 
   if (!membership) throw new Error('Usuário não pertence a este restaurante')
-
-  await db
-    .update(usuario)
-    .set({ role, updatedAt: new Date() })
-    .where(eq(usuario.id, usuarioId))
 
   await db
     .delete(usuarioAcesso)

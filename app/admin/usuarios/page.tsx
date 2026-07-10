@@ -4,17 +4,12 @@ import { atualizarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/action
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
 import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
-import type { AcessoUsuario, RoleUsuario } from '@/lib/db/schema'
+import type { AcessoUsuario } from '@/lib/db/schema'
 
 export const dynamic = 'force-dynamic'
 
-const ROLE_OPTIONS: Array<{ value: RoleUsuario; label: string }> = [
-  { value: 'garcom', label: 'Garçom' },
-  { value: 'admin', label: 'Admin' },
-]
-
 const ACCESS_OPTIONS: Array<{ value: AcessoUsuario; label: string }> = [
-  { value: 'admin', label: 'Admin' },
+  { value: 'admin', label: 'Administração' },
   { value: 'caixa', label: 'Caixa' },
   { value: 'cozinha', label: 'Cozinha' },
   { value: 'garcom', label: 'Garçom' },
@@ -28,7 +23,6 @@ export default async function UsuariosAdminPage() {
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
-      role: usuario.role,
       tenantUserId: tenantUser.id,
     })
     .from(tenantUser)
@@ -55,7 +49,7 @@ export default async function UsuariosAdminPage() {
       <div>
         <h1 className="text-2xl font-bold">Usuários cadastrados</h1>
         <p className="text-pretty text-sm text-muted-foreground">
-          Edite cargos, acessos e remova usuários deste restaurante.
+          Gerencie quais áreas cada usuário pode acessar neste restaurante.
         </p>
       </div>
 
@@ -66,28 +60,13 @@ export default async function UsuariosAdminPage() {
 
           return (
             <article key={user.tenantUserId} className="rounded-[var(--radius)] border bg-card p-4">
-              <form action={atualizarUsuarioAdmin} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)_auto] md:items-end">
+              <form action={atualizarUsuarioAdmin} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                 <input type="hidden" name="usuarioId" value={user.id} />
 
                 <div className="min-w-0">
                   <p className="break-words font-medium">{user.nome}</p>
                   <p className="break-words text-sm text-muted-foreground">{user.email}</p>
                 </div>
-
-                <label className="grid gap-1 text-sm">
-                  Cargo
-                  <select
-                    name="role"
-                    defaultValue={user.role}
-                    className="min-h-11 rounded-md border border-input bg-background px-3"
-                  >
-                    {ROLE_OPTIONS.map((role) => (
-                      <option key={role.value} value={role.value}>
-                        {role.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
 
                 <fieldset className="space-y-2">
                   <legend className="text-sm font-medium">Acessos</legend>

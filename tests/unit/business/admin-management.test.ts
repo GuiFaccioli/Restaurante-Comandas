@@ -47,7 +47,7 @@ describe('admin management area', () => {
     expect(existsSync(join(root, 'app/admin/configuracoes/page.tsx'))).toBe(true)
   })
 
-  it('users admin can update roles, accesses, and remove tenant membership', () => {
+  it('users admin manages accesses without exposing legacy cargo editing', () => {
     const usersPage = source('app/admin/usuarios/page.tsx')
     const userActions = source('lib/actions/usuarios.ts')
 
@@ -56,9 +56,21 @@ describe('admin management area', () => {
     expect(userActions).toContain("requireAccess('admin')")
     expect(userActions).toContain('tenantUser')
     expect(userActions).toContain('usuarioAcesso')
+    expect(userActions).toContain('VALID_ACCESSES')
+    expect(userActions).not.toContain('VALID_ROLES')
+    expect(userActions).not.toContain("formString(data, 'role')")
+    expect(userActions).not.toContain('Cargo inválido')
+    expect(userActions).not.toContain('.set({ role')
 
-    expect(usersPage).toContain('Cargo')
+    expect(usersPage).not.toContain('ROLE_OPTIONS')
+    expect(usersPage).not.toContain('Cargo')
+    expect(usersPage).not.toContain('name="role"')
     expect(usersPage).toContain('Acessos')
+    expect(usersPage).toContain('Administração')
+    expect(usersPage).toContain('Caixa')
+    expect(usersPage).toContain('Cozinha')
+    expect(usersPage).toContain('Garçom')
+    expect(usersPage).toContain('Gerencie quais áreas cada usuário pode acessar neste restaurante.')
     expect(usersPage).toContain('Salvar usuário')
     expect(usersPage).toContain('Remover usuário')
     expect(usersPage).toContain('atualizarUsuarioAdmin')
