@@ -186,15 +186,16 @@ describe('pedido business flow', () => {
     const clientSource = source('app/admin/pedidos/client.tsx')
 
     expect(layoutSource).toContain('Painel admin')
-    expect(layoutSource).toContain('bg-muted/40')
-    expect(layoutSource).toContain('lg:grid-cols-[260px_minmax(0,1fr)]')
+    expect(layoutSource).toContain('bg-[#f4f4f5]')
+    expect(layoutSource).toContain('lg:grid-cols-[292px_minmax(0,1fr)]')
+    expect(layoutSource).toContain('max-w-[1600px]')
     expect(layoutSource).toContain('AdminShellNav')
-    expect(layoutSource).toContain('rounded-[var(--radius)] border bg-card p-4 sm:p-6')
+    expect(layoutSource).toContain('lg:h-dvh')
+    expect(layoutSource).toContain('Interface otimizada para uso em computador.')
     expect(layoutSource).toContain('Relatórios')
     expect(layoutSource).toContain('Usuários cadastrados')
     expect(layoutSource).toContain('Configurações')
     expect(layoutSource).toContain('Gestão')
-    expect(layoutSource).toContain('overflow-x-auto')
 
     expect(pageSource).toContain('AdminPage')
     expect(pageSource).toContain('AdminPageHeader')
@@ -227,9 +228,10 @@ describe('pedido business flow', () => {
 
     expect(reportsSource).toContain('AdminPage')
     expect(reportsSource).toContain('AdminStatsGrid')
+    expect(reportsSource).toContain('AdminBar')
     expect(reportsSource).toContain('Relatórios')
     expect(reportsSource).toContain('Ticket médio estimado')
-    expect(reportsSource).toContain('break-words')
+    expect(reportsSource).toContain('maxStatusCount')
 
     expect(usersSource).toContain('AdminPage')
     expect(usersSource).toContain('AdminStatsGrid')

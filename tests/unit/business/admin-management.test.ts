@@ -104,7 +104,8 @@ describe('admin management area', () => {
     expect(reportsPage).toContain('Faturamento estimado')
     expect(reportsPage).toContain('Produtos mais vendidos')
     expect(reportsPage).toContain('Leituras operacionais')
-    expect(reportsPage).toContain('ProgressRow')
+    expect(reportsPage).toContain('AdminBar')
+    expect(reportsPage).toContain('maxStatusCount')
   })
 
   it('reports page derives delivery timing metrics from delivered orders only', () => {

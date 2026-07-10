@@ -1,6 +1,6 @@
 import { db } from '@/lib/db/index'
 import { desc, eq } from 'drizzle-orm'
-import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
+import { AdminBar, AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { categoria, itemPedido, mesa, pedido, produto } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
 
@@ -22,32 +22,6 @@ function formatDuration(ms: number): string {
 
   if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
   return `${pad(minutes)}:${pad(seconds)}`
-}
-
-function ProgressRow({
-  label,
-  value,
-  detail,
-  max,
-}: {
-  label: string
-  value: number
-  detail: string
-  max: number
-}) {
-  const width = max > 0 ? Math.max(8, Math.round((value / max) * 100)) : 0
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <span className="min-w-0 break-words font-medium">{label}</span>
-        <span className="text-muted-foreground">{detail}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
-      </div>
-    </div>
-  )
 }
 
 export default async function RelatoriosAdminPage() {
@@ -129,6 +103,7 @@ export default async function RelatoriosAdminPage() {
   const topCategorias = Array.from(categoriasVendidas.values()).sort((a, b) => b.receita - a.receita)
   const maxProdutoQuantidade = Math.max(0, ...topProdutos.map((item) => item.quantidade))
   const maxCategoriaReceita = Math.max(0, ...topCategorias.map((item) => item.receita))
+  const maxStatusCount = Math.max(0, ...Array.from(pedidosPorStatus.values()))
 
   return (
     <AdminPage>
@@ -153,7 +128,7 @@ export default async function RelatoriosAdminPage() {
           <div className="space-y-4">
             {topProdutos.length ? (
               topProdutos.map((item) => (
-                <ProgressRow
+                <AdminBar
                   key={item.nome}
                   label={item.nome}
                   value={item.quantidade}
@@ -174,7 +149,7 @@ export default async function RelatoriosAdminPage() {
           <div className="space-y-4">
             {topCategorias.length ? (
               topCategorias.map((item) => (
-                <ProgressRow
+                <AdminBar
                   key={item.nome}
                   label={item.nome}
                   value={item.receita}
@@ -196,10 +171,14 @@ export default async function RelatoriosAdminPage() {
         <AdminPanel title="Pedidos por status" description="Distribuição operacional dos pedidos registrados.">
           <div className="space-y-3">
             {Array.from(pedidosPorStatus.entries()).map(([status, count]) => (
-              <div key={status} className="flex items-center justify-between gap-3 rounded-[var(--radius)] border bg-background px-3 py-2 text-sm">
-                <span className="break-words font-medium">{status}</span>
-                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{count}</span>
-              </div>
+              <AdminBar
+                key={status}
+                label={status}
+                value={count}
+                max={maxStatusCount}
+                detail={`${count} pedidos`}
+                tone={status === 'entregue' ? 'success' : status === 'cancelado' ? 'danger' : 'default'}
+              />
             ))}
             {!pedidosPorStatus.size && (
               <AdminEmptyState
