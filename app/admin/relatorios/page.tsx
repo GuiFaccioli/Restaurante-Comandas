@@ -1,5 +1,6 @@
 import { db } from '@/lib/db/index'
 import { desc, eq } from 'drizzle-orm'
+import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { categoria, itemPedido, mesa, pedido, produto } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
 
@@ -21,6 +22,32 @@ function formatDuration(ms: number): string {
 
   if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
   return `${pad(minutes)}:${pad(seconds)}`
+}
+
+function ProgressRow({
+  label,
+  value,
+  detail,
+  max,
+}: {
+  label: string
+  value: number
+  detail: string
+  max: number
+}) {
+  const width = max > 0 ? Math.max(8, Math.round((value / max) * 100)) : 0
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <span className="min-w-0 break-words font-medium">{label}</span>
+        <span className="text-muted-foreground">{detail}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  )
 }
 
 export default async function RelatoriosAdminPage() {
@@ -100,109 +127,103 @@ export default async function RelatoriosAdminPage() {
     .sort((a, b) => b.quantidade - a.quantidade)
     .slice(0, 5)
   const topCategorias = Array.from(categoriasVendidas.values()).sort((a, b) => b.receita - a.receita)
+  const maxProdutoQuantidade = Math.max(0, ...topProdutos.map((item) => item.quantidade))
+  const maxCategoriaReceita = Math.max(0, ...topCategorias.map((item) => item.receita))
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Relatórios</h1>
-        <p className="text-pretty text-sm text-muted-foreground">
-          Primeira visão gerencial usando os dados já existentes de pedidos, itens, produtos e categorias.
-        </p>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        title="Relatórios"
+        description="Visão gerencial baseada nos pedidos, itens, produtos e categorias já registrados pelo restaurante."
+      />
 
-      <section className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Faturamento estimado</p>
-          <p className="mt-2 text-2xl font-bold">{formatMoney(faturamentoEstimado)}</p>
-        </div>
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Pedidos registrados</p>
-          <p className="mt-2 text-2xl font-bold">{pedidos.length}</p>
-        </div>
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Ticket médio estimado</p>
-          <p className="mt-2 text-2xl font-bold">{formatMoney(ticketMedio)}</p>
-        </div>
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Tempo médio de entrega</p>
-          <p className="mt-2 text-2xl font-bold">
-            {deliveryDurations.length ? formatDuration(averageDeliveryDuration) : 'Sem dados'}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Pedidos entregues medidos: {deliveryDurations.length}
-          </p>
-        </div>
-      </section>
+      <AdminStatsGrid>
+        <AdminStatCard label="Faturamento estimado" value={formatMoney(faturamentoEstimado)} detail="Baseado no preço salvo em cada item." />
+        <AdminStatCard label="Pedidos registrados" value={pedidos.length} detail={`${totalItens} itens considerados.`} />
+        <AdminStatCard label="Ticket médio estimado" value={formatMoney(ticketMedio)} detail="Faturamento dividido por pedidos." />
+        <AdminStatCard
+          label="Tempo médio de entrega"
+          value={deliveryDurations.length ? formatDuration(averageDeliveryDuration) : 'Sem dados'}
+          detail={`Pedidos entregues medidos: ${deliveryDurations.length}`}
+        />
+      </AdminStatsGrid>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <h2 className="font-semibold">Produtos mais vendidos</h2>
-          <div className="mt-3 space-y-2">
+        <AdminPanel title="Produtos mais vendidos" description="Ranking por quantidade vendida.">
+          <div className="space-y-4">
             {topProdutos.length ? (
               topProdutos.map((item) => (
-                <div key={item.nome} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                  <span className="break-words">{item.nome}</span>
-                  <span className="text-muted-foreground">
-                    {item.quantidade} un. · {formatMoney(item.receita)}
-                  </span>
-                </div>
+                <ProgressRow
+                  key={item.nome}
+                  label={item.nome}
+                  value={item.quantidade}
+                  max={maxProdutoQuantidade}
+                  detail={`${item.quantidade} un. · ${formatMoney(item.receita)}`}
+                />
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">Sem vendas registradas ainda.</p>
+              <AdminEmptyState
+                title="Sem vendas registradas"
+                description="Quando pedidos forem concluídos, o ranking de produtos aparecerá aqui."
+              />
             )}
           </div>
-        </div>
+        </AdminPanel>
 
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <h2 className="font-semibold">Receita por categoria</h2>
-          <div className="mt-3 space-y-2">
+        <AdminPanel title="Receita por categoria" description="Categorias ordenadas por receita estimada.">
+          <div className="space-y-4">
             {topCategorias.length ? (
               topCategorias.map((item) => (
-                <div key={item.nome} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                  <span className="break-words">{item.nome}</span>
-                  <span className="text-muted-foreground">
-                    {item.quantidade} itens · {formatMoney(item.receita)}
-                  </span>
-                </div>
+                <ProgressRow
+                  key={item.nome}
+                  label={item.nome}
+                  value={item.receita}
+                  max={maxCategoriaReceita}
+                  detail={`${item.quantidade} itens · ${formatMoney(item.receita)}`}
+                />
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">Sem categorias vendidas ainda.</p>
+              <AdminEmptyState
+                title="Sem categorias vendidas"
+                description="As categorias entram no relatório quando houver itens vendidos."
+              />
             )}
           </div>
-        </div>
+        </AdminPanel>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <h2 className="font-semibold">Pedidos por status</h2>
-          <div className="mt-3 space-y-2">
+        <AdminPanel title="Pedidos por status" description="Distribuição operacional dos pedidos registrados.">
+          <div className="space-y-3">
             {Array.from(pedidosPorStatus.entries()).map(([status, count]) => (
-              <div key={status} className="flex items-center justify-between gap-3 text-sm">
-                <span className="break-words">{status}</span>
-                <span className="text-muted-foreground">{count}</span>
+              <div key={status} className="flex items-center justify-between gap-3 rounded-[var(--radius)] border bg-background px-3 py-2 text-sm">
+                <span className="break-words font-medium">{status}</span>
+                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{count}</span>
               </div>
             ))}
             {!pedidosPorStatus.size && (
-              <p className="text-sm text-muted-foreground">Sem pedidos registrados ainda.</p>
+              <AdminEmptyState
+                title="Sem pedidos registrados"
+                description="Os status aparecem aqui quando a operação começar a registrar pedidos."
+              />
             )}
           </div>
-        </div>
+        </AdminPanel>
 
-        <div className="rounded-[var(--radius)] border bg-card p-4">
-          <h2 className="font-semibold">Ideias possíveis</h2>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+        <AdminPanel title="Leituras operacionais" description="Como usar estes números na rotina do restaurante.">
+          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-muted-foreground">
             <li>Comparar faturamento por dia e horário para planejar escala da cozinha.</li>
             <li>Medir produtos mais vendidos para priorizar estoque e compras.</li>
             <li>Acompanhar categorias mais fortes para ajustar cardápio e promoções.</li>
             <li>Usar ticket médio estimado para avaliar combos e sugestões de venda.</li>
             <li>Monitorar pedidos por status para encontrar gargalos de preparo.</li>
           </ul>
-        </div>
+        </AdminPanel>
       </section>
 
       <p className="text-xs text-muted-foreground">
         Total de itens considerados: {totalItens}. Valores são estimativas baseadas no preço salvo em cada item do pedido.
       </p>
-    </div>
+    </AdminPage>
   )
 }

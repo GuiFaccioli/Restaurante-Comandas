@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState, useTransition } from 'reac
 import { toast } from 'sonner'
 
 import { SseListener } from '@/components/cozinha/sse-listener'
+import { AdminEmptyState, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { formatPedidoCriadoEm } from '@/lib/date-format'
@@ -35,6 +36,11 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
   const [paymentAmount, setPaymentAmount] = useState('')
   const [lastEvent, setLastEvent] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const pedidosPagos = pedidos.filter((pedido) => pedido.pagamentoStatus === 'pago').length
+  const pagamentosPendentes = pedidos.filter((pedido) => pedido.pagamentoStatus === 'pendente').length
+  const valorPendente = pedidos
+    .filter((pedido) => pedido.pagamentoStatus === 'pendente')
+    .reduce((total, pedido) => total + pedido.total, 0)
 
   const refreshPedidos = useCallback(async () => {
     const response = await fetch('/api/caixa/pedidos', { cache: 'no-store' })
@@ -102,8 +108,14 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <SseListener onEvent={handleEvent} />
+
+      <AdminStatsGrid className="xl:grid-cols-3">
+        <AdminStatCard label="Pedidos na fila" value={pedidos.length} detail="Pedidos carregados no caixa." />
+        <AdminStatCard label="Pagamentos pendentes" value={pagamentosPendentes} detail={formatCurrency(valorPendente)} tone={pagamentosPendentes ? 'warning' : 'success'} />
+        <AdminStatCard label="Pagos" value={pedidosPagos} detail="Pedidos já baixados no caixa." />
+      </AdminStatsGrid>
 
       {lastEvent && (
         <div className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-pretty text-sm">
@@ -112,24 +124,30 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
       )}
 
       {pedidos.length === 0 ? (
-        <p className="text-pretty rounded-[var(--radius)] border bg-card p-4 text-sm text-muted-foreground">
-          Nenhum pedido encontrado. Quando uma mesa tiver pedidos confirmados, eles aparecem aqui.
-        </p>
+        <AdminEmptyState
+          title="Nenhum pedido encontrado"
+          description="Quando uma mesa tiver pedidos confirmados, eles aparecem aqui para conferência e pagamento."
+        />
       ) : (
-        <div className="grid gap-3 sm:gap-4">
+        <AdminPanel
+          title="Fila do caixa"
+          description="Pedidos entregues aparecem com ação de pagamento; pedidos em preparo permanecem como referência."
+        >
+        <div className="grid gap-3">
           {pedidos.map((pedido) => {
             const expanded = expandedId === pedido.id
             const paymentFormOpen = paymentFormPedidoId === pedido.id
             const canPay = pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente'
 
             return (
-              <article key={pedido.id} className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+              <article key={pedido.id} className="space-y-3 rounded-[var(--radius)] border bg-background p-4">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                   <div className="min-w-0">
                     <p className="text-lg font-semibold">Mesa {pedido.mesaNumero}</p>
                     <p className="text-sm text-muted-foreground">
                       Pedido {pedido.id.slice(0, 8)} · {formatPedidoCriadoEm(pedido.criadoEm)}
                     </p>
+                    <p className="mt-2 text-2xl font-bold tracking-[-0.02em]">{formatCurrency(pedido.total)}</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <StatusBadge status={pedido.status} />
@@ -241,6 +259,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
             )
           })}
         </div>
+        </AdminPanel>
       )}
     </div>
   )

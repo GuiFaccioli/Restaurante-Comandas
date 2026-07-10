@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { Plus, Pencil } from 'lucide-react'
 import { ProdutoForm } from '@/components/admin/produto-form'
 import {
@@ -29,6 +30,11 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
 
   const catAtual = categorias.find((c) => c.id === selected)
   const produtoCount = catAtual?.produtos.length ?? 0
+  const totalProdutos = categorias.reduce((total, categoria) => total + categoria.produtos.length, 0)
+  const totalDisponiveis = categorias.reduce(
+    (total, categoria) => total + categoria.produtos.filter((produto) => produto.disponivel).length,
+    0
+  )
 
   async function handleNewCategoria() {
     if (!newCat.trim()) return
@@ -94,14 +100,11 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Cardápio</h1>
-          <p className="text-pretty text-sm text-muted-foreground">
-            Organize categorias, produtos, preços e disponibilidade para a operação.
-          </p>
-        </div>
+    <AdminPage>
+      <AdminPageHeader
+        title="Cardápio"
+        description="Organize categorias, produtos, preços e disponibilidade para a operação."
+        action={
         <Button
           type="button"
           className="min-h-11 w-full sm:w-auto"
@@ -110,11 +113,18 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
         >
           <Plus className="h-4 w-4 mr-1" /> Novo Produto
         </Button>
-      </div>
+        }
+      />
+
+      <AdminStatsGrid className="xl:grid-cols-3">
+        <AdminStatCard label="Categorias" value={categorias.length} detail="Seções do cardápio." />
+        <AdminStatCard label="Produtos" value={totalProdutos} detail="Itens cadastrados no restaurante." />
+        <AdminStatCard label="Disponíveis" value={totalDisponiveis} detail="Aparecem para o cliente agora." />
+      </AdminStatsGrid>
 
       <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <div>
+          <AdminPanel title="Categorias" description="Escolha uma seção para revisar produtos.">
             <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Categorias</p>
             <div className="grid gap-1">
               {categorias.map((c) => (
@@ -133,10 +143,16 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                   {c.nome}
                 </button>
               ))}
+              {categorias.length === 0 ? (
+                <p className="rounded-[var(--radius)] border border-dashed p-3 text-sm text-muted-foreground">
+                  Nenhuma categoria criada.
+                </p>
+              ) : null}
             </div>
-          </div>
+          </AdminPanel>
 
-          <div className="space-y-2 rounded-[var(--radius)] border bg-background p-3">
+          <AdminPanel title="Nova categoria">
+          <div className="space-y-2">
           <label htmlFor="nova-categoria" className="text-xs font-medium">
             Nome da nova categoria
           </label>
@@ -152,6 +168,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
             <Plus className="mr-1 h-4 w-4" /> Adicionar Categoria
           </Button>
           </div>
+          </AdminPanel>
         </aside>
 
         <section className="min-w-0 space-y-4">
@@ -165,7 +182,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
           </div>
 
           {catAtual && (
-            <div className="rounded-[var(--radius)] border bg-background p-3">
+            <AdminPanel>
               <label htmlFor="renomear-categoria" className="text-xs font-medium">
                 Renomear categoria
               </label>
@@ -183,14 +200,15 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                   Excluir categoria
                 </Button>
               </div>
-            </div>
+            </AdminPanel>
           )}
 
           <div className="space-y-2">
             {catAtual && produtoCount === 0 ? (
-              <div className="rounded-[var(--radius)] border bg-background p-4 text-sm text-muted-foreground">
-                Nenhum produto nesta categoria. Use “Novo Produto” para montar o cardápio desta seção.
-              </div>
+              <AdminEmptyState
+                title="Nenhum produto nesta categoria"
+                description="Use “Novo Produto” para montar o cardápio desta seção."
+              />
             ) : (
               catAtual?.produtos.map((p) => (
                 <div
@@ -264,6 +282,6 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
           produto={editProduto}
         />
       )}
-    </div>
+    </AdminPage>
   )
 }

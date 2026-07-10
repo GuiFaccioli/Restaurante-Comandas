@@ -1,6 +1,7 @@
 import { asc, eq } from 'drizzle-orm'
 
 import { atualizarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/actions/usuarios'
+import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
 import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
@@ -44,66 +45,112 @@ export default async function UsuariosAdminPage() {
     accessesByUser.set(row.usuarioId, [...(accessesByUser.get(row.usuarioId) ?? []), row.acesso])
   }
 
+  const usersWithAccesses = usuarios.map((user) => ({
+    ...user,
+    accesses: accessesByUser.get(user.id) ?? [],
+    isCurrentUser: user.id === currentUserId,
+  }))
+  const adminCount = usersWithAccesses.filter((user) => user.accesses.includes('admin')).length
+  const multiAccessCount = usersWithAccesses.filter((user) => user.accesses.length > 1).length
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Usuários cadastrados</h1>
-        <p className="text-pretty text-sm text-muted-foreground">
-          Gerencie quais áreas cada usuário pode acessar neste restaurante.
-        </p>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        title="Usuários e acessos"
+        description="Controle exatamente quais áreas cada pessoa pode acessar. A fonte de verdade é a lista de acessos."
+      />
 
-      <div className="grid gap-3 sm:gap-4">
-        {usuarios.map((user) => {
-          const userAccesses = accessesByUser.get(user.id) ?? []
-          const isCurrentUser = user.id === currentUserId
+      <AdminStatsGrid className="xl:grid-cols-3">
+        <AdminStatCard label="Usuários no restaurante" value={usuarios.length} detail="Pessoas vinculadas a este tenant." />
+        <AdminStatCard label="Com acesso admin" value={adminCount} detail="Podem alterar configurações críticas." />
+        <AdminStatCard label="Com múltiplos acessos" value={multiAccessCount} detail="Alternam entre áreas operacionais." />
+      </AdminStatsGrid>
 
-          return (
-            <article key={user.tenantUserId} className="rounded-[var(--radius)] border bg-card p-4">
-              <form action={atualizarUsuarioAdmin} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                <input type="hidden" name="usuarioId" value={user.id} />
+      <AdminPanel
+        title="Permissões por usuário"
+        description="Salve os acessos de uma pessoa por vez. Remoção fica separada para evitar ação perigosa por engano."
+      >
+        {usersWithAccesses.length === 0 ? (
+          <AdminEmptyState
+            title="Nenhum usuário cadastrado"
+            description="Quando usuários entrarem no restaurante, eles aparecerão aqui para revisão de acessos."
+          />
+        ) : (
+          <div className="overflow-hidden rounded-[var(--radius)] border">
+            <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_220px] gap-4 border-b bg-muted/50 px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground lg:grid">
+              <span>Usuário</span>
+              <span>Acessos</span>
+              <span>Ações</span>
+            </div>
 
-                <div className="min-w-0">
-                  <p className="break-words font-medium">{user.nome}</p>
-                  <p className="break-words text-sm text-muted-foreground">{user.email}</p>
-                </div>
-
-                <fieldset className="space-y-2">
-                  <legend className="text-sm font-medium">Acessos</legend>
-                  <div className="flex flex-wrap gap-3">
-                    {ACCESS_OPTIONS.map((access) => (
-                      <label key={access.value} className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          name="acessos"
-                          value={access.value}
-                          defaultChecked={userAccesses.includes(access.value)}
-                          className="size-4 rounded border-input"
-                        />
-                        {access.label}
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-
-                <button className="min-h-11 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                  Salvar usuário
-                </button>
-              </form>
-
-              <form action={removerUsuarioDoRestaurante} className="mt-3">
-                <input type="hidden" name="usuarioId" value={user.id} />
-                <button
-                  className="min-h-11 rounded-full bg-destructive/10 px-4 text-sm font-medium text-destructive hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50"
-                  disabled={isCurrentUser}
+            <div className="divide-y">
+              {usersWithAccesses.map((user) => (
+                <article
+                  key={user.tenantUserId}
+                  className="grid gap-4 bg-background p-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_220px] lg:items-start"
                 >
-                  Remover usuário
-                </button>
-              </form>
-            </article>
-          )
-        })}
-      </div>
-    </div>
+                  <form action={atualizarUsuarioAdmin} className="contents">
+                    <input type="hidden" name="usuarioId" value={user.id} />
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="break-words font-medium">{user.nome}</p>
+                        {user.isCurrentUser ? (
+                          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                            Você
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 break-words text-sm text-muted-foreground">{user.email}</p>
+                    </div>
+
+                    <fieldset className="space-y-3">
+                      <legend className="text-sm font-medium">Acessos</legend>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {ACCESS_OPTIONS.map((access) => (
+                          <label
+                            key={access.value}
+                            className="flex min-h-11 items-center gap-3 rounded-[var(--radius)] border bg-card px-3 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              name="acessos"
+                              value={access.value}
+                              defaultChecked={user.accesses.includes(access.value)}
+                              className="size-4 rounded border-input"
+                            />
+                            <span>{access.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <div className="grid gap-2 lg:pt-7">
+                      <button
+                        type="submit"
+                        className="min-h-11 w-full rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      >
+                        Salvar acessos
+                      </button>
+                    </div>
+                  </form>
+
+                  <form action={removerUsuarioDoRestaurante} className="lg:col-start-3">
+                    <input type="hidden" name="usuarioId" value={user.id} />
+                    <button
+                      type="submit"
+                      className="min-h-11 w-full rounded-full bg-destructive/10 px-4 text-sm font-medium text-destructive hover:bg-destructive/20 focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                      disabled={user.isCurrentUser}
+                    >
+                      Remover usuário
+                    </button>
+                  </form>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+      </AdminPanel>
+    </AdminPage>
   )
 }

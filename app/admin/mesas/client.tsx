@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { criarMesa, toggleAtiva } from '@/lib/actions/mesas'
 import { useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
@@ -11,6 +12,8 @@ type Mesa = { id: string; numero: number; ativa: boolean }
 export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
   const router = useRouter()
   const [novoNumero, setNovoNumero] = useState('')
+  const mesasAtivas = mesas.filter((mesa) => mesa.ativa).length
+  const mesasInativas = mesas.length - mesasAtivas
 
   async function handleNovaMesa() {
     const n = parseInt(novoNumero)
@@ -37,15 +40,19 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold">Mesas</h1>
-        <p className="text-pretty text-sm text-muted-foreground">
-          Cadastre e ative as mesas que aparecem no atendimento do garçom.
-        </p>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        title="Mesas"
+        description="Cadastre e ative as mesas que aparecem no atendimento do garçom."
+      />
 
-      <div className="rounded-[var(--radius)] border bg-background p-4">
+      <AdminStatsGrid className="xl:grid-cols-3">
+        <AdminStatCard label="Mesas cadastradas" value={mesas.length} detail="Total disponível para gestão." />
+        <AdminStatCard label="Ativas" value={mesasAtivas} detail="Aparecem no fluxo do garçom." tone="success" />
+        <AdminStatCard label="Inativas" value={mesasInativas} detail="Ficam ocultas da operação." />
+      </AdminStatsGrid>
+
+      <AdminPanel title="Adicionar mesa" description="Use números simples para bater com a identificação física do salão.">
         <label htmlFor="numero-mesa" className="text-sm font-medium">
           Número da mesa
         </label>
@@ -63,13 +70,16 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
             <Plus className="h-4 w-4 mr-1" /> Adicionar Mesa
           </Button>
         </div>
-      </div>
+      </AdminPanel>
 
+      <AdminPanel title="Mapa de mesas" description="Ative ou pause mesas sem excluir o histórico operacional.">
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {mesas.length === 0 ? (
-          <div className="rounded-[var(--radius)] border bg-background p-4 text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
-            Nenhuma mesa cadastrada. Adicione a primeira mesa para liberar o atendimento.
-          </div>
+          <AdminEmptyState
+            className="sm:col-span-2 lg:col-span-3"
+            title="Nenhuma mesa cadastrada"
+            description="Adicione a primeira mesa para liberar o atendimento."
+          />
         ) : (
           mesas.map((m) => (
             <div key={m.id} className="flex items-center justify-between rounded-[var(--radius)] border bg-card px-4 py-3">
@@ -90,6 +100,7 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
           ))
         )}
       </div>
-    </div>
+      </AdminPanel>
+    </AdminPage>
   )
 }

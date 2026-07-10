@@ -84,8 +84,10 @@ describe('admin management area', () => {
     expect(usersPage).toContain('Caixa')
     expect(usersPage).toContain('Cozinha')
     expect(usersPage).toContain('Garçom')
-    expect(usersPage).toContain('Gerencie quais áreas cada usuário pode acessar neste restaurante.')
-    expect(usersPage).toContain('Salvar usuário')
+    expect(usersPage).toContain('Usuários e acessos')
+    expect(usersPage).toContain('Permissões por usuário')
+    expect(usersPage).toContain('Com múltiplos acessos')
+    expect(usersPage).toContain('Salvar acessos')
     expect(usersPage).toContain('Remover usuário')
     expect(usersPage).toContain('atualizarUsuarioAdmin')
     expect(usersPage).toContain('removerUsuarioDoRestaurante')
@@ -101,7 +103,8 @@ describe('admin management area', () => {
     expect(reportsPage).toContain('innerJoin(categoria')
     expect(reportsPage).toContain('Faturamento estimado')
     expect(reportsPage).toContain('Produtos mais vendidos')
-    expect(reportsPage).toContain('Ideias possíveis')
+    expect(reportsPage).toContain('Leituras operacionais')
+    expect(reportsPage).toContain('ProgressRow')
   })
 
   it('reports page derives delivery timing metrics from delivered orders only', () => {
