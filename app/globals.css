@@ -69,7 +69,9 @@
   --muted-foreground: #5a5a5c;
   --accent: #f7f7f7;
   --accent-foreground: #0a0a0a;
-  --destructive: #d45656;
+  --success: #15803d;
+  --success-hover: #166534;
+  --destructive: #b42318;
   --destructive-foreground: #ffffff;
   --border: #e5e5e5;
   --input: #e5e5e5;

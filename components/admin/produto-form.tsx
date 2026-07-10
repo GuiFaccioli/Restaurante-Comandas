@@ -52,11 +52,23 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
           <DialogTitle>{produto ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1"><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} /></div>
-          <div className="space-y-1"><Label>Descrição</Label><Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} /></div>
-          <div>
-            <Label>Preço (R$)</Label>
+          <div className="space-y-1">
+            <Label htmlFor="produto-nome">Nome</Label>
+            <Input id="produto-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="produto-descricao">Descrição</Label>
+            <Textarea
+              id="produto-descricao"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="produto-preco">Preço (R$)</Label>
             <Input
+              id="produto-preco"
               inputMode="numeric"
               placeholder="0,00"
               value={preco}
@@ -64,8 +76,13 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label>URL da Imagem</Label>
-            <Input value={imagemUrl} onChange={(e) => setImagemUrl(e.target.value)} placeholder="https://..." />
+            <Label htmlFor="produto-imagem-url">URL da Imagem</Label>
+            <Input
+              id="produto-imagem-url"
+              value={imagemUrl}
+              onChange={(e) => setImagemUrl(e.target.value)}
+              placeholder="https://..."
+            />
             {imagemUrl && (
               <img
                 src={imagemUrl}

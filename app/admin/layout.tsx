@@ -1,4 +1,5 @@
 import { ProfileMenu } from '@/components/auth/profile-menu'
+import { AdminShellNav } from '@/components/admin/admin-shell-nav'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const primaryLinks = [
@@ -22,16 +23,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Configure a operação sem sair do fluxo.
             </p>
           </div>
-          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
-            {primaryLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="rounded-full border bg-card px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                {link.label}
-              </a>
-            ))}
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto" aria-label="Navegação principal do admin">
+            <AdminShellNav links={primaryLinks} />
           </div>
           <ProfileMenu className="shrink-0" currentAccess="admin" />
         </div>
@@ -43,16 +36,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             Atalhos administrativos para controlar a operação.
           </p>
           <div className="mt-4 grid gap-2">
-            {managementLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="block rounded-[var(--radius)] border bg-background px-3 py-2 text-sm transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                <span className="font-medium">{link.label}</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">{link.description}</span>
-              </a>
-            ))}
+            <AdminShellNav links={managementLinks} variant="management" />
           </div>
         </aside>
         <main className="min-w-0 rounded-[var(--radius)] border bg-card p-4 sm:p-6">

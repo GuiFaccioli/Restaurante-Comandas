@@ -18,14 +18,14 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         success:
-          "bg-green-600 text-white hover:bg-green-700 focus-visible:border-green-600/40 focus-visible:ring-green-600/20 dark:bg-green-600 dark:hover:bg-green-500",
+          "bg-[var(--success)] text-white hover:bg-[var(--success-hover)] focus-visible:border-[var(--success)]/40 focus-visible:ring-[var(--success)]/20 dark:bg-[var(--success)] dark:hover:bg-[var(--success-hover)]",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
         default:
           "h-10 gap-1.5 px-5 has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4",
         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-9 gap-1 rounded-full px-4 text-[0.8rem] in-data-[slot=button-group]:rounded-full has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3 [&_svg:not([class*='size-'])]:size-3.5",
+        sm: "h-9 gap-1 rounded-full px-4 text-sm in-data-[slot=button-group]:rounded-full has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-12 gap-1.5 px-6 has-data-[icon=inline-end]:pr-5 has-data-[icon=inline-start]:pl-5",
         icon: "size-10",
         "icon-xs":

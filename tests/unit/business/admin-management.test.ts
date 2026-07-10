@@ -11,8 +11,13 @@ function source(path: string) {
 describe('admin management area', () => {
   it('uses a right-side management sidebar with key admin destinations', () => {
     const layout = source('app/admin/layout.tsx')
+    const shellNav = source('components/admin/admin-shell-nav.tsx')
 
     expect(layout).toContain('<aside')
+    expect(layout).toContain('AdminShellNav')
+    expect(shellNav).toContain('usePathname')
+    expect(shellNav).toContain('aria-current')
+    expect(shellNav).toContain('page')
     expect(layout).toContain('/admin/relatorios')
     expect(layout).toContain('/admin/usuarios')
     expect(layout).toContain('/admin/configuracoes')
@@ -21,8 +26,12 @@ describe('admin management area', () => {
   it('menu category creation is explicit instead of looking like search', () => {
     const menuClient = source('app/admin/menu/client.tsx')
 
+    expect(menuClient).toContain('Cardápio')
+    expect(menuClient).toContain('Produtos nesta categoria')
+    expect(menuClient).toContain('produtoCount')
     expect(menuClient).toContain('Nome da nova categoria')
     expect(menuClient).toContain('Adicionar Categoria')
+    expect(menuClient).toContain('Nenhum produto nesta categoria')
   })
 
   it('menu admin can edit and remove products and categories intentionally', () => {
@@ -39,6 +48,11 @@ describe('admin management area', () => {
     expect(menuClient).toContain('Excluir produto')
     expect(menuClient).toContain('removerProduto')
     expect(menuClient).toContain('removerCategoria')
+    expect(menuClient).toContain('type="button"')
+    expect(menuClient).toContain('aria-pressed')
+    expect(menuClient).toContain('aria-label={`Editar produto ${p.nome}`}')
+    expect(menuClient).not.toContain('<Badge')
+    expect(menuClient).not.toContain('onClick={async () =>')
   })
 
   it('has admin reports, users, and settings pages', () => {
@@ -99,5 +113,29 @@ describe('admin management area', () => {
     expect(reportsPage).toContain('order.entregueEm')
     expect(reportsPage).toContain('Tempo médio de entrega')
     expect(reportsPage).toContain('Pedidos entregues medidos')
+  })
+
+  it('admin table and product forms expose labels and empty states', () => {
+    const mesasSource = source('app/admin/mesas/client.tsx')
+    const productFormSource = source('components/admin/produto-form.tsx')
+    const buttonSource = source('components/ui/button.tsx')
+
+    expect(mesasSource).toContain('htmlFor="numero-mesa"')
+    expect(mesasSource).toContain('id="numero-mesa"')
+    expect(mesasSource).toContain('Nenhuma mesa cadastrada')
+    expect(mesasSource).toContain('aria-pressed')
+    expect(mesasSource).not.toContain('<Badge')
+
+    expect(productFormSource).toContain('htmlFor="produto-nome"')
+    expect(productFormSource).toContain('id="produto-nome"')
+    expect(productFormSource).toContain('htmlFor="produto-descricao"')
+    expect(productFormSource).toContain('id="produto-descricao"')
+    expect(productFormSource).toContain('htmlFor="produto-preco"')
+    expect(productFormSource).toContain('id="produto-preco"')
+    expect(productFormSource).toContain('htmlFor="produto-imagem-url"')
+    expect(productFormSource).toContain('id="produto-imagem-url"')
+
+    expect(buttonSource).toContain('bg-[var(--success)]')
+    expect(buttonSource).toContain('hover:bg-[var(--success-hover)]')
   })
 })

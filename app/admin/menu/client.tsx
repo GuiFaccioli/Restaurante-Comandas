@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Plus, Pencil } from 'lucide-react'
 import { ProdutoForm } from '@/components/admin/produto-form'
 import {
@@ -24,8 +24,11 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
   const [editProduto, setEditProduto] = useState<Produto | undefined>()
   const [newCat, setNewCat] = useState('')
   const [categoryName, setCategoryName] = useState(categorias[0]?.nome ?? '')
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({})
 
   const catAtual = categorias.find((c) => c.id === selected)
+  const produtoCount = catAtual?.produtos.length ?? 0
 
   async function handleNewCategoria() {
     if (!newCat.trim()) return
@@ -80,116 +83,176 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
     }
   }
 
+  async function handleToggleProduto(produto: Produto) {
+    try {
+      await toggleDisponivel(produto.id)
+      router.refresh()
+    } catch (error) {
+      console.error('Failed to toggle product availability', error)
+      toast.error('Não foi possível atualizar o produto.')
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
-      {/* Sidebar */}
-      <div className="shrink-0 space-y-1 lg:w-48">
-        <p className="text-xs uppercase text-muted-foreground font-medium mb-2">Categorias</p>
-        {categorias.map((c) => (
-          <button
-            key={c.id}
-            className={`min-h-11 w-full rounded-[var(--radius)] px-3 py-2 text-left text-sm ${selected === c.id ? 'bg-muted font-semibold' : 'hover:bg-muted/50'}`}
-            onClick={() => {
-              setSelected(c.id)
-              setCategoryName(c.nome)
-            }}
-          >
-            {c.nome}
-          </button>
-        ))}
-        <div className="mt-4 space-y-2 rounded-[var(--radius)] border bg-card p-3">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Cardápio</h1>
+          <p className="text-pretty text-sm text-muted-foreground">
+            Organize categorias, produtos, preços e disponibilidade para a operação.
+          </p>
+        </div>
+        <Button
+          type="button"
+          className="min-h-11 w-full sm:w-auto"
+          disabled={!catAtual}
+          onClick={() => { setEditProduto(undefined); setFormOpen(true) }}
+        >
+          <Plus className="h-4 w-4 mr-1" /> Novo Produto
+        </Button>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Categorias</p>
+            <div className="grid gap-1">
+              {categorias.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={selected === c.id}
+                  className={`min-h-11 w-full rounded-[var(--radius)] px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+                    selected === c.id ? 'bg-muted font-semibold' : 'hover:bg-muted/50'
+                  }`}
+                  onClick={() => {
+                    setSelected(c.id)
+                    setCategoryName(c.nome)
+                  }}
+                >
+                  {c.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-[var(--radius)] border bg-background p-3">
           <label htmlFor="nova-categoria" className="text-xs font-medium">
             Nome da nova categoria
           </label>
-          <input
+          <Input
             id="nova-categoria"
-            className="min-h-11 w-full rounded-[var(--radius)] border px-3 py-2 text-sm"
+            className="min-h-11"
             placeholder="Ex.: Sobremesas"
             value={newCat}
             onChange={(e) => setNewCat(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleNewCategoria()}
           />
-          <Button size="sm" className="min-h-11 w-full" onClick={handleNewCategoria}>
+          <Button type="button" size="sm" className="min-h-11 w-full" onClick={handleNewCategoria}>
             <Plus className="mr-1 h-4 w-4" /> Adicionar Categoria
           </Button>
-        </div>
-      </div>
+          </div>
+        </aside>
 
-      {/* Products list */}
-      <div className="min-w-0 flex-1">
-        <div className="mb-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold">{catAtual?.nome ?? 'Categorias'}</h2>
-            <Button size="sm" className="min-h-11" disabled={!catAtual} onClick={() => { setEditProduto(undefined); setFormOpen(true) }}>
-              <Plus className="h-4 w-4 mr-1" /> Novo Produto
-            </Button>
+        <section className="min-w-0 space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">{catAtual?.nome ?? 'Categorias'}</h2>
+              <p className="text-sm text-muted-foreground">
+                Produtos nesta categoria: {produtoCount}
+              </p>
+            </div>
           </div>
 
           {catAtual && (
-            <div className="rounded-[var(--radius)] border bg-card p-3">
+            <div className="rounded-[var(--radius)] border bg-background p-3">
               <label htmlFor="renomear-categoria" className="text-xs font-medium">
                 Renomear categoria
               </label>
               <div className="mt-2 flex flex-wrap gap-2">
-                <input
+                <Input
                   id="renomear-categoria"
-                  className="min-h-11 min-w-0 flex-1 rounded-[var(--radius)] border px-3 py-2 text-sm"
+                  className="min-h-11 min-w-0 flex-1"
                   value={categoryName}
                   onChange={(event) => setCategoryName(event.target.value)}
                 />
-                <Button size="sm" className="min-h-11" variant="outline" onClick={handleRenameCategoria}>
+                <Button type="button" size="sm" className="min-h-11" variant="outline" onClick={handleRenameCategoria}>
                   Salvar categoria
                 </Button>
-                <Button size="sm" className="min-h-11" variant="destructive" onClick={handleRemoveCategoria}>
+                <Button type="button" size="sm" className="min-h-11" variant="destructive" onClick={handleRemoveCategoria}>
                   Excluir categoria
                 </Button>
               </div>
             </div>
           )}
-        </div>
-        <div className="space-y-2">
-          {catAtual?.produtos.map((p) => (
-            <div key={p.id} className="flex flex-col gap-3 rounded-[var(--radius)] border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              {p.imagemUrl ? (
-                <img
-                  src={p.imagemUrl}
-                  alt={p.nome}
-                  className="h-12 w-12 shrink-0 rounded-[var(--radius)] object-cover"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                />
-              ) : (
-                <div className="flex h-12 w-12 shrink-0 select-none items-center justify-center rounded-[var(--radius)] bg-muted text-xl">🍕</div>
-              )}
-              <div className="flex-1 min-w-0">
-                <span className="break-words text-sm font-medium">{p.nome}</span>
-                <span className="ml-2 text-sm text-muted-foreground">R$ {parseFloat(p.preco).toFixed(2)}</span>
+
+          <div className="space-y-2">
+            {catAtual && produtoCount === 0 ? (
+              <div className="rounded-[var(--radius)] border bg-background p-4 text-sm text-muted-foreground">
+                Nenhum produto nesta categoria. Use “Novo Produto” para montar o cardápio desta seção.
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  className="cursor-pointer"
-                  variant={p.disponivel ? 'default' : 'secondary'}
-                  onClick={async () => {
-                    try {
-                      await toggleDisponivel(p.id)
-                      router.refresh()
-                    } catch (error) {
-                      console.error('Failed to toggle product availability', error)
-                      toast.error('Não foi possível atualizar o produto.')
-                    }
-                  }}
+            ) : (
+              catAtual?.produtos.map((p) => (
+                <div
+                  key={p.id}
+                  className="grid gap-3 rounded-[var(--radius)] border bg-card px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                 >
-                  {p.disponivel ? 'Disponível' : 'Indisponível'}
-                </Badge>
-                <Button size="sm" className="min-h-11" variant="ghost" onClick={() => { setEditProduto(p); setFormOpen(true) }}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button size="sm" className="min-h-11" variant="destructive" onClick={() => handleRemoveProduto(p)}>
-                  Excluir produto
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+                  <div className="flex min-w-0 gap-3">
+                    <div className="relative flex h-12 w-12 shrink-0 select-none items-center justify-center overflow-hidden rounded-[var(--radius)] bg-muted text-xl">
+                      <span aria-hidden="true">🍕</span>
+                      {p.imagemUrl && !brokenImages[p.id] ? (
+                        <img
+                          src={p.imagemUrl}
+                          alt=""
+                          className={`absolute inset-0 h-full w-full object-cover ${loadedImages[p.id] ? 'block' : 'hidden'}`}
+                          onLoad={() => {
+                            setLoadedImages((current) => ({ ...current, [p.id]: true }))
+                          }}
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none'
+                            setBrokenImages((current) => ({ ...current, [p.id]: true }))
+                          }}
+                        />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium">{p.nome}</p>
+                      <p className="text-sm text-muted-foreground">R$ {parseFloat(p.preco).toFixed(2)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <button
+                      type="button"
+                      aria-pressed={p.disponivel}
+                      className={`min-h-11 rounded-full px-4 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+                        p.disponivel
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          : 'bg-secondary text-secondary-foreground hover:bg-muted'
+                      }`}
+                      onClick={() => handleToggleProduto(p)}
+                    >
+                      {p.disponivel ? 'Disponível' : 'Indisponível'}
+                    </button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="min-h-11"
+                      variant="outline"
+                      aria-label={`Editar produto ${p.nome}`}
+                      onClick={() => { setEditProduto(p); setFormOpen(true) }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" size="sm" className="min-h-11" variant="destructive" onClick={() => handleRemoveProduto(p)}>
+                      Excluir produto
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       </div>
 
       {selected && (
