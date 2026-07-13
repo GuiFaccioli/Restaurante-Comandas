@@ -842,24 +842,42 @@ npm test -- tests/unit/business/cashier-responsible-metrics.test.ts
 
 Expected: FAIL at TypeScript transform/runtime because `AdminStatCard` does not accept interactive props and still renders only a `<div>`.
 
-- [ ] **Step 3: Isolate and preserve the pre-existing dirty admin page**
+- [ ] **Step 3: Snapshot the active user file and prepare a temporary index without touching it**
 
-Before editing, save both the original file and its binary/full-index patch, record the clean base blob, then restore only this working-tree file to `HEAD`:
+Run these PowerShell commands from the repository root. They copy the active user-edited file, create a temporary Git index seeded from `HEAD`, and materialize a clean base copy only under `%TEMP%`. No command restores, checks out, or overwrites `components/admin/admin-page.tsx`:
 
-```bash
-cp components/admin/admin-page.tsx .git/admin-page.before-responsible.tsx
-git diff --binary --full-index HEAD -- components/admin/admin-page.tsx > .git/admin-page.before-responsible.patch
-git rev-parse HEAD:components/admin/admin-page.tsx > .git/admin-page.before-responsible.blob
-test -s .git/admin-page.before-responsible.patch
-git restore --worktree --source=HEAD -- components/admin/admin-page.tsx
-git diff --quiet -- components/admin/admin-page.tsx
+```powershell
+git diff --cached --quiet
+if ($LASTEXITCODE -ne 0) { throw 'Real index must be clean before temporary-index staging.' }
+
+$stageDir = Join-Path $env:TEMP 'restaurante-comandas-cashier-admin-card-staging'
+if (Test-Path -LiteralPath $stageDir) {
+  throw "Stale staging directory exists and must be inspected before reuse: $stageDir"
+}
+$tempIndex = Join-Path $stageDir 'index'
+$cleanPrefix = (Join-Path $stageDir 'clean') + [IO.Path]::DirectorySeparatorChar
+$userBefore = Join-Path $stageDir 'admin-page.user-before.tsx'
+New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+New-Item -ItemType Directory -Force -Path $cleanPrefix | Out-Null
+Copy-Item -LiteralPath 'components/admin/admin-page.tsx' -Destination $userBefore
+
+$env:GIT_INDEX_FILE = $tempIndex
+git read-tree HEAD
+git checkout-index --prefix="$cleanPrefix" -- components/admin/admin-page.tsx
+if ($LASTEXITCODE -ne 0) { throw 'Could not materialize clean admin-page.tsx.' }
+Remove-Item Env:GIT_INDEX_FILE
+
+$cleanBase = Join-Path $cleanPrefix 'components/admin/admin-page.tsx'
+$beforeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath 'components/admin/admin-page.tsx').Hash
+$snapshotHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $userBefore).Hash
+if ($beforeHash -ne $snapshotHash) { throw 'Active user file changed while preparing temporary index.' }
 ```
 
-Expected: every command exits 0. The patch is non-empty, the original user-edited file is recoverable from `.git/admin-page.before-responsible.tsx`, and `components/admin/admin-page.tsx` is now clean relative to `HEAD`. This temporary isolation is what makes later path-selective staging provable: no pre-existing dirty hunk is present in the file being edited or staged.
+Expected: all commands complete without exception; `$cleanBase` is the committed `HEAD` version in `%TEMP%`; `$userBefore` is an exact SHA-256 snapshot of the active dirty file; the active `components/admin/admin-page.tsx` remains byte-for-byte unchanged.
 
 - [ ] **Step 4: Add optional interactive props and shared card content**
 
-In the clean-`HEAD` copy of `components/admin/admin-page.tsx`, retain its amber warning tone maps and use this public signature and return structure. Do not copy the saved dirty color-mix lines into this commit; Step 6 reapplies them afterward:
+Edit the active `components/admin/admin-page.tsx` normally, adding the interactive behavior around its current user redesign. Retain the current color-mix warning tones exactly; the temporary-index merge in Step 6 removes those pre-existing user hunks from the commit without ever replacing the active file:
 
 ```tsx
 export function AdminStatCard({
@@ -882,13 +900,13 @@ export function AdminStatCard({
   const toneClass = {
     default: 'border-border bg-card',
     success: 'border-[var(--success)]/25 bg-[color-mix(in_oklch,var(--success),white_95%)]',
-    warning: 'border-amber-300/50 bg-amber-50',
+    warning: 'border-[color-mix(in_oklch,var(--status-em-preparo),white_55%)] bg-[color-mix(in_oklch,var(--status-em-preparo),white_92%)]',
     danger: 'border-destructive/25 bg-destructive/5',
   }[tone]
   const markerClass = {
     default: 'bg-foreground',
     success: 'bg-[var(--success)]',
-    warning: 'bg-amber-500',
+    warning: 'bg-[var(--status-em-preparo)]',
     danger: 'bg-destructive',
   }[tone]
   const cardClassName = cn(
@@ -943,55 +961,119 @@ npm test -- tests/unit/business/cashier-responsible-metrics.test.ts
 
 Expected: PASS for both static and interactive rendering.
 
-- [ ] **Step 6: Path-selectively stage, prove the commit boundary, and restore the dirty redesign**
+- [ ] **Step 6: Build and commit a feature-only blob through the temporary index**
 
-Because Step 3 removed the unrelated working-tree version before implementation, stage only the two planned paths and inspect the complete cached diff:
+The active file now contains `user redesign + AdminStatCard feature`. Build `clean HEAD + AdminStatCard feature` entirely under `%TEMP%` with a three-way file merge: current=`clean HEAD`, base=`user snapshot before feature`, other=`active file after feature`. Then write that feature-only blob and the test into the temporary index. Reconstruct the stable paths first, so this step works in a fresh PowerShell process:
 
-```bash
-git add -- components/admin/admin-page.tsx tests/unit/business/cashier-responsible-metrics.test.ts
+```powershell
+$stageDir = Join-Path $env:TEMP 'restaurante-comandas-cashier-admin-card-staging'
+$tempIndex = Join-Path $stageDir 'index'
+$cleanPrefix = (Join-Path $stageDir 'clean') + [IO.Path]::DirectorySeparatorChar
+$cleanBase = Join-Path $cleanPrefix 'components/admin/admin-page.tsx'
+$userBefore = Join-Path $stageDir 'admin-page.user-before.tsx'
+foreach ($requiredPath in @($tempIndex, $cleanBase, $userBefore)) {
+  if (-not (Test-Path -LiteralPath $requiredPath)) {
+    throw "Missing temporary-index artifact: $requiredPath"
+  }
+}
+
+$featureOnly = Join-Path $stageDir 'admin-page.feature-only.tsx'
+Copy-Item -LiteralPath $cleanBase -Destination $featureOnly
+git merge-file $featureOnly $userBefore 'components/admin/admin-page.tsx'
+if ($LASTEXITCODE -ne 0) { throw 'Feature/user edits overlap; temporary merge requires fresh review.' }
+
+$env:GIT_INDEX_FILE = $tempIndex
+git read-tree HEAD
+$featureBlob = git hash-object -w -- $featureOnly
+if ($LASTEXITCODE -ne 0) { throw 'Could not write feature-only blob.' }
+git update-index --add --cacheinfo 100644 $featureBlob components/admin/admin-page.tsx
+git add -- tests/unit/business/cashier-responsible-metrics.test.ts
+
+$cachedNames = @(git diff --cached --name-only)
+$expectedNames = @(
+  'components/admin/admin-page.tsx',
+  'tests/unit/business/cashier-responsible-metrics.test.ts'
+)
+if (Compare-Object $expectedNames $cachedNames) {
+  throw "Unexpected temporary-index paths: $($cachedNames -join ', ')"
+}
+
 git diff --cached --check
-git diff --cached --name-only
-git diff --cached -- components/admin/admin-page.tsx tests/unit/business/cashier-responsible-metrics.test.ts
-git diff --quiet -- components/admin/admin-page.tsx
-git status --short
+if ($LASTEXITCODE -ne 0) { throw 'Temporary-index diff has whitespace errors.' }
+$cachedAdmin = (git diff --cached -- components/admin/admin-page.tsx) -join "`n"
+foreach ($requiredToken in @('onClick', 'expanded', 'controls', 'aria-expanded', '<button')) {
+  if (-not $cachedAdmin.Contains($requiredToken)) {
+    throw "Cached AdminStatCard diff is missing $requiredToken."
+  }
+}
+foreach ($userToken in @('color-mix(in_oklch,var(--status-em-preparo)', "bg-[var(--status-em-preparo)]")) {
+  if ($cachedAdmin.Contains($userToken)) {
+    throw "Cached AdminStatCard diff absorbed user redesign token: $userToken"
+  }
+}
+$cachedAdmin
+git diff --cached -- tests/unit/business/cashier-responsible-metrics.test.ts
 ```
 
-Expected:
+Expected cached diff:
 
-- cached names are exactly `components/admin/admin-page.tsx` and `tests/unit/business/cashier-responsible-metrics.test.ts`;
-- the cached admin diff contains only `onClick`, `expanded`, `controls`, focus/expanded styling, the conditional real `<button>`, and expanded-state copy;
-- `git diff --quiet` exits 0 because the isolated admin file has no unstaged hunks;
-- none of the unrelated dirty paths appear in `git diff --cached --name-only`.
+- exactly the two paths in `$expectedNames`;
+- `components/admin/admin-page.tsx` contains only `onClick`, `expanded`, `controls`, focus/expanded styling, conditional real-button markup, and expanded-state copy;
+- it does **not** contain the pre-existing warning-tone replacements (`color-mix` or `bg-[var(--status-em-preparo)]`);
+- the active working file is still open and unchanged by every staging command.
 
-Commit the isolated feature, verify that the commit parent contains the exact base blob recorded before isolation, then reapply the preserved dirty patch onto the new commit and return it to unstaged state:
+Before committing, prove the active file still contains exactly the same user redesign it had before feature editing. Reconstruct the expected combined file from `clean HEAD + feature-only commit candidate + original user redesign`, then compare actual file bytes—not serialized diff text:
 
-```bash
+```powershell
+$expectedCombined = Join-Path $stageDir 'admin-page.expected-combined.tsx'
+Copy-Item -LiteralPath $featureOnly -Destination $expectedCombined
+git merge-file $expectedCombined $cleanBase $userBefore
+if ($LASTEXITCODE -ne 0) { throw 'Could not reconstruct expected user-plus-feature file.' }
+
+$expectedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $expectedCombined).Hash
+$activeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath 'components/admin/admin-page.tsx').Hash
+if ($expectedHash -ne $activeHash) {
+  throw 'Active working file changed beyond the original user hunks plus planned feature.'
+}
+```
+
+Expected: hashes match. This proves the remaining user redesign is semantically and byte-for-byte preserved in the active file while the temporary index contains only the feature.
+
+Commit with the temporary index, then remove the environment override and advance the real index to the new `HEAD` without touching the working tree:
+
+```powershell
 git commit -m "feat(admin): make stat cards optionally interactive"
-test "$(git rev-parse HEAD^:components/admin/admin-page.tsx)" = "$(cat .git/admin-page.before-responsible.blob)"
+if ($LASTEXITCODE -ne 0) { throw 'Temporary-index commit failed.' }
+Remove-Item Env:GIT_INDEX_FILE
+
+git read-tree HEAD
+if ($LASTEXITCODE -ne 0) { throw 'Could not synchronize real index to committed HEAD.' }
+
 git show --check --format= HEAD -- components/admin/admin-page.tsx
-git apply --3way .git/admin-page.before-responsible.patch
-git restore --staged -- components/admin/admin-page.tsx
+git diff --cached --quiet
+if ($LASTEXITCODE -ne 0) { throw 'Real index contains unexpected staged changes.' }
 git status --short
 git diff -- components/admin/admin-page.tsx
+
+$activeHashAfterCommit = (Get-FileHash -Algorithm SHA256 -LiteralPath 'components/admin/admin-page.tsx').Hash
+if ($activeHashAfterCommit -ne $activeHash) { throw 'Commit operation altered active user file.' }
+
+$resolvedStageDir = [IO.Path]::GetFullPath($stageDir)
+$resolvedTempRoot = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
+if (-not $resolvedStageDir.StartsWith($resolvedTempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+  throw "Refusing to remove staging directory outside TEMP: $resolvedStageDir"
+}
+Remove-Item -LiteralPath $resolvedStageDir -Recurse -Force
 ```
 
 Expected:
 
-- the parent-blob equality exits 0, proving the commit was based on the clean pre-feature `HEAD` file, not the dirty working copy;
-- `git show` contains only the Step 4 `AdminStatCard` feature;
-- `git apply --3way` exits 0 and restores the approved redesign on top of the feature;
-- `git status --short` reports ` M components/admin/admin-page.tsx`, with that path unstaged;
-- `git diff` shows the restored user redesign relative to the new feature commit.
-
-If `git apply --3way` reports a conflict, preserve the original user file with these exact recovery commands, then stop and report the conflict for fresh review:
-
-```bash
-git restore --staged -- components/admin/admin-page.tsx
-cp .git/admin-page.before-responsible.tsx components/admin/admin-page.tsx
-git status --short
-```
-
-Expected recovery state: `components/admin/admin-page.tsx` is unstaged and its bytes match the pre-task user snapshot; the feature remains safely committed. Do not stage or commit a conflict resolution under this task.
+- `git show` contains only the interactive `AdminStatCard` feature and none of the user warning-tone hunks;
+- the real index is clean;
+- `git status --short` reports ` M components/admin/admin-page.tsx`, unstaged;
+- `git diff` shows only the original user redesign relative to the new feature commit;
+- the final hash check proves the active working file was never overwritten by staging or commit operations;
+- the verified temporary staging directory is removed only after every proof passes.
 
 ---
 
@@ -1455,5 +1537,5 @@ Zero or more review-generated commits such as `fix(cashier): enforce tenant resp
 - **Spec coverage:** Tasks 1-3 cover nullable persistence, authenticated creation, payment registrar reuse, minimal payment metadata, historical nulls, behavioral tenant-separated resolution, reversed-payment exclusion, and tenant isolation. Tasks 4-5 cover static compatibility, real buttons, keyboard/ARIA/focus, explicit selection cue, open/switch/close, contextual labels, values, fallback, empty states, responsive rows, and refresh-preserved selection. Task 6 covers full regression and manual accessibility/responsiveness checks. No spec requirement is uncovered.
 - **Placeholder scan:** No `TBD`, `TODO`, “implement later,” “similar to,” unspecified error handling, or empty test instruction remains. Every code-changing step includes the exact addition/replacement and every test step includes a command and expected RED/GREEN result.
 - **Type consistency:** `CashierResponsible`, `CashierResponsibleMembership`, `CashierPayment`, `CashierOrder.criadoPor`, and `CashierOrder.pagamento` names match between query production, integration fixtures, and UI. `findRegisteredPayment` accepts the real `StatusPagamento` union, and `resolveTenantResponsible` consumes the same membership rows selected by `getCashierOrders`. `selectedMetric` values match `metricCopy` keys. `AdminStatCard` uses the same `onClick`, `expanded`, and `controls` names at definition and call sites.
-- **Risk review:** Temporarily isolating the dirty admin file to clean `HEAD`, checking the cached paths/diff, validating the parent blob, and only then reapplying the saved dirty patch proves unrelated redesign hunks cannot enter the feature commit without relying on serialized-diff equality. The schema test asserts the nullable UUID column exists and that its FK appears after `usuario`. Integration tests execute `getCashierOrders` with mixed-tenant query candidates and `estornado` payments, proving its production mapping cannot bypass the helpers. The recorded base commit and explicit allowance for precise review `fix` commits make the final audit robust to correction commits. A registered payment whose user no longer has a membership safely renders the required fallback.
+- **Risk review:** The temporary Git index and temporary three-way file construction create a feature-only blob without ever restoring, checking out, or overwriting the active dirty admin file. Cached path/token checks prove user tone hunks are excluded; reconstruction and SHA-256 checks prove the active user hunks remain unchanged before and after commit. The schema test asserts the nullable UUID column exists and that its FK appears after `usuario`. Integration tests execute `getCashierOrders` with mixed-tenant query candidates and `estornado` payments, proving its production mapping cannot bypass the helpers. The recorded base commit and explicit allowance for precise review `fix` commits make the final audit robust to correction commits. A registered payment whose user no longer has a membership safely renders the required fallback.
 - **Scope check:** This is one vertical feature, not multiple independent subsystems: schema, write path, read path, and UI are necessary parts of the same responsibility display and each task leaves an independently testable boundary.
