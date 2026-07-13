@@ -25,6 +25,7 @@
 - Use strict TDD: add each failing test first, observe the expected failure, implement only enough to pass, then commit that independently reviewable slice.
 - Preserve all unrelated working-tree edits, especially `app/admin/layout.tsx`, `app/globals.css`, `components/admin/admin-page.tsx`, `tests/unit/business/order-flow.test.ts`, `DESIGNTESTE.MD`, and `.impeccable/critique/2026-07-10T18-36-09Z__app-admin.md`. When editing `components/admin/admin-page.tsx`, patch the current working copy; never restore or overwrite its redesign changes.
 - Never add `Co-Authored-By` or AI attribution; use only the conventional commits listed below.
+- The five task commit subjects are required checkpoints, not an exclusive commit list. Fresh review may add zero or more precise conventional `fix(<scope>): <correction>` commits; every such commit must stay inside the recorded feature range and describe the actual correction.
 
 ## File Structure
 
@@ -37,7 +38,7 @@
 - `tests/unit/actions/pedidos.test.ts` — action persistence regression.
 - `lib/orders/queries.ts` — tenant-scoped responsible lookup and enriched `CashierOrder` contract.
 - `tests/unit/business/cashier-orders.test.ts` — cashier response-contract regression.
-- `tests/unit/business/cashier-orders-query.test.ts` — behavioral tenant-separated fixtures for responsible resolution and reversed-payment selection.
+- `tests/unit/business/cashier-orders-query.test.ts` — `getCashierOrders` integration tests with realistic chained-DB mocks, mixed-tenant candidates, and reversed payments.
 - `components/admin/admin-page.tsx` — optional interactive behavior for `AdminStatCard`, retaining static behavior.
 - `app/admin/pedidos/client.tsx` — selected-metric state and responsive responsibility panel derived from `pedidos`.
 - `tests/unit/business/cashier-responsible-metrics.test.ts` — component interaction, fallback, empty-state, SSE, polling, and static-card regressions.
@@ -116,6 +117,9 @@ it('declares the reference-schema creator foreign key only after usuario exists'
   expect(pedidoStart).toBeGreaterThanOrEqual(0)
   expect(usuarioStart).toBeGreaterThan(pedidoEnd)
   expect(creatorForeignKey).toBeGreaterThan(usuarioEnd)
+  const pedidoDefinition = sqlSchema.slice(pedidoStart, pedidoEnd)
+  expect(pedidoDefinition).toContain('created_by_user_id UUID')
+  expect(pedidoDefinition).not.toMatch(/created_by_user_id\s+UUID\s+NOT NULL/)
   expect(sqlSchema.slice(pedidoStart, pedidoEnd)).not.toContain(
     'created_by_user_id UUID REFERENCES usuario(id)'
   )
@@ -403,85 +407,170 @@ Do not add source-string assertions for tenant safety or reversed payments. Thos
 Create `tests/unit/business/cashier-orders-query.test.ts` with exactly:
 
 ```ts
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  findRegisteredPayment,
-  resolveTenantResponsible,
-  type CashierResponsibleMembership,
-} from '@/lib/orders/queries'
+const mocks = vi.hoisted(() => ({
+  db: { select: vi.fn() },
+}))
 
-const memberships: CashierResponsibleMembership[] = [
-  { tenantId: 'tenant-a', usuarioId: 'waiter-a', nome: 'Alice Garçom' },
-  { tenantId: 'tenant-a', usuarioId: 'cashier-a', nome: 'Carlos Caixa' },
-  { tenantId: 'tenant-b', usuarioId: 'waiter-b', nome: 'Bruno Garçom' },
-  { tenantId: 'tenant-b', usuarioId: 'cashier-b', nome: 'Bianca Caixa' },
-]
+vi.mock('@/lib/db/index', () => ({ db: mocks.db }))
 
-const payments = [
-  {
-    pedidoId: 'order-a',
-    status: 'estornado' as const,
-    registradoPorUsuarioId: 'cashier-b',
-    valor: '90.00',
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => conditions),
+  desc: vi.fn((column: unknown) => column),
+  eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+  inArray: vi.fn((left: unknown, right: unknown[]) => ({ left, right })),
+  ne: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+}))
+
+vi.mock('@/lib/db/schema', () => ({
+  pedido: {
+    id: 'pedido.id', tenantId: 'pedido.tenant_id', mesaId: 'pedido.mesa_id',
+    createdByUserId: 'pedido.created_by_user_id', status: 'pedido.status',
+    criadoEm: 'pedido.criado_em', entregueEm: 'pedido.entregue_em',
   },
-  {
-    pedidoId: 'order-b',
-    status: 'registrado' as const,
-    registradoPorUsuarioId: 'cashier-a',
-    valor: '48.00',
+  mesa: { id: 'mesa.id', tenantId: 'mesa.tenant_id', numero: 'mesa.numero' },
+  itemPedido: {
+    pedidoId: 'item_pedido.pedido_id', produtoId: 'item_pedido.produto_id',
+    quantidade: 'item_pedido.quantidade', precoUnitario: 'item_pedido.preco_unitario',
+    observacao: 'item_pedido.observacao',
   },
-]
+  produto: { id: 'produto.id', nome: 'produto.nome' },
+  pagamentoPedido: {
+    pedidoId: 'pagamento_pedido.pedido_id', tenantId: 'pagamento_pedido.tenant_id',
+    status: 'pagamento_pedido.status',
+    registradoPorUsuarioId: 'pagamento_pedido.registrado_por_usuario_id',
+    valor: 'pagamento_pedido.valor', registradoEm: 'pagamento_pedido.registrado_em',
+  },
+  tenantUser: {
+    tenantId: 'tenant_user.tenant_id', usuarioId: 'tenant_user.usuario_id',
+  },
+  usuario: { id: 'usuario.id', nome: 'usuario.nome' },
+}))
 
-describe('cashier responsible resolution', () => {
-  it('does not resolve an order creator who belongs only to another tenant', () => {
-    const responsible = resolveTenantResponsible(
-      memberships,
-      'tenant-a',
-      'waiter-b'
-    )
+import { getCashierOrders } from '@/lib/orders/queries'
 
-    expect(responsible).toBeNull()
+type PaymentRow = {
+  pedidoId: string
+  status: 'registrado' | 'estornado'
+  registradoPorUsuarioId: string
+  valor: string
+  registradoEm: Date
+}
+
+type MembershipRow = { tenantId: string; usuarioId: string; nome: string }
+
+function mockCashierQuery(input: {
+  createdByUserId: string | null
+  payments: PaymentRow[]
+  memberships: MembershipRow[]
+}) {
+  const order = {
+    id: 'order-a', status: 'entregue' as const,
+    criadoEm: new Date('2026-07-13T12:00:00.000Z'),
+    entregueEm: new Date('2026-07-13T12:15:00.000Z'),
+    mesaNumero: 4, createdByUserId: input.createdByUserId,
+  }
+
+  mocks.db.select
+    .mockReturnValueOnce({
+      from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({
+          where: vi.fn(() => ({ orderBy: vi.fn(async () => [order]) })),
+        })),
+      })),
+    })
+    .mockReturnValueOnce({
+      from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({ where: vi.fn(async () => []) })),
+      })),
+    })
+    .mockReturnValueOnce({
+      from: vi.fn(() => ({ where: vi.fn(async () => input.payments) })),
+    })
+    .mockReturnValueOnce({
+      from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({ where: vi.fn(async () => input.memberships) })),
+      })),
+    })
+}
+
+beforeEach(() => {
+  mocks.db.select.mockReset()
+})
+
+describe('getCashierOrders responsible integration', () => {
+  it('does not leak mixed-tenant creator or registrar names from query candidates', async () => {
+    mockCashierQuery({
+      createdByUserId: 'waiter-b',
+      payments: [{
+        pedidoId: 'order-a', status: 'registrado',
+        registradoPorUsuarioId: 'cashier-b', valor: '90.00',
+        registradoEm: new Date('2026-07-13T12:30:00.000Z'),
+      }],
+      memberships: [
+        { tenantId: 'tenant-a', usuarioId: 'waiter-a', nome: 'Alice Garçom' },
+        { tenantId: 'tenant-b', usuarioId: 'waiter-b', nome: 'Bruno Garçom' },
+        { tenantId: 'tenant-b', usuarioId: 'cashier-b', nome: 'Bianca Caixa' },
+      ],
+    })
+
+    const [order] = await getCashierOrders({ tenantId: 'tenant-a' })
+
+    expect(order.criadoPor).toBeNull()
+    expect(order.pagamentoStatus).toBe('pago')
+    expect(order.pagamento?.registradoPor).toBeNull()
   })
 
-  it('does not resolve a payment registrar who belongs only to another tenant', () => {
-    const responsible = resolveTenantResponsible(
-      memberships,
-      'tenant-a',
-      'cashier-b'
-    )
+  it('treats an estornado-only order as pending with no payment metadata', async () => {
+    mockCashierQuery({
+      createdByUserId: 'waiter-a',
+      payments: [{
+        pedidoId: 'order-a', status: 'estornado',
+        registradoPorUsuarioId: 'cashier-a', valor: '48.00',
+        registradoEm: new Date('2026-07-13T12:30:00.000Z'),
+      }],
+      memberships: [
+        { tenantId: 'tenant-a', usuarioId: 'waiter-a', nome: 'Alice Garçom' },
+        { tenantId: 'tenant-a', usuarioId: 'cashier-a', nome: 'Carlos Caixa' },
+      ],
+    })
 
-    expect(responsible).toBeNull()
+    const [order] = await getCashierOrders({ tenantId: 'tenant-a' })
+
+    expect(order.criadoPor).toEqual({ usuarioId: 'waiter-a', nome: 'Alice Garçom' })
+    expect(order.pagamentoStatus).toBe('pendente')
+    expect(order.pagamento).toBeNull()
   })
 
-  it('returns the responsible only when user and tenant membership both match', () => {
-    expect(
-      resolveTenantResponsible(memberships, 'tenant-a', 'waiter-a')
-    ).toEqual({ usuarioId: 'waiter-a', nome: 'Alice Garçom' })
-    expect(
-      resolveTenantResponsible(memberships, 'tenant-b', 'cashier-b')
-    ).toEqual({ usuarioId: 'cashier-b', nome: 'Bianca Caixa' })
-  })
+  it('returns matching-tenant creator and active payment registrar', async () => {
+    mockCashierQuery({
+      createdByUserId: 'waiter-a',
+      payments: [{
+        pedidoId: 'order-a', status: 'registrado',
+        registradoPorUsuarioId: 'cashier-a', valor: '48.00',
+        registradoEm: new Date('2026-07-13T12:30:00.000Z'),
+      }],
+      memberships: [
+        { tenantId: 'tenant-a', usuarioId: 'waiter-a', nome: 'Alice Garçom' },
+        { tenantId: 'tenant-a', usuarioId: 'cashier-a', nome: 'Carlos Caixa' },
+        { tenantId: 'tenant-b', usuarioId: 'cashier-b', nome: 'Bianca Caixa' },
+      ],
+    })
 
-  it('ignores a reversed payment instead of exposing its registrar', () => {
-    const payment = findRegisteredPayment(payments, 'order-a')
+    const [order] = await getCashierOrders({ tenantId: 'tenant-a' })
 
-    expect(payment).toBeUndefined()
-  })
-
-  it('selects the registered payment for the requested order', () => {
-    const payment = findRegisteredPayment(payments, 'order-b')
-
-    expect(payment).toEqual(expect.objectContaining({
-      pedidoId: 'order-b',
-      status: 'registrado',
-      registradoPorUsuarioId: 'cashier-a',
-    }))
+    expect(order.criadoPor).toEqual({ usuarioId: 'waiter-a', nome: 'Alice Garçom' })
+    expect(order.pagamento).toEqual({
+      valor: 48,
+      registradoEm: '2026-07-13T12:30:00.000Z',
+      registradoPor: { usuarioId: 'cashier-a', nome: 'Carlos Caixa' },
+    })
   })
 })
 ```
 
-These fixtures intentionally include two tenants in the same collection. A helper that looks up only by `usuarioId`, or accepts `estornado`, will fail behaviorally.
+These tests execute `getCashierOrders`, feed mixed-tenant membership rows through its real mapping path, and feed `estornado` through its real payment selection path. Calling the helpers only in isolation is insufficient.
 
 - [ ] **Step 3: Run both cashier tests to verify RED**
 
@@ -753,20 +842,24 @@ npm test -- tests/unit/business/cashier-responsible-metrics.test.ts
 
 Expected: FAIL at TypeScript transform/runtime because `AdminStatCard` does not accept interactive props and still renders only a `<div>`.
 
-- [ ] **Step 3: Snapshot the pre-existing unstaged admin-page patch**
+- [ ] **Step 3: Isolate and preserve the pre-existing dirty admin page**
 
-Before editing `components/admin/admin-page.tsx`, record its current unrelated dirty patch:
+Before editing, save both the original file and its binary/full-index patch, record the clean base blob, then restore only this working-tree file to `HEAD`:
 
 ```bash
-git diff -- components/admin/admin-page.tsx > .git/admin-page.before-responsible.patch
+cp components/admin/admin-page.tsx .git/admin-page.before-responsible.tsx
+git diff --binary --full-index HEAD -- components/admin/admin-page.tsx > .git/admin-page.before-responsible.patch
+git rev-parse HEAD:components/admin/admin-page.tsx > .git/admin-page.before-responsible.blob
 test -s .git/admin-page.before-responsible.patch
+git restore --worktree --source=HEAD -- components/admin/admin-page.tsx
+git diff --quiet -- components/admin/admin-page.tsx
 ```
 
-Expected: `test -s` exits 0 because the approved redesign already has unstaged changes. This snapshot is the exact content that must remain unstaged after selective staging.
+Expected: every command exits 0. The patch is non-empty, the original user-edited file is recoverable from `.git/admin-page.before-responsible.tsx`, and `components/admin/admin-page.tsx` is now clean relative to `HEAD`. This temporary isolation is what makes later path-selective staging provable: no pre-existing dirty hunk is present in the file being edited or staged.
 
 - [ ] **Step 4: Add optional interactive props and shared card content**
 
-In `components/admin/admin-page.tsx`, retain the existing tone maps and use this public signature and return structure:
+In the clean-`HEAD` copy of `components/admin/admin-page.tsx`, retain its amber warning tone maps and use this public signature and return structure. Do not copy the saved dirty color-mix lines into this commit; Step 6 reapplies them afterward:
 
 ```tsx
 export function AdminStatCard({
@@ -789,13 +882,13 @@ export function AdminStatCard({
   const toneClass = {
     default: 'border-border bg-card',
     success: 'border-[var(--success)]/25 bg-[color-mix(in_oklch,var(--success),white_95%)]',
-    warning: 'border-[color-mix(in_oklch,var(--status-em-preparo),white_55%)] bg-[color-mix(in_oklch,var(--status-em-preparo),white_92%)]',
+    warning: 'border-amber-300/50 bg-amber-50',
     danger: 'border-destructive/25 bg-destructive/5',
   }[tone]
   const markerClass = {
     default: 'bg-foreground',
     success: 'bg-[var(--success)]',
-    warning: 'bg-[var(--status-em-preparo)]',
+    warning: 'bg-amber-500',
     danger: 'bg-destructive',
   }[tone]
   const cardClassName = cn(
@@ -850,18 +943,16 @@ npm test -- tests/unit/business/cashier-responsible-metrics.test.ts
 
 Expected: PASS for both static and interactive rendering.
 
-- [ ] **Step 6: Selectively stage and commit without absorbing the dirty redesign**
+- [ ] **Step 6: Path-selectively stage, prove the commit boundary, and restore the dirty redesign**
 
-Stage the new test normally, but stage `components/admin/admin-page.tsx` interactively. Use `s` to split hunks and `e` to edit a hunk when the pre-existing redesign and new `AdminStatCard` changes share context; accept only the optional props/button behavior shown in Step 4:
+Because Step 3 removed the unrelated working-tree version before implementation, stage only the two planned paths and inspect the complete cached diff:
 
 ```bash
-git add tests/unit/business/cashier-responsible-metrics.test.ts
-git add -p -- components/admin/admin-page.tsx
+git add -- components/admin/admin-page.tsx tests/unit/business/cashier-responsible-metrics.test.ts
 git diff --cached --check
 git diff --cached --name-only
 git diff --cached -- components/admin/admin-page.tsx tests/unit/business/cashier-responsible-metrics.test.ts
-git diff -- components/admin/admin-page.tsx > .git/admin-page.after-responsible-staging.patch
-git diff --no-index -- .git/admin-page.before-responsible.patch .git/admin-page.after-responsible-staging.patch
+git diff --quiet -- components/admin/admin-page.tsx
 git status --short
 ```
 
@@ -869,23 +960,38 @@ Expected:
 
 - cached names are exactly `components/admin/admin-page.tsx` and `tests/unit/business/cashier-responsible-metrics.test.ts`;
 - the cached admin diff contains only `onClick`, `expanded`, `controls`, focus/expanded styling, the conditional real `<button>`, and expanded-state copy;
-- `git diff --no-index` exits 0, proving the remaining unstaged admin patch is byte-for-byte the pre-feature dirty patch;
-- `git status --short` still reports ` M components/admin/admin-page.tsx` after staging because its unrelated redesign remains unstaged.
+- `git diff --quiet` exits 0 because the isolated admin file has no unstaged hunks;
+- none of the unrelated dirty paths appear in `git diff --cached --name-only`.
 
-If the no-index comparison differs, do not commit. Clear only this file from the index and repeat interactive staging with `e` until the comparison exits 0:
-
-```bash
-git restore --staged -- components/admin/admin-page.tsx
-git add -p -- components/admin/admin-page.tsx
-git diff -- components/admin/admin-page.tsx > .git/admin-page.after-responsible-staging.patch
-git diff --no-index -- .git/admin-page.before-responsible.patch .git/admin-page.after-responsible-staging.patch
-```
-
-Only after all checks pass, commit:
+Commit the isolated feature, verify that the commit parent contains the exact base blob recorded before isolation, then reapply the preserved dirty patch onto the new commit and return it to unstaged state:
 
 ```bash
 git commit -m "feat(admin): make stat cards optionally interactive"
+test "$(git rev-parse HEAD^:components/admin/admin-page.tsx)" = "$(cat .git/admin-page.before-responsible.blob)"
+git show --check --format= HEAD -- components/admin/admin-page.tsx
+git apply --3way .git/admin-page.before-responsible.patch
+git restore --staged -- components/admin/admin-page.tsx
+git status --short
+git diff -- components/admin/admin-page.tsx
 ```
+
+Expected:
+
+- the parent-blob equality exits 0, proving the commit was based on the clean pre-feature `HEAD` file, not the dirty working copy;
+- `git show` contains only the Step 4 `AdminStatCard` feature;
+- `git apply --3way` exits 0 and restores the approved redesign on top of the feature;
+- `git status --short` reports ` M components/admin/admin-page.tsx`, with that path unstaged;
+- `git diff` shows the restored user redesign relative to the new feature commit.
+
+If `git apply --3way` reports a conflict, preserve the original user file with these exact recovery commands, then stop and report the conflict for fresh review:
+
+```bash
+git restore --staged -- components/admin/admin-page.tsx
+cp .git/admin-page.before-responsible.tsx components/admin/admin-page.tsx
+git status --short
+```
+
+Expected recovery state: `components/admin/admin-page.tsx` is unstaged and its bytes match the pre-task user snapshot; the feature remains safely committed. Do not stage or commit a conflict resolution under this task.
 
 ---
 
@@ -1342,12 +1448,12 @@ feat(admin): make stat cards optionally interactive
 feat(cashier): show responsible metric details
 ```
 
-If verification required a legitimate code/test correction, commit only that correction with a precise conventional subject and confirm it appears in this same recorded range; otherwise leave verification without a commit.
+Zero or more review-generated commits such as `fix(cashier): enforce tenant responsible boundary` or `fix(db): preserve nullable creator migration` are explicitly allowed between or after those checkpoints when they describe a real correction. If verification required a legitimate code/test correction, use a precise conventional `fix(<scope>): <correction>` subject and confirm it appears in this same recorded range; otherwise leave verification without a commit. Do not rename, squash away, or require the range to contain only the five checkpoint commits.
 
 ## Self-Review
 
 - **Spec coverage:** Tasks 1-3 cover nullable persistence, authenticated creation, payment registrar reuse, minimal payment metadata, historical nulls, behavioral tenant-separated resolution, reversed-payment exclusion, and tenant isolation. Tasks 4-5 cover static compatibility, real buttons, keyboard/ARIA/focus, explicit selection cue, open/switch/close, contextual labels, values, fallback, empty states, responsive rows, and refresh-preserved selection. Task 6 covers full regression and manual accessibility/responsiveness checks. No spec requirement is uncovered.
 - **Placeholder scan:** No `TBD`, `TODO`, “implement later,” “similar to,” unspecified error handling, or empty test instruction remains. Every code-changing step includes the exact addition/replacement and every test step includes a command and expected RED/GREEN result.
-- **Type consistency:** `CashierResponsible`, `CashierPayment`, `CashierOrder.criadoPor`, and `CashierOrder.pagamento` names match between query production, fixtures, and UI. `selectedMetric` values match `metricCopy` keys. `AdminStatCard` uses the same `onClick`, `expanded`, and `controls` names at definition and call sites.
-- **Risk review:** Selective patch staging plus a before/after unstaged-patch comparison prevents dirty redesign hunks from entering the feature commit. The schema test enforces that the reference FK appears after `usuario`. Tenant-separated executable fixtures prove cross-tenant identities resolve to `null`, and reversed payments are ignored. The recorded base commit makes the final audit robust to any number of review/correction commits. A registered payment whose user no longer has a membership safely renders the required fallback.
+- **Type consistency:** `CashierResponsible`, `CashierResponsibleMembership`, `CashierPayment`, `CashierOrder.criadoPor`, and `CashierOrder.pagamento` names match between query production, integration fixtures, and UI. `findRegisteredPayment` accepts the real `StatusPagamento` union, and `resolveTenantResponsible` consumes the same membership rows selected by `getCashierOrders`. `selectedMetric` values match `metricCopy` keys. `AdminStatCard` uses the same `onClick`, `expanded`, and `controls` names at definition and call sites.
+- **Risk review:** Temporarily isolating the dirty admin file to clean `HEAD`, checking the cached paths/diff, validating the parent blob, and only then reapplying the saved dirty patch proves unrelated redesign hunks cannot enter the feature commit without relying on serialized-diff equality. The schema test asserts the nullable UUID column exists and that its FK appears after `usuario`. Integration tests execute `getCashierOrders` with mixed-tenant query candidates and `estornado` payments, proving its production mapping cannot bypass the helpers. The recorded base commit and explicit allowance for precise review `fix` commits make the final audit robust to correction commits. A registered payment whose user no longer has a membership safely renders the required fallback.
 - **Scope check:** This is one vertical feature, not multiple independent subsystems: schema, write path, read path, and UI are necessary parts of the same responsibility display and each task leaves an independently testable boundary.
