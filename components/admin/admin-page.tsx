@@ -57,13 +57,13 @@ export function AdminStatCard({
   const toneClass = {
     default: 'border-border bg-card',
     success: 'border-[var(--success)]/25 bg-[color-mix(in_oklch,var(--success),white_95%)]',
-    warning: 'border-amber-300/50 bg-amber-50',
+    warning: 'border-[color-mix(in_oklch,var(--status-em-preparo),white_55%)] bg-[color-mix(in_oklch,var(--status-em-preparo),white_92%)]',
     danger: 'border-destructive/25 bg-destructive/5',
   }[tone]
   const markerClass = {
     default: 'bg-foreground',
     success: 'bg-[var(--success)]',
-    warning: 'bg-amber-500',
+    warning: 'bg-[var(--status-em-preparo)]',
     danger: 'bg-destructive',
   }[tone]
   const cardClassName = cn(
@@ -147,7 +147,7 @@ export function AdminBar({
   const fillClass = {
     default: 'bg-foreground',
     success: 'bg-[var(--success)]',
-    warning: 'bg-amber-500',
+    warning: 'bg-[var(--status-em-preparo)]',
     danger: 'bg-destructive',
   }[tone]
 

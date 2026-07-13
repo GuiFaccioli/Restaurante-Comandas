@@ -186,7 +186,7 @@ describe('pedido business flow', () => {
     const clientSource = source('app/admin/pedidos/client.tsx')
 
     expect(layoutSource).toContain('Painel admin')
-    expect(layoutSource).toContain('bg-[#f4f4f5]')
+    expect(layoutSource).toContain('bg-[var(--admin-canvas)]')
     expect(layoutSource).toContain('lg:grid-cols-[292px_minmax(0,1fr)]')
     expect(layoutSource).toContain('max-w-[1600px]')
     expect(layoutSource).toContain('AdminShellNav')
