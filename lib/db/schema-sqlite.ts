@@ -50,6 +50,9 @@ export const pedido = sqliteTable('pedido', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   tenantId: text('tenant_id').notNull().references(() => tenant.id),
   mesaId: text('mesa_id').notNull().references(() => mesa.id),
+  createdByUserId: text('created_by_user_id').references(() => usuario.id, {
+    onDelete: 'set null',
+  }),
   status: text('status', { enum: ['novo', 'em_preparo', 'pronto', 'entregue', 'cancelado'] })
     .notNull()
     .default('novo'),

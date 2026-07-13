@@ -61,6 +61,7 @@ CREATE TABLE pedido (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id    UUID NOT NULL REFERENCES tenant(id),
   mesa_id      UUID NOT NULL REFERENCES mesa(id),
+  created_by_user_id UUID,
   status       status_pedido NOT NULL DEFAULT 'novo',
   criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
   entregue_em  TIMESTAMPTZ,
@@ -91,6 +92,10 @@ CREATE TABLE usuario (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE pedido
+  ADD CONSTRAINT pedido_created_by_user_id_fkey
+  FOREIGN KEY (created_by_user_id) REFERENCES usuario(id) ON DELETE SET NULL;
 
 CREATE TABLE pagamento_pedido (
   id                         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -135,6 +140,7 @@ CREATE TABLE auth_session (
 CREATE INDEX idx_pedido_mesa_id   ON pedido(mesa_id);
 CREATE INDEX idx_pedido_tenant_id ON pedido(tenant_id);
 CREATE INDEX idx_pedido_status    ON pedido(status);
+CREATE INDEX idx_pedido_created_by_user_id ON pedido(created_by_user_id);
 CREATE INDEX idx_item_pedido_id   ON item_pedido(pedido_id);
 CREATE INDEX idx_pagamento_pedido_tenant_id ON pagamento_pedido(tenant_id);
 CREATE INDEX idx_pagamento_pedido_pedido_id ON pagamento_pedido(pedido_id);

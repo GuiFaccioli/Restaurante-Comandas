@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import {
@@ -68,6 +68,10 @@ describe('Drizzle schema', () => {
       const mesaIdCol = (pedido as any).mesaId
       expect(mesaIdCol).toBeDefined()
     })
+
+    it('stores nullable creator identity for new orders', () => {
+      expect(Object.keys(pedido)).toContain('createdByUserId')
+    })
   })
 
   describe('itemPedido table', () => {
@@ -117,6 +121,13 @@ describe('Drizzle schema', () => {
       expect(sqliteSchema).toContain("tenantId: text('tenant_id')")
       expect(sqliteSchema).toContain("selectedTenantId: text('selected_tenant_id')")
     })
+
+    it('mirrors nullable order creator identity in SQLite', () => {
+      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
+
+      expect(sqliteSchema).toContain("createdByUserId: text('created_by_user_id')")
+      expect(sqliteSchema).not.toMatch(/createdByUserId:[\s\S]{0,100}\.notNull\(\)/)
+    })
   })
 
   describe('schema reference files', () => {
@@ -145,6 +156,41 @@ describe('Drizzle schema', () => {
       expect(packageJson.scripts).not.toHaveProperty('prisma:generate')
       expect(packageJson.scripts).not.toHaveProperty('prisma:studio')
       expect(packageJson.scripts).not.toHaveProperty('prisma:validate')
+    })
+
+    it('ships an additive nullable order creator migration without speculative backfill', () => {
+      const migrationPath = join(
+        process.cwd(),
+        'db/migrations/202607131200_add_pedido_creator.sql'
+      )
+
+      expect(existsSync(migrationPath)).toBe(true)
+      const migration = readFileSync(migrationPath, 'utf8')
+      expect(migration).toContain('ADD COLUMN IF NOT EXISTS created_by_user_id UUID')
+      expect(migration).toContain('REFERENCES usuario(id)')
+      expect(migration).toContain('idx_pedido_created_by_user_id')
+      expect(migration).not.toMatch(/UPDATE\s+pedido/i)
+    })
+
+    it('declares the reference-schema creator foreign key only after usuario exists', () => {
+      const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
+      const pedidoStart = sqlSchema.indexOf('CREATE TABLE pedido')
+      const pedidoEnd = sqlSchema.indexOf(');', pedidoStart)
+      const usuarioStart = sqlSchema.indexOf('CREATE TABLE usuario')
+      const usuarioEnd = sqlSchema.indexOf(');', usuarioStart)
+      const creatorForeignKey = sqlSchema.indexOf(
+        'ADD CONSTRAINT pedido_created_by_user_id_fkey'
+      )
+
+      expect(pedidoStart).toBeGreaterThanOrEqual(0)
+      expect(usuarioStart).toBeGreaterThan(pedidoEnd)
+      expect(creatorForeignKey).toBeGreaterThan(usuarioEnd)
+      const pedidoDefinition = sqlSchema.slice(pedidoStart, pedidoEnd)
+      expect(pedidoDefinition).toContain('created_by_user_id UUID')
+      expect(pedidoDefinition).not.toMatch(/created_by_user_id\s+UUID\s+NOT NULL/)
+      expect(sqlSchema.slice(pedidoStart, pedidoEnd)).not.toContain(
+        'created_by_user_id UUID REFERENCES usuario(id)'
+      )
     })
   })
 

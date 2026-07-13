@@ -105,6 +105,9 @@ export const pedido = pgTable('pedido', {
   mesaId: uuid('mesa_id')
     .notNull()
     .references(() => mesa.id),
+  createdByUserId: uuid('created_by_user_id').references(() => usuario.id, {
+    onDelete: 'set null',
+  }),
   status: statusPedidoEnum('status').notNull().default('novo'),
   criadoEm: timestamp('criado_em', { withTimezone: true })
     .notNull()
