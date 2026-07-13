@@ -14,7 +14,14 @@ describe('SSE notifyKitchen', () => {
 
   it('sends event to connected client', () => {
     addClient(controller)
-    notifyKitchen({ type: 'novo_pedido', payload: { pedidoId: 'abc', mesaNumero: 4, itens: ['Margherita'] } })
+    notifyKitchen({
+      type: 'novo_pedido',
+      payload: {
+        pedidoId: 'abc',
+        mesaNumero: 4,
+        itens: [{ nome: 'Margherita', quantidade: 1 }],
+      },
+    })
     expect(received).toHaveLength(1)
     expect(received[0]).toContain('novo_pedido')
     removeClient(controller)
