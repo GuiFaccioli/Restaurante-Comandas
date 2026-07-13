@@ -39,6 +39,7 @@ vi.mock('@/lib/db/schema', () => ({
     id: 'pedido.id',
     tenantId: 'pedido.tenant_id',
     mesaId: 'pedido.mesa_id',
+    createdByUserId: 'pedido.created_by_user_id',
     status: 'pedido.status',
     criadoEm: 'pedido.criado_em',
     entregueEm: 'pedido.entregue_em',
@@ -129,6 +130,7 @@ describe('confirmarPedido', () => {
       id: expect.any(String),
       tenantId: 'tenant-1',
       mesaId: 'mesa-1',
+      createdByUserId: 'user-1',
       status: 'novo',
       criadoEm: expect.any(Date),
       entregueEm: null,
@@ -161,6 +163,33 @@ describe('confirmarPedido', () => {
         ],
       },
     })
+  })
+
+  it('uses the authenticated waiter as the order creator', async () => {
+    const { confirmarPedido } = await import('@/lib/actions/pedidos')
+    const values = vi.fn()
+    const txInsert = vi.fn().mockReturnValue({
+      values: values.mockReturnValue({ run: vi.fn() }),
+    })
+
+    mockSynchronousTransaction(txInsert)
+    mockProductSelect({ nome: 'Mussarela', preco: '48.00', categoriaNome: 'Pizzas' })
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ numero: 4 }]),
+      }),
+    })
+
+    await confirmarPedido('mesa-1', [{ produtoId: 'produto-1', quantidade: 1 }])
+
+    expect(mocks.requireAccess).toHaveBeenCalledWith('garcom')
+    expect(values).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        tenantId: 'tenant-1',
+        createdByUserId: 'user-1',
+      })
+    )
   })
 
   it('loads mesa before the transaction and still emits novo_pedido', async () => {

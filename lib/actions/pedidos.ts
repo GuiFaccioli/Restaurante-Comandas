@@ -18,7 +18,7 @@ export async function confirmarPedido(
   mesaId: string,
   items: ConfirmarPedidoItem[]
 ): Promise<{ id: string }> {
-  const { tenantId } = await requireAccess('garcom')
+  const { usuarioId, tenantId } = await requireAccess('garcom')
   if (!mesaId) throw new Error('Mesa inválida')
   if (items.length === 0) throw new Error('Pedido vazio')
   if (items.some((item) => !item.produtoId || item.quantidade <= 0)) {
@@ -60,6 +60,7 @@ export async function confirmarPedido(
     id: novoPedidoId,
     tenantId,
     mesaId,
+    createdByUserId: usuarioId,
     status: 'novo' as const,
     criadoEm: now,
     entregueEm: null,
