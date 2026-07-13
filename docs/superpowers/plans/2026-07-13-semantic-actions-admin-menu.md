@@ -69,6 +69,8 @@
 - `tests/unit/routing/access-navigation.test.ts` — neutral route-control regression.
 - `tests/unit/business/admin-management.test.ts` — admin action and native-button adoption regressions.
 - `tests/unit/business/table-orders-panel.test.ts` — waiter action semantics.
+- `tests/unit/business/waiter-cart-actions.test.ts` — cart/item labels, targets, and busy semantics.
+- `tests/unit/business/waiter-order-actions.test.ts` — back/order/delivery semantics and busy states.
 - `tests/unit/business/cashier-orders.test.ts` — cashier action semantics.
 
 ### Progressive category management
@@ -80,6 +82,8 @@
 - `components/admin/admin-page.tsx` — optional action slot in `AdminPanel` header.
 - `components/admin/category-manager.tsx` — exclusive inline create/edit/delete state, focus, pending, errors, and tooltip.
 - `tests/unit/business/category-manager.test.ts` — component interaction and accessibility behavior.
+- `lib/admin/category-selection.ts` — pure next/previous/empty selection fallback after deletion.
+- `tests/unit/business/category-selection.test.ts` — deterministic deletion-selection transitions.
 - `app/admin/menu/client.tsx` — integrate CategoryManager, optimistic created selection, product actions, and empty states.
 - `tests/unit/business/admin-menu-client.test.ts` — page integration, first-category selection, deletion fallback, and empty states.
 - `DESIGN.md` — final semantic action contract and current accessible tokens.
@@ -128,16 +132,24 @@ Expected: one 40-character commit hash. Keep this untracked marker through final
 
 ## Review Workload Forecast
 
-| Measure | Forecast |
-| --- | --- |
-| Tracked files | approximately 40 |
-| Changed lines | approximately 1,500–2,100 |
-| Largest unit | CategoryManager plus behavioral tests |
-| `400`-line budget risk | **High** |
-| Chained PRs recommended | **Yes** |
-| Decision needed before apply | **Yes** |
+This change is high-risk for the repository's 400-changed-line review budget. Do not claim an exact total before implementation: migrations of existing JSX may shrink or expand after formatting. Use a **feature-branch-chain** rooted at tracker `semantic-actions-admin-menu`: PR 1 targets the tracker, every later child targets its immediate predecessor so each review diff stays focused, and only the accumulated tracker ultimately targets `main`. Measure every child with `git diff --stat <parent>...HEAD` and keep it targeted at `≤400` changed lines. If a measured child exceeds the target, stop before opening the PR and split that child at the nearest behavior/test boundary.
 
-Suggested review slices are: Task 1; Tasks 2–3; Tasks 4–5; Tasks 6–7; Tasks 8–9. Each task still ends in its own work-unit commit so either chained strategy can move boundaries without rewriting history.
+| # | Child branch boundary | Autonomous, testable result | Required targeted gate |
+| --- | --- | --- | --- |
+| 1 | `semantic-actions/tokens` | Accessible semantic/focus tokens with contrast regression | design-system token tests |
+| 2 | `semantic-actions/button-api` | `intent + appearance`, alias resolver, type fixture, rendered matrix | Button/unit/type checks |
+| 3 | `semantic-actions/admin-controls` | Product/table/user admin create-save-toggle actions migrated | admin-management tests |
+| 4 | `semantic-actions/auth-overlays` | Auth/access/profile plus Dialog/Sheet neutral actions and 44px close targets | auth/routing tests |
+| 5 | `semantic-actions/waiter-cart` | Item card, observation, cart, and cart navigation semantics/labels/busy | button-semantics focused tests |
+| 6 | `semantic-actions/waiter-orders` | Back, order cancel/inspect/deliver, and pending-delivery semantics/busy | table-order tests |
+| 7 | `semantic-actions/cashier` | Cashier inspection/payment/dismiss semantics and announced pending form | cashier-order tests |
+| 8 | `semantic-actions/tooltip` | Portal Tooltip primitive and accessibility regression | Tooltip test |
+| 9 | `semantic-actions/category-boundary` | Trim/blank handling with tenant max-order append preserved | produtos action tests |
+| 10 | `semantic-actions/category-editor` | Complete CategoryManager create/edit state, focus, errors, and busy behavior | CategoryManager create/edit cases |
+| 11 | `semantic-actions/category-delete` | Guarded delete, next/previous/Add focus, and pure selection fallback | CategoryManager deletion + selection tests |
+| 12 | `semantic-actions/menu-integration` | Parent reconciliation, product semantics, empty states, DESIGN contract, and final audits | menu/design focused suite, full gates, browser fixtures |
+
+Each child includes its production code and the tests that first failed for that behavior. The tracker accumulates the verified children; only the tracker targets `main`. Tasks below show the complete end state, while these boundaries govern commits/PRs during apply. Record the measured stat for every child in its PR; `≤400` is a target enforced from evidence, not an unsupported forecast.
 
 ---
 
@@ -155,6 +167,14 @@ Suggested review slices are: Task 1; Tasks 2–3; Tasks 4–5; Tasks 6–7; Task
 **Interfaces:**
 - Consumes: existing Base UI `Button`, CVA, Tailwind 4, `cn`, and current legacy `variant` callers.
 - Produces: `Button`, `buttonVariants`, `ButtonProps`, `ButtonStyleProps`, `ButtonIntent`, `ButtonAppearance`, and `LegacyButtonVariant` with the signatures documented above.
+
+- [ ] **Step 0: Create the new test directories explicitly**
+
+```powershell
+New-Item -ItemType Directory -Force tests/unit/ui, tests/types | Out-Null
+```
+
+Expected: both directories exist. Do not add placeholder files; the next step creates their tracked tests.
 
 - [ ] **Step 1: Write failing rendered and token tests**
 
@@ -508,6 +528,16 @@ Replace the current action/focus declarations in `:root` with this exact semanti
 
 In `.dark`, replace `--ring` and `--sidebar-ring` with `var(--focus-ring)`. Do not design a new dark palette in this change.
 
+- [ ] **Step 3a: Verify and commit autonomous slice 1 (tokens)**
+
+```powershell
+npm test -- tests/unit/design/design-system.test.ts
+git add -- app/globals.css tests/unit/design/design-system.test.ts
+git commit -m "feat(ui): add accessible semantic action tokens"
+```
+
+Expected: the design-system test passes with contrast/token assertions; no Button implementation file belongs to this commit.
+
 - [ ] **Step 4: Replace `components/ui/button.tsx` with the semantic resolver**
 
 Use this complete implementation:
@@ -672,7 +702,7 @@ Expected: targeted Vitest files PASS and Next production build exits `0`. TypeSc
 - [ ] **Step 6: Commit the semantic foundation**
 
 ```powershell
-git add -- app/globals.css components/ui/button.tsx tests/unit/ui/button.test.ts tests/types/button-props.ts tests/unit/design/design-system.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/admin-management.test.ts
+git add -- components/ui/button.tsx tests/unit/ui/button.test.ts tests/types/button-props.ts tests/unit/design/button-semantics.test.ts tests/unit/business/admin-management.test.ts
 git commit -m "feat(ui): add semantic action buttons"
 ```
 
@@ -721,8 +751,23 @@ expect(usersPage).not.toContain('<button')
 // tests/unit/business/admin-management.test.ts, form/table test
 expect(productFormSource).toMatch(/intent="neutral"[\s\S]*Cancelar/)
 expect(productFormSource).toMatch(/intent="positive"[\s\S]*Salvar/)
+expect(productFormSource).toContain('aria-busy={saving}')
 expect(mesasSource).toContain("intent={m.ativa ? 'warning' : 'positive'}")
 expect(mesasSource).toContain("m.ativa ? 'Desativar' : 'Ativar'")
+```
+
+Add this focused overlay target test to `tests/unit/routing/access-navigation.test.ts`:
+
+```ts
+it('keeps overlay close actions named and at least 44px', () => {
+  const dialogSource = source('components/ui/dialog.tsx')
+  const sheetSource = source('components/ui/sheet.tsx')
+
+  expect(dialogSource).toContain('aria-label="Fechar diálogo"')
+  expect(dialogSource).toContain('className="absolute right-2 top-2 size-11"')
+  expect(sheetSource).toContain('aria-label="Fechar painel"')
+  expect(sheetSource).toContain('className="absolute right-3 top-3 size-11"')
+})
 ```
 
 - [ ] **Step 2: Run the tests to verify RED**
@@ -746,13 +791,13 @@ Preserve every existing handler, form action, disabled rule, label association, 
 | `app/admin/usuarios/page.tsx` Remover usuário | `<Button type="submit" intent="destructive" appearance="soft" className="min-h-11 w-full" disabled={user.isCurrentUser}>` |
 | `app/auth/sign-in/client.tsx` Entrar | `<Button type="submit" intent="neutral" appearance="solid" className="min-h-11 w-full">` |
 | `app/auth/sign-up/page.tsx` Criar conta | `<Button type="submit" intent="positive" appearance="solid" className="min-h-11 w-full">` |
-| `components/auth/profile-menu.tsx` Sair | `<Button type="submit" intent="neutral" appearance="outline" size="sm" className="w-full">` |
-| `app/sem-acesso/page.tsx` Trocar área link | `buttonVariants({ intent: 'neutral', appearance: 'outline', className: 'w-full sm:w-auto' })` |
-| `app/sem-acesso/page.tsx` Sair | `<Button type="submit" intent="neutral" appearance="outline" className="w-full sm:w-auto">` |
+| `components/auth/profile-menu.tsx` Sair | `<Button type="submit" intent="neutral" appearance="outline" size="sm" className="min-h-11 w-full">` |
+| `app/sem-acesso/page.tsx` Trocar área link | `buttonVariants({ intent: 'neutral', appearance: 'outline', className: 'min-h-11 w-full sm:w-auto' })` |
+| `app/sem-acesso/page.tsx` Sair | `<Button type="submit" intent="neutral" appearance="outline" className="min-h-11 w-full sm:w-auto">` |
 | `app/selecionar-empresa/page.tsx` company choice | `<Button type="submit" intent="neutral" appearance="outline" className="h-auto min-h-11 w-full justify-start p-4 text-left">` |
-| `components/ui/dialog.tsx` icon close | Keep `DialogPrimitive.Close`; set its `render={<Button intent="neutral" appearance="ghost" className="absolute right-2 top-2" size="icon-sm" />}` |
-| `components/ui/dialog.tsx` footer Close | Keep `DialogPrimitive.Close`; set its `render={<Button intent="neutral" appearance="outline" />}` |
-| `components/ui/sheet.tsx` icon close | Keep `SheetPrimitive.Close`; set its `render={<Button intent="neutral" appearance="ghost" className="absolute right-3 top-3" size="icon-sm" />}` |
+| `components/ui/dialog.tsx` icon close | Keep `DialogPrimitive.Close`; set its `render={<Button intent="neutral" appearance="ghost" className="absolute right-2 top-2 size-11" size="icon" aria-label="Fechar diálogo" />}` |
+| `components/ui/dialog.tsx` footer Close | Keep `DialogPrimitive.Close`; set its `render={<Button intent="neutral" appearance="outline" className="min-h-11" />}` |
+| `components/ui/sheet.tsx` icon close | Keep `SheetPrimitive.Close`; set its `render={<Button intent="neutral" appearance="ghost" className="absolute right-3 top-3 size-11" size="icon" aria-label="Fechar painel" />}` |
 
 Replace the active/inactive native button in `app/admin/mesas/client.tsx` with:
 
@@ -778,7 +823,7 @@ Import `Button` in `app/admin/usuarios/page.tsx`. In `components/auth/profile-me
   appearance="outline"
   aria-expanded={open}
   aria-haspopup="menu"
-  className="cursor-pointer"
+  className="min-h-11 cursor-pointer"
   onClick={() => setOpen((current) => !current)}
 >
   Perfil
@@ -794,11 +839,18 @@ rg -n "<button|variant=" app/admin/usuarios/page.tsx app/admin/mesas/client.tsx 
 
 Expected: tests PASS. `rg` returns no native `<button>` or legacy `variant=` in these migrated files; an exit code of `1` from `rg` means the audit found no matches and is success for this command.
 
-- [ ] **Step 5: Commit the admin/auth work unit**
+- [ ] **Step 5: Commit autonomous slice 3 (admin controls)**
 
 ```powershell
-git add -- components/admin/produto-form.tsx app/admin/mesas/client.tsx app/admin/usuarios/page.tsx app/auth/sign-in/client.tsx app/auth/sign-up/page.tsx components/auth/profile-menu.tsx components/auth/profile-menu-client.tsx app/sem-acesso/page.tsx app/selecionar-empresa/page.tsx components/ui/dialog.tsx components/ui/sheet.tsx tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts tests/unit/business/admin-management.test.ts
+git add -- components/admin/produto-form.tsx app/admin/mesas/client.tsx app/admin/usuarios/page.tsx tests/unit/business/admin-management.test.ts
 git commit -m "refactor(admin): apply semantic action intents"
+```
+
+- [ ] **Step 6: Commit autonomous slice 4 (auth/access/overlays)**
+
+```powershell
+git add -- app/auth/sign-in/client.tsx app/auth/sign-up/page.tsx components/auth/profile-menu.tsx components/auth/profile-menu-client.tsx app/sem-acesso/page.tsx app/selecionar-empresa/page.tsx components/ui/dialog.tsx components/ui/sheet.tsx tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts
+git commit -m "refactor(auth): apply neutral action semantics"
 ```
 
 ### Task 3: Migrate waiter and cashier actions without weakening destructive meaning
@@ -813,6 +865,8 @@ git commit -m "refactor(admin): apply semantic action intents"
 - Modify: `components/garcom/cart-fab.tsx:12-21`
 - Modify: `app/admin/pedidos/client.tsx:251-347`
 - Modify: `tests/unit/design/button-semantics.test.ts:10-36`
+- Create: `tests/unit/business/waiter-cart-actions.test.ts`
+- Create: `tests/unit/business/waiter-order-actions.test.ts`
 - Modify: `tests/unit/business/table-orders-panel.test.ts:47-53`
 - Modify: `tests/unit/business/cashier-orders.test.ts:24-36`
 
@@ -821,6 +875,70 @@ git commit -m "refactor(admin): apply semantic action intents"
 - Produces: explicit operational semantics, 44px icon actions, and a repository regression that protects neutral dismissals while preserving actual order cancellation.
 
 - [ ] **Step 1: Replace brittle legacy expectations with failing semantic regressions**
+
+Create `tests/unit/business/waiter-cart-actions.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const source = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
+
+describe('waiter cart action semantics', () => {
+  it('names every icon-only quantity/removal action and uses 44px targets', () => {
+    const itemCard = source('components/garcom/item-card.tsx')
+    const cart = source('components/garcom/cart-drawer.tsx')
+
+    expect(itemCard).toContain('aria-label={`Diminuir ${produto.nome}`}')
+    expect(itemCard).toContain('aria-label={`Adicionar mais ${produto.nome}`}')
+    expect(cart).toContain('aria-label={`Diminuir ${item.nome}`}')
+    expect(cart).toContain('aria-label={`Adicionar mais ${item.nome}`}')
+    expect(cart).toContain('aria-label={`Remover ${item.nome} do carrinho`}')
+    expect(itemCard).toContain('size-11')
+    expect(cart).toContain('size-11')
+  })
+
+  it('announces cart confirmation pending and keeps dismiss neutral', () => {
+    const cart = source('components/garcom/cart-drawer.tsx')
+
+    expect(cart).toContain('aria-busy={sending}')
+    expect(cart).toMatch(/intent="positive"[\s\S]*Confirmar pedido/)
+    expect(cart).toMatch(/intent="neutral"[\s\S]*Cancelar/)
+  })
+})
+```
+
+Create `tests/unit/business/waiter-order-actions.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const source = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
+
+describe('waiter order action semantics', () => {
+  it('keeps back/inspection neutral and persisted cancellation destructive', () => {
+    const back = source('app/garcom/mesa/[id]/client.tsx')
+    const panel = source('components/garcom/table-orders-panel.tsx')
+
+    expect(back).toContain("intent: 'neutral'")
+    expect(panel).toMatch(/intent="destructive"[\s\S]*Cancelar/)
+    expect(panel).toMatch(/intent="neutral"[\s\S]*Itens/)
+  })
+
+  it('announces cancel, deliver, and pending-delivery transitions', () => {
+    const panel = source('components/garcom/table-orders-panel.tsx')
+    const deliveries = source('components/garcom/pending-deliveries-client.tsx')
+
+    expect(panel).toContain('aria-busy={canceling}')
+    expect(panel).toContain('aria-busy={confirming}')
+    expect(deliveries).toContain('aria-busy={pending}')
+    expect(deliveries).toContain('intent="positive"')
+  })
+})
+```
 
 Replace the operational tests in `tests/unit/design/button-semantics.test.ts` with:
 
@@ -870,9 +988,29 @@ describe('operational button semantics', () => {
 
     expect(itemCard).toContain('aria-label={`Diminuir ${produto.nome}`}')
     expect(itemCard).toContain('aria-label={`Adicionar mais ${produto.nome}`}')
+    expect(cart).toContain('aria-label={`Diminuir ${item.nome}`}')
+    expect(cart).toContain('aria-label={`Adicionar mais ${item.nome}`}')
     expect(cart).toContain('aria-label={`Remover ${item.nome} do carrinho`}')
     expect(itemCard).toContain('size-11')
     expect(cart).toContain('size-11')
+  })
+
+  it('announces every existing operational pending state', () => {
+    expect(readProjectFile('components/garcom/table-orders-panel.tsx')).toContain(
+      'aria-busy={canceling}'
+    )
+    expect(readProjectFile('components/garcom/table-orders-panel.tsx')).toContain(
+      'aria-busy={confirming}'
+    )
+    expect(readProjectFile('components/garcom/pending-deliveries-client.tsx')).toContain(
+      'aria-busy={pending}'
+    )
+    expect(readProjectFile('components/garcom/cart-drawer.tsx')).toContain(
+      'aria-busy={sending}'
+    )
+    expect(readProjectFile('app/admin/pedidos/client.tsx')).toContain(
+      'aria-busy={isPending}'
+    )
   })
 })
 ```
@@ -883,6 +1021,8 @@ Update the final assertions in `tests/unit/business/table-orders-panel.test.ts`:
 expect(panel).toMatch(/intent="destructive"[\s\S]*Cancelar/)
 expect(panel).toMatch(/intent="neutral"[\s\S]*Itens/)
 expect(panel).toMatch(/ml-auto[\s\S]*intent="positive"[\s\S]*Entregue/)
+expect(panel).toContain('aria-busy={canceling}')
+expect(panel).toContain('aria-busy={confirming}')
 ```
 
 Replace the legacy success assertion in `tests/unit/business/cashier-orders.test.ts`:
@@ -890,12 +1030,13 @@ Replace the legacy success assertion in `tests/unit/business/cashier-orders.test
 ```ts
 expect(client).toMatch(/intent="positive"[\s\S]*Registrar pagamento/)
 expect(client).toMatch(/intent="neutral"[\s\S]*Cancelar/)
+expect(client).toContain('aria-busy={isPending}')
 ```
 
 - [ ] **Step 2: Run the operational tests to verify RED**
 
 ```powershell
-npm test -- tests/unit/design/button-semantics.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts
+npm test -- tests/unit/business/waiter-cart-actions.test.ts tests/unit/business/waiter-order-actions.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts
 ```
 
 Expected: FAIL because the listed files still use legacy `success`, red dismiss/back controls, and 40px unnamed icon actions.
@@ -906,28 +1047,28 @@ Preserve handlers, disabled conditions, polling/SSE state, forms, and routes. Re
 
 | Path and action | Intent / appearance |
 | --- | --- |
-| `app/garcom/mesa/[id]/client.tsx` Voltar link | `buttonVariants({ intent: 'neutral', appearance: 'outline', size: 'sm' })` |
-| `table-orders-panel.tsx` Cancelar persisted order | `destructive + soft` |
-| `table-orders-panel.tsx` Itens | `neutral + outline` |
-| `table-orders-panel.tsx` Entregue | `positive + solid` |
-| `pending-deliveries-client.tsx` Confirmar entrega | `positive + solid` |
-| `pending-deliveries-client.tsx` Abrir mesas link | `neutral + solid` |
+| `app/garcom/mesa/[id]/client.tsx` Voltar link | `buttonVariants({ intent: 'neutral', appearance: 'outline', size: 'sm', className: 'min-h-11' })` |
+| `table-orders-panel.tsx` Cancelar persisted order | `destructive + soft`, `min-h-11`, `aria-busy={canceling}` |
+| `table-orders-panel.tsx` Itens | `neutral + outline`, `min-h-11` |
+| `table-orders-panel.tsx` Entregue | `positive + solid`, `min-h-11`, `aria-busy={confirming}` |
+| `pending-deliveries-client.tsx` Confirmar entrega | `positive + solid`, `min-h-11`, `aria-busy={pending}` |
+| `pending-deliveries-client.tsx` Abrir mesas link | `neutral + solid`, `min-h-11` |
 | `item-card.tsx` decrement | `neutral + outline`, `className="size-11 p-0"`, label `Diminuir ${produto.nome}` |
 | `item-card.tsx` increment | `positive + soft`, `className="size-11 p-0"`, label `Adicionar mais ${produto.nome}` |
 | `item-card.tsx` first add | `positive + solid` |
-| `observacao-sheet.tsx` Salvar | `positive + solid` |
+| `observacao-sheet.tsx` Salvar | `positive + solid`, `min-h-11` |
 | `cart-drawer.tsx` Editar observação | `informational + link`, minimum height `44px` |
-| `cart-drawer.tsx` decrement | `neutral + outline`, `size-11` |
-| `cart-drawer.tsx` increment | `positive + soft`, `size-11` |
-| `cart-drawer.tsx` remove item | `destructive + ghost`, `size-11` |
-| `cart-drawer.tsx` Confirmar pedido | `positive + solid` |
-| `cart-drawer.tsx` dismiss Cancelar | `neutral + outline` |
-| `cart-fab.tsx` Abrir carrinho navigation | `neutral + solid` |
-| `admin/pedidos/client.tsx` Itens do pedido | `neutral + outline` |
-| `admin/pedidos/client.tsx` open/submit payment | `positive + solid` |
-| `admin/pedidos/client.tsx` dismiss payment Cancelar | `neutral + outline` |
+| `cart-drawer.tsx` decrement | `neutral + outline`, `size-11`, label `Diminuir ${item.nome}` |
+| `cart-drawer.tsx` increment | `positive + soft`, `size-11`, label `Adicionar mais ${item.nome}` |
+| `cart-drawer.tsx` remove item | `destructive + ghost`, `size-11`, label `Remover ${item.nome} do carrinho` |
+| `cart-drawer.tsx` Confirmar pedido | `positive + solid`, `min-h-11`, `aria-busy={sending}` |
+| `cart-drawer.tsx` dismiss Cancelar | `neutral + outline`, `min-h-11` |
+| `cart-fab.tsx` Abrir carrinho navigation | `neutral + solid`, `min-h-11` |
+| `admin/pedidos/client.tsx` Itens do pedido | `neutral + outline`, `min-h-11` |
+| `admin/pedidos/client.tsx` open/submit payment | `positive + solid`, `min-h-11`, `aria-busy={isPending}` |
+| `admin/pedidos/client.tsx` dismiss payment Cancelar | `neutral + outline`, `min-h-11` |
 
-Use this shape for icon-only actions; substitute the existing handler and object name exactly:
+In `components/garcom/item-card.tsx`, use this exact increment control:
 
 ```tsx
 <Button
@@ -940,6 +1081,46 @@ Use this shape for icon-only actions; substitute the existing handler and object
   onClick={() => addItem({ produtoId: produto.id, nome: produto.nome, preco })}
 >
   <Plus aria-hidden="true" />
+</Button>
+```
+
+In `components/garcom/cart-drawer.tsx`, use these exact three icon-only controls:
+
+```tsx
+<Button
+  type="button"
+  intent="neutral"
+  appearance="outline"
+  size="icon"
+  className="size-11"
+  aria-label={`Diminuir ${item.nome}`}
+  onClick={() => decrementItem(item.produtoId)}
+>
+  <Minus aria-hidden="true" />
+</Button>
+<Button
+  type="button"
+  intent="positive"
+  appearance="soft"
+  size="icon"
+  className="size-11"
+  aria-label={`Adicionar mais ${item.nome}`}
+  onClick={() =>
+    addItem({ produtoId: item.produtoId, nome: item.nome, preco: item.preco })
+  }
+>
+  <Plus aria-hidden="true" />
+</Button>
+<Button
+  type="button"
+  intent="destructive"
+  appearance="ghost"
+  size="icon"
+  className="size-11"
+  aria-label={`Remover ${item.nome} do carrinho`}
+  onClick={() => removeItem(item.produtoId)}
+>
+  <Trash2 aria-hidden="true" />
 </Button>
 ```
 
@@ -957,9 +1138,32 @@ Replace the native `Editar observação` button in `components/garcom/cart-drawe
 </Button>
 ```
 
-For pending buttons, expose both states without changing the handler:
+For pending buttons, expose the actual local pending boolean on the control (and on the payment form) without changing handlers:
 
 ```tsx
+// components/garcom/table-orders-panel.tsx
+<Button aria-busy={canceling} disabled={actionDisabled}>
+  {canceling ? 'Cancelando...' : 'Cancelar'}
+</Button>
+<Button aria-busy={confirming} disabled={actionDisabled}>
+  {confirming ? 'Entregando...' : 'Entregue'}
+</Button>
+
+// components/garcom/pending-deliveries-client.tsx
+<Button aria-busy={pending} disabled={pending}>
+  {pending ? 'Confirmando...' : 'Confirmar entrega'}
+</Button>
+
+// components/garcom/cart-drawer.tsx
+<Button aria-busy={sending} disabled={sending || items.length === 0}>
+  {sending ? 'Confirmando...' : 'Confirmar pedido'}
+</Button>
+
+// app/admin/pedidos/client.tsx (also set aria-busy on the containing form)
+<form
+  aria-busy={isPending}
+  onSubmit={(event) => handlePaymentSubmit(event, pedido)}
+>
 <Button
   type="submit"
   intent="positive"
@@ -970,22 +1174,37 @@ For pending buttons, expose both states without changing the handler:
 >
   {isPending ? 'Registrando...' : 'Registrar pagamento'}
 </Button>
+</form>
 ```
 
 - [ ] **Step 4: Verify GREEN and remove operational legacy aliases**
 
 ```powershell
-npm test -- tests/unit/design/button-semantics.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts
+npm test -- tests/unit/business/waiter-cart-actions.test.ts tests/unit/business/waiter-order-actions.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts
 rg -n "variant=|buttonVariants\(\{ variant" app/garcom components/garcom app/admin/pedidos/client.tsx
 ```
 
 Expected: tests PASS. `rg` finds no legacy Button aliases in the migrated operational files; exit `1` is the expected no-match result.
 
-- [ ] **Step 5: Commit the operational migration**
+- [ ] **Step 5: Commit autonomous slice 5 (waiter cart)**
 
 ```powershell
-git add -- "app/garcom/mesa/[id]/client.tsx" components/garcom/table-orders-panel.tsx components/garcom/pending-deliveries-client.tsx components/garcom/item-card.tsx components/garcom/observacao-sheet.tsx components/garcom/cart-drawer.tsx components/garcom/cart-fab.tsx app/admin/pedidos/client.tsx tests/unit/design/button-semantics.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts
-git commit -m "refactor(operations): apply semantic action intents"
+git add -- components/garcom/item-card.tsx components/garcom/observacao-sheet.tsx components/garcom/cart-drawer.tsx components/garcom/cart-fab.tsx tests/unit/business/waiter-cart-actions.test.ts
+git commit -m "refactor(waiter): apply semantic cart actions"
+```
+
+- [ ] **Step 6: Commit autonomous slice 6 (waiter orders)**
+
+```powershell
+git add -- "app/garcom/mesa/[id]/client.tsx" components/garcom/table-orders-panel.tsx components/garcom/pending-deliveries-client.tsx tests/unit/business/waiter-order-actions.test.ts tests/unit/business/table-orders-panel.test.ts
+git commit -m "refactor(waiter): apply semantic order actions"
+```
+
+- [ ] **Step 7: Commit autonomous slice 7 (cashier and cross-surface guard)**
+
+```powershell
+git add -- app/admin/pedidos/client.tsx tests/unit/business/cashier-orders.test.ts tests/unit/design/button-semantics.test.ts
+git commit -m "refactor(cashier): apply semantic payment actions"
 ```
 
 ---
@@ -1139,62 +1358,98 @@ git commit -m "feat(ui): add accessible portal tooltip"
 
 ---
 
-### Task 5: Enforce category-name normalization at the server boundary
+### Task 5: Preserve category ordering while hardening the create boundary
 
 **Files:**
-- Modify: `lib/actions/produtos.ts:115-145`
-- Modify: `tests/unit/actions/produtos.test.ts`
+- Modify: `lib/actions/produtos.ts:18-30`
+- Modify: `tests/unit/actions/produtos.test.ts:1-38`
 
 **Interfaces:**
-- `criarCategoria(nome: string): Promise<CreatedCategory>` where `CreatedCategory` is `{ id: string; nome: string }`.
-- Authorization and tenant filtering remain first-class. Validation runs after `requireAccess('admin')` and before any insert.
+- Produces: `export type CreatedCategory = { id: string; nome: string }` and `criarCategoria(nome: string): Promise<CreatedCategory>`.
+- Preserves: `requireAccess('admin')`, the tenant-filtered category-order query, `crypto.randomUUID()`, and append order `max(ordem) + 1` (or `0` for the tenant's first category).
+- Does not add uniqueness, cross-tenant reads, cache side effects, or any new business rule.
 
-- [ ] **Step 1: Write failing action tests for trim, response identity, and blank rejection**
+- [ ] **Step 1: Replace the old action test with failing normalization and ordering coverage**
 
-Replace the existing one-case `criarCategoria` describe block in `tests/unit/actions/produtos.test.ts`; keep its current module mocks and `beforeEach(() => vi.clearAllMocks())`:
+Keep the existing module mocks and `beforeEach(() => vi.clearAllMocks())`. Replace only the current `describe('criarCategoria', ...)` block in `tests/unit/actions/produtos.test.ts`:
 
 ```ts
-it('normalizes the category name and returns its server identity', async () => {
-  const values = vi.fn().mockReturnValue({
-    returning: vi.fn().mockResolvedValue([
+describe('criarCategoria', () => {
+  it('trims the name, appends after the tenant max order, and returns id plus name', async () => {
+    const where = vi.fn().mockResolvedValue([{ ordem: 2 }, { ordem: 7 }])
+    const from = vi.fn().mockReturnValue({ where })
+    ;(db.select as any).mockReturnValue({ from })
+
+    const returning = vi.fn().mockResolvedValue([
       { id: 'cat-1', nome: 'Pizzas' },
-    ]),
+    ])
+    const values = vi.fn().mockReturnValue({ returning })
+    ;(db.insert as any).mockReturnValue({ values })
+
+    await expect(criarCategoria('  Pizzas  ')).resolves.toEqual({
+      id: 'cat-1',
+      nome: 'Pizzas',
+    })
+
+    expect(db.select).toHaveBeenCalledTimes(1)
+    expect(from).toHaveBeenCalledTimes(1)
+    expect(where).toHaveBeenCalledTimes(1)
+    expect(values).toHaveBeenCalledWith({
+      id: expect.any(String),
+      tenantId: 'tenant-1',
+      nome: 'Pizzas',
+      ordem: 8,
+    })
+    expect(returning).toHaveBeenCalledTimes(1)
   })
-  ;(db.insert as any).mockReturnValue({ values })
 
-  await expect(criarCategoria('  Pizzas  ')).resolves.toEqual({
-    id: 'cat-1',
-    nome: 'Pizzas',
+  it('uses order zero only for the tenant first category', async () => {
+    const where = vi.fn().mockResolvedValue([])
+    const from = vi.fn().mockReturnValue({ where })
+    ;(db.select as any).mockReturnValue({ from })
+
+    const returning = vi.fn().mockResolvedValue([
+      { id: 'cat-1', nome: 'Pizzas' },
+    ])
+    const values = vi.fn().mockReturnValue({ returning })
+    ;(db.insert as any).mockReturnValue({ values })
+
+    await criarCategoria('Pizzas')
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expect.any(String),
+        tenantId: 'tenant-1',
+        nome: 'Pizzas',
+        ordem: 0,
+      })
+    )
   })
 
-  expect(values).toHaveBeenCalledWith({
-    id: expect.any(String),
-    tenantId: 'tenant-1',
-    nome: 'Pizzas',
-    ordem: 0,
+  it('rejects a blank normalized name before querying or inserting', async () => {
+    await expect(criarCategoria('   ')).rejects.toThrow(
+      'Informe o nome da categoria'
+    )
+
+    expect(db.select).not.toHaveBeenCalled()
+    expect(db.insert).not.toHaveBeenCalled()
   })
-})
-
-it('rejects a blank category name before inserting', async () => {
-  await expect(criarCategoria('   ')).rejects.toThrow(
-    'Informe o nome da categoria'
-  )
-
-  expect(db.insert).not.toHaveBeenCalled()
 })
 ```
 
-- [ ] **Step 2: Run the action tests to verify RED**
+The first test protects the non-obvious existing business behavior: order is appended within the authenticated tenant, not reset globally or forced to zero.
+
+- [ ] **Step 2: Run the focused action test and verify RED**
 
 ```powershell
 npm test -- tests/unit/actions/produtos.test.ts
 ```
 
-Expected: FAIL because the current action inserts whitespace unchanged, accepts an empty normalized name, and returns only the old response shape.
+Expected: FAIL because current code inserts the raw name and returns `{ id }` without `nome`. The existing max-order behavior should already satisfy the new order assertions; RED must come from the new boundary contract, not a mock typo.
 
-- [ ] **Step 3: Normalize once, reject blank, and return the inserted row**
+- [ ] **Step 3: Implement only the approved normalization/return change**
 
-In `lib/actions/produtos.ts`, export the response type and replace only `criarCategoria`:
+Replace `criarCategoria` in `lib/actions/produtos.ts` with this complete implementation:
 
 ```ts
 export type CreatedCategory = {
@@ -1210,47 +1465,52 @@ export async function criarCategoria(nome: string): Promise<CreatedCategory> {
     throw new Error('Informe o nome da categoria')
   }
 
+  const categories = await db
+    .select({ ordem: categoria.ordem })
+    .from(categoria)
+    .where(eq(categoria.tenantId, tenantId))
+  const ordem = categories.length
+    ? Math.max(...categories.map((category) => category.ordem)) + 1
+    : 0
+
   const [created] = await db
     .insert(categoria)
     .values({
-      id: createId(),
+      id: crypto.randomUUID(),
       tenantId,
       nome: normalizedName,
-      ordem: 0,
+      ordem,
     })
     .returning({
       id: categoria.id,
       nome: categoria.nome,
     })
 
-  revalidatePath('/admin/menu')
   return created
 }
 ```
 
-Keep the current `createId()` and default order behavior; the required change is the normalized `nome`, blank guard, and explicit `{ id, nome }` return projection. Do not add uniqueness validation or leak another tenant's rows.
-
-- [ ] **Step 4: Verify GREEN and retain the existing authorization tests**
+- [ ] **Step 4: Verify GREEN and inspect the exact source boundary**
 
 ```powershell
 npm test -- tests/unit/actions/produtos.test.ts
+rg -n "crypto\.randomUUID|max\(|id: categoria\.id|nome: categoria\.nome" lib/actions/produtos.ts
 ```
 
-Expected: PASS, including the pre-existing access/tenant tests and the two new boundary cases.
+Expected: Vitest PASS. `rg` shows the existing UUID generator, max-order append, and typed return projection.
 
-- [ ] **Step 5: Commit the server-boundary fix**
+- [ ] **Step 5: Commit the preserved-order boundary change**
 
 ```powershell
 git add -- lib/actions/produtos.ts tests/unit/actions/produtos.test.ts
-git commit -m "fix(categories): validate category names at server boundary"
+git commit -m "fix(categories): validate names without changing order"
 ```
 
 ---
-
-### Task 6: Build inline category creation and pencil editing
+### Task 6: Implement the complete progressive CategoryManager
 
 **Files:**
-- Modify: `components/admin/admin-page.tsx:70-115`
+- Modify: `components/admin/admin-page.tsx:101-128`
 - Create: `components/admin/category-manager.tsx`
 - Create: `tests/unit/business/category-manager.test.ts`
 
@@ -1273,11 +1533,11 @@ export type CategoryManagerProps = {
 }
 ```
 
-Task 6 wires `onDeleted` into the public type but does not show deletion until Task 7. This prevents an interface-breaking rewrite between the two work units.
+The component owns the exclusive editor, draft, inline error, mutation guard, and focus restoration. The page owns selection and product state. This task includes create, rename, and delete completely; no handler or return tree is deferred to prose.
 
-- [ ] **Step 1: Write failing interaction tests before creating the component**
+- [ ] **Step 1: Write the complete failing transition suite**
 
-Create `tests/unit/business/category-manager.test.ts` with hoisted action spies and render helpers:
+Create `tests/unit/business/category-manager.test.ts`:
 
 ```ts
 import { createElement } from 'react'
@@ -1298,22 +1558,23 @@ const actions = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/actions/produtos', () => actions)
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}))
 
 import {
   CategoryManager,
   type CategoryManagerProps,
 } from '@/components/admin/category-manager'
 
-const categorias = [
-  { id: 'cat-1', nome: 'Pizzas', ordem: 0 },
-  { id: 'cat-2', nome: 'Bebidas', ordem: 1 },
-]
+const pizzas = { id: 'cat-1', nome: 'Pizzas', ordem: 0 }
+const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1 }
+const doces = { id: 'cat-3', nome: 'Doces', ordem: 2 }
 
 function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
   const props: CategoryManagerProps = {
-    categorias,
-    selectedId: 'cat-1',
+    categorias: [pizzas, bebidas],
+    selectedId: pizzas.id,
     onSelect: vi.fn(),
     onCreated: vi.fn(),
     onDeleted: vi.fn(),
@@ -1326,104 +1587,303 @@ function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
 }
 
 beforeEach(() => vi.clearAllMocks())
-afterEach(cleanup)
-```
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
-Add these behavior cases to the same file:
+describe('CategoryManager', () => {
+  it('keeps Add and empty guidance visible with 44px controls', () => {
+    renderManager({ categorias: [], selectedId: '' })
 
-```ts
-it('creates inline, forwards the returned identity once, and restores Add focus', async () => {
-  actions.criarCategoria.mockResolvedValueOnce({ id: 'cat-3', nome: 'Doces' })
-  const props = renderManager()
-
-  const add = screen.getByRole('button', { name: 'Adicionar categoria' })
-  fireEvent.click(add)
-  const input = await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
-  expect(input).toHaveFocus()
-
-  fireEvent.change(input, { target: { value: '  Doces  ' } })
-  fireEvent.submit(input.closest('form')!)
-
-  await waitFor(() => {
-    expect(actions.criarCategoria).toHaveBeenCalledTimes(1)
-    expect(actions.criarCategoria).toHaveBeenCalledWith('Doces')
-    expect(props.onCreated).toHaveBeenCalledWith({ id: 'cat-3', nome: 'Doces' })
+    const add = screen.getByRole('button', { name: 'Adicionar categoria' })
+    expect(add).toBeEnabled()
+    expect(add).toHaveClass('min-h-11')
+    expect(
+      screen.getByText('Nenhuma categoria criada. Use Adicionar para começar.')
+    ).toBeInTheDocument()
   })
-  expect(props.onRefresh).toHaveBeenCalledTimes(1)
-  expect(add).toHaveFocus()
-})
 
-it('opens only one pencil editor and Escape cancels without a mutation', async () => {
-  renderManager()
-  fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+  it('opens create with focus and makes create/edit/other rows mutually exclusive', async () => {
+    renderManager()
 
-  const input = await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
-  expect(input).toHaveFocus()
-  expect(input).toHaveValue('Pizzas')
-  expect(screen.queryByRole('textbox', { name: 'Nome da categoria Bebidas' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+    expect(
+      await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
+    ).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Pizzas' })).toHaveClass('min-h-11')
+    for (const name of [
+      'Cancelar edição de Pizzas',
+      'Excluir categoria Pizzas',
+      'Salvar categoria Pizzas',
+    ]) {
+      expect(screen.getByRole('button', { name })).toHaveClass('min-h-11')
+    }
 
-  fireEvent.keyDown(input, { key: 'Escape' })
-  expect(actions.editarCategoria).not.toHaveBeenCalled()
-  expect(screen.getByRole('button', { name: 'Editar categoria Pizzas' })).toHaveFocus()
-})
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar categoria' }))
+    expect(
+      await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    ).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Cancelar nova categoria' })).toHaveClass(
+      'min-h-11'
+    )
+    expect(screen.getByRole('button', { name: 'Salvar nova categoria' })).toHaveClass(
+      'min-h-11'
+    )
+    expect(screen.queryByRole('textbox', { name: 'Nome da categoria Pizzas' })).toBeNull()
 
-it('keeps a failed draft inline and exposes the error as an alert', async () => {
-  actions.editarCategoria.mockRejectedValueOnce(new Error('Nome indisponível'))
-  renderManager()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar nova categoria' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Bebidas' }))
 
-  fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Bebidas' }))
-  const input = await screen.findByRole('textbox', { name: 'Nome da categoria Bebidas' })
-  fireEvent.change(input, { target: { value: 'Bebidas geladas' } })
-  fireEvent.submit(input.closest('form')!)
+    expect(
+      await screen.findByRole('textbox', { name: 'Nome da categoria Bebidas' })
+    ).toHaveFocus()
+    expect(screen.queryByRole('textbox', { name: 'Nome da categoria Pizzas' })).toBeNull()
+  })
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('Nome indisponível')
-  expect(input).toHaveValue('Bebidas geladas')
-})
+  it('creates the trimmed name once, forwards server identity, and restores Add focus', async () => {
+    actions.criarCategoria.mockResolvedValueOnce({ id: doces.id, nome: doces.nome })
+    const props = renderManager()
 
-it('rejects a blank client draft and blocks a duplicate pending submit', async () => {
-  let resolveRename!: () => void
-  actions.editarCategoria.mockImplementationOnce(
-    () => new Promise<void>((resolve) => { resolveRename = resolve })
-  )
-  renderManager()
+    const add = screen.getByRole('button', { name: 'Adicionar categoria' })
+    fireEvent.click(add)
+    const input = await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    fireEvent.change(input, { target: { value: '  Doces  ' } })
+    fireEvent.submit(input.closest('form')!)
 
-  fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
-  const input = await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
-  fireEvent.change(input, { target: { value: '   ' } })
-  fireEvent.submit(input.closest('form')!)
-  expect(screen.getByRole('alert')).toHaveTextContent('Informe o nome da categoria')
-  expect(actions.editarCategoria).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(actions.criarCategoria).toHaveBeenCalledTimes(1)
+      expect(actions.criarCategoria).toHaveBeenCalledWith('Doces')
+      expect(props.onCreated).toHaveBeenCalledWith({ id: doces.id, nome: doces.nome })
+      expect(props.onRefresh).toHaveBeenCalledTimes(1)
+      expect(add).toHaveFocus()
+    })
+  })
 
-  fireEvent.change(input, { target: { value: 'Massas' } })
-  fireEvent.submit(input.closest('form')!)
-  fireEvent.submit(input.closest('form')!)
-  expect(actions.editarCategoria).toHaveBeenCalledTimes(1)
-  expect(input.closest('form')).toHaveAttribute('aria-busy', 'true')
+  it('retains the create draft and inline alert after a failure', async () => {
+    actions.criarCategoria.mockRejectedValueOnce(new Error('Nome indisponível'))
+    renderManager()
 
-  await act(async () => resolveRename())
-})
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar categoria' }))
+    const input = await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    fireEvent.change(input, { target: { value: 'Doces' } })
+    fireEvent.submit(input.closest('form')!)
 
-it('keeps Add and guidance visible when the category list is empty', () => {
-  renderManager({ categorias: [], selectedId: '' })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Nome indisponível')
+    expect(input).toHaveValue('Doces')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+  })
 
-  expect(screen.getByRole('button', { name: 'Adicionar categoria' })).toBeEnabled()
-  expect(
-    screen.getByText('Nenhuma categoria criada. Use Adicionar para começar.')
-  ).toBeInTheDocument()
+  it('marks create busy, disables related controls, and ignores repeat submit', async () => {
+    let resolveCreate!: (value: { id: string; nome: string }) => void
+    actions.criarCategoria.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveCreate = resolve })
+    )
+    renderManager()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar categoria' }))
+    const input = await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    fireEvent.change(input, { target: { value: 'Doces' } })
+    const form = input.closest('form')!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    expect(actions.criarCategoria).toHaveBeenCalledTimes(1)
+    expect(form).toHaveAttribute('aria-busy', 'true')
+    expect(input).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Salvar nova categoria' })).toBeDisabled()
+
+    await act(async () => resolveCreate({ id: doces.id, nome: doces.nome }))
+  })
+
+  it('Escape cancels rename and restores the same pencil', async () => {
+    renderManager()
+    const pencil = screen.getByRole('button', { name: 'Editar categoria Pizzas' })
+    expect(pencil).toHaveClass('size-11')
+    fireEvent.click(pencil)
+
+    const input = await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
+    expect(input).toHaveValue('Pizzas')
+    expect(input).toHaveFocus()
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(actions.editarCategoria).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Editar categoria Pizzas' })
+      ).toHaveFocus()
+    })
+  })
+
+  it('renames once while busy and restores the same pencil on success', async () => {
+    let resolveRename!: () => void
+    actions.editarCategoria.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { resolveRename = resolve })
+    )
+    renderManager()
+
+    const pencil = screen.getByRole('button', { name: 'Editar categoria Pizzas' })
+    fireEvent.click(pencil)
+    const input = await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
+    fireEvent.change(input, { target: { value: '  Massas  ' } })
+    const form = input.closest('form')!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    expect(actions.editarCategoria).toHaveBeenCalledTimes(1)
+    expect(actions.editarCategoria).toHaveBeenCalledWith(pizzas.id, 'Massas')
+    expect(form).toHaveAttribute('aria-busy', 'true')
+    expect(input).toBeDisabled()
+
+    await act(async () => resolveRename())
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Editar categoria Pizzas' })
+      ).toHaveFocus()
+    })
+  })
+
+  it('retains rename draft and alert after failure', async () => {
+    actions.editarCategoria.mockRejectedValueOnce(new Error('Nome indisponível'))
+    renderManager()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Bebidas' }))
+    const input = await screen.findByRole('textbox', { name: 'Nome da categoria Bebidas' })
+    fireEvent.change(input, { target: { value: 'Bebidas geladas' } })
+    fireEvent.submit(input.closest('form')!)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Nome indisponível')
+    expect(input).toHaveValue('Bebidas geladas')
+    expect(screen.getByRole('button', { name: 'Excluir categoria Bebidas' })).toBeInTheDocument()
+  })
+
+  it('rejects blank drafts in create and rename before a server call', async () => {
+    renderManager()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar categoria' }))
+    const createInput = await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    fireEvent.change(createInput, { target: { value: '   ' } })
+    fireEvent.submit(createInput.closest('form')!)
+    expect(screen.getByRole('alert')).toHaveTextContent('Informe o nome da categoria')
+    expect(actions.criarCategoria).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+    const editInput = await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
+    fireEvent.change(editInput, { target: { value: '   ' } })
+    fireEvent.submit(editInput.closest('form')!)
+    expect(screen.getByRole('alert')).toHaveTextContent('Informe o nome da categoria')
+    expect(actions.editarCategoria).not.toHaveBeenCalled()
+  })
+
+  it('shows delete only in edit mode and preserves the confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderManager()
+
+    expect(screen.queryByRole('button', { name: 'Excluir categoria Pizzas' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Excluir categoria Pizzas' })
+    )
+
+    expect(confirm).toHaveBeenCalledWith('Excluir a categoria "Pizzas"?')
+    expect(actions.removerCategoria).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'Nome da categoria Pizzas' })).toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      categorias: [pizzas, bebidas, doces],
+      target: bebidas,
+      expectedFocus: 'Editar categoria Doces',
+    },
+    {
+      categorias: [pizzas, bebidas],
+      target: bebidas,
+      expectedFocus: 'Editar categoria Pizzas',
+    },
+    {
+      categorias: [pizzas],
+      target: pizzas,
+      expectedFocus: 'Adicionar categoria',
+    },
+  ])('restores next, previous, or Add focus after deleting $target.nome', async ({
+    categorias,
+    target,
+    expectedFocus,
+  }) => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    actions.removerCategoria.mockResolvedValueOnce(undefined)
+    const props = renderManager({ categorias, selectedId: target.id })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: `Editar categoria ${target.nome}` })
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Excluir categoria ${target.nome}` })
+    )
+
+    await waitFor(() => {
+      expect(actions.removerCategoria).toHaveBeenCalledWith(target.id)
+      expect(props.onDeleted).toHaveBeenCalledWith(target.id)
+      expect(props.onRefresh).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', { name: expectedFocus })).toHaveFocus()
+    })
+  })
+
+  it('retains delete editor, draft, and server error when products block deletion', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    actions.removerCategoria.mockRejectedValueOnce(
+      new Error('Remova os produtos antes de excluir a categoria')
+    )
+    renderManager()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+    const input = await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
+    fireEvent.change(input, { target: { value: 'Pizzas especiais' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir categoria Pizzas' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Remova os produtos antes de excluir a categoria'
+    )
+    expect(input).toHaveValue('Pizzas especiais')
+  })
+
+  it('marks delete busy and ignores a second delete attempt', async () => {
+    let resolveDelete!: () => void
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    actions.removerCategoria.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { resolveDelete = resolve })
+    )
+    renderManager()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+    const remove = await screen.findByRole('button', { name: 'Excluir categoria Pizzas' })
+    const form = remove.closest('form')!
+    fireEvent.click(remove)
+    fireEvent.click(remove)
+
+    expect(actions.removerCategoria).toHaveBeenCalledTimes(1)
+    expect(form).toHaveAttribute('aria-busy', 'true')
+    expect(remove).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Salvar categoria Pizzas' })).toBeDisabled()
+
+    await act(async () => resolveDelete())
+  })
 })
 ```
 
-- [ ] **Step 2: Run the category-manager test to verify RED**
+- [ ] **Step 2: Run the component suite and verify RED**
 
 ```powershell
 npm test -- tests/unit/business/category-manager.test.ts
 ```
 
-Expected: FAIL with a missing `@/components/admin/category-manager` module.
+Expected: FAIL with `Failed to resolve import "@/components/admin/category-manager"`. Fix test setup errors until the failure is specifically the missing production component.
 
-- [ ] **Step 3: Give `AdminPanel` a compact header action slot**
+- [ ] **Step 3: Add the compact `AdminPanel` header action slot**
 
-Extend its props in `components/admin/admin-page.tsx` without changing current callers:
+Import `type ReactNode` if it is not already imported, then replace only `AdminPanel` in `components/admin/admin-page.tsx`:
 
 ```tsx
 export function AdminPanel({
@@ -1458,17 +1918,23 @@ export function AdminPanel({
 }
 ```
 
-Import `type ReactNode` from `react`. Preserve the existing section/card classes not shown above if they differ; only the optional header action and flex layout are new behavior.
+This preserves optional titles, the current radius/background/padding, and every existing caller.
 
-- [ ] **Step 4: Implement one exclusive create/edit state machine**
+- [ ] **Step 4: Implement the complete CategoryManager**
 
-Create `components/admin/category-manager.tsx`. Use this state and focus skeleton exactly:
+Create `components/admin/category-manager.tsx` exactly as follows:
 
 ```tsx
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { Check, Pencil, Plus, X } from 'lucide-react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
+import { Check, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AdminPanel } from '@/components/admin/admin-page'
@@ -1482,11 +1948,17 @@ import {
 import {
   criarCategoria,
   editarCategoria,
+  removerCategoria,
   type CreatedCategory,
 } from '@/lib/actions/produtos'
 import { cn } from '@/lib/utils'
 
-export type CategoryListItem = { id: string; nome: string; ordem: number }
+export type CategoryListItem = {
+  id: string
+  nome: string
+  ordem: number
+}
+
 export type CategoryManagerProps = {
   categorias: CategoryListItem[]
   selectedId: string
@@ -1500,25 +1972,34 @@ type EditorState =
   | { mode: 'idle' }
   | { mode: 'create' }
   | { mode: 'edit'; categoryId: string }
+
 type PendingMutation = null | 'create' | 'rename' | 'delete'
+type FocusTarget = 'add' | string
 
-const messageFrom = (error: unknown) =>
-  error instanceof Error ? error.message : 'Não foi possível salvar a categoria'
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : 'Não foi possível salvar a categoria'
+}
 
-export function CategoryManager(props: CategoryManagerProps) {
+export function CategoryManager({
+  categorias,
+  selectedId,
+  onSelect,
+  onCreated,
+  onDeleted,
+  onRefresh,
+}: CategoryManagerProps) {
   const [editor, setEditor] = useState<EditorState>({ mode: 'idle' })
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
   const [pending, setPending] = useState<PendingMutation>(null)
   const pendingRef = useRef<PendingMutation>(null)
-  const returnFocusRef = useRef<'add' | string | null>(null)
+  const returnFocusRef = useRef<FocusTarget | null>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const editButtonRefs = useRef(new Map<string, HTMLButtonElement>())
-
-  const focusSoon = (resolve: () => HTMLElement | null | undefined) => {
-    queueMicrotask(() => resolve()?.focus())
-  }
+  const ordered = [...categorias].sort((a, b) => a.ordem - b.ordem)
 
   useEffect(() => {
     if (editor.mode !== 'idle') {
@@ -1527,47 +2008,56 @@ export function CategoryManager(props: CategoryManagerProps) {
       return
     }
 
-    const returnTo = returnFocusRef.current
-    if (!returnTo) return
+    const target = returnFocusRef.current
+    if (!target) return
     returnFocusRef.current = null
-    focusSoon(() =>
-      returnTo === 'add'
-        ? addButtonRef.current
-        : editButtonRefs.current.get(returnTo)
-    )
+    queueMicrotask(() => {
+      if (target === 'add') addButtonRef.current?.focus()
+      else editButtonRefs.current.get(target)?.focus()
+    })
   }, [editor])
 
-  const beginMutation = (kind: Exclude<PendingMutation, null>) => {
+  function beginMutation(kind: Exclude<PendingMutation, null>) {
     if (pendingRef.current) return false
     pendingRef.current = kind
     setPending(kind)
     return true
   }
 
-  const finishMutation = () => {
+  function finishMutation() {
     pendingRef.current = null
     setPending(null)
   }
 
-  const closeEditor = (returnTo: 'add' | string) => {
-    returnFocusRef.current = returnTo
+  function closeEditor(target: FocusTarget) {
+    returnFocusRef.current = target
     setEditor({ mode: 'idle' })
     setDraft('')
     setError('')
   }
 
-  const onEscape = (event: KeyboardEvent<HTMLInputElement>, returnTo: 'add' | string) => {
-    if (event.key === 'Escape' && !pendingRef.current) {
-      event.preventDefault()
-      closeEditor(returnTo)
-    }
+  function openCreate() {
+    setEditor({ mode: 'create' })
+    setDraft('')
+    setError('')
   }
-```
 
-Add exact submit handlers after that skeleton:
+  function openEdit(category: CategoryListItem) {
+    setEditor({ mode: 'edit', categoryId: category.id })
+    setDraft(category.nome)
+    setError('')
+  }
 
-```tsx
-  const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
+  function handleEscape(
+    event: KeyboardEvent<HTMLFormElement>,
+    target: FocusTarget
+  ) {
+    if (event.key !== 'Escape' || pendingRef.current) return
+    event.preventDefault()
+    closeEditor(target)
+  }
+
+  async function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nome = draft.trim()
     if (!nome) {
@@ -1579,22 +2069,22 @@ Add exact submit handlers after that skeleton:
     setError('')
     try {
       const created = await criarCategoria(nome)
-      props.onCreated(created)
-      props.onRefresh()
+      onCreated(created)
+      onRefresh()
       toast.success('Categoria criada')
+      finishMutation()
       closeEditor('add')
     } catch (caught) {
-      setError(messageFrom(caught))
-      toast.error('Não foi possível criar a categoria')
-    } finally {
       finishMutation()
+      setError(errorMessage(caught))
+      toast.error('Não foi possível criar a categoria')
     }
   }
 
-  const submitRename = async (
+  async function submitRename(
     event: FormEvent<HTMLFormElement>,
-    categoryId: string
-  ) => {
+    category: CategoryListItem
+  ) {
     event.preventDefault()
     const nome = draft.trim()
     if (!nome) {
@@ -1605,269 +2095,369 @@ Add exact submit handlers after that skeleton:
 
     setError('')
     try {
-      await editarCategoria(categoryId, nome)
-      props.onRefresh()
+      await editarCategoria(category.id, nome)
+      onRefresh()
       toast.success('Categoria atualizada')
-      closeEditor(categoryId)
-    } catch (caught) {
-      setError(messageFrom(caught))
-      toast.error('Não foi possível renomear a categoria')
-    } finally {
       finishMutation()
+      closeEditor(category.id)
+    } catch (caught) {
+      finishMutation()
+      setError(errorMessage(caught))
+      toast.error('Não foi possível renomear a categoria')
     }
   }
-```
 
-Render one `AdminPanel` titled `Categorias`. Its `action` is a 44px positive ghost detail, not another card:
+  async function deleteCategory(category: CategoryListItem) {
+    if (pendingRef.current) return
+    if (!window.confirm(`Excluir a categoria "${category.nome}"?`)) return
 
-```tsx
-<Button
-  ref={addButtonRef}
-  type="button"
-  intent="positive"
-  appearance="ghost"
-  size="sm"
-  className="min-h-11"
-  aria-label="Adicionar categoria"
-  disabled={pending !== null}
-  onClick={() => {
-    setEditor({ mode: 'create' })
-    setDraft('')
+    const index = ordered.findIndex((item) => item.id === category.id)
+    const focusFallback = ordered[index + 1] ?? ordered[index - 1]
+    if (!beginMutation('delete')) return
+
     setError('')
-  }}
->
-  <Plus aria-hidden="true" />
-  Adicionar
-</Button>
-```
-
-The create row is a real form with `className="mb-3 flex flex-wrap items-end gap-2 border-b pb-3"`, `aria-busy={pending === 'create'}`, `Input` label `Nome da nova categoria`, `disabled={pending !== null}`, neutral ghost cancel, positive solid submit, and an inline `<p className="basis-full" role="alert">{error}</p>` when needed. Because it is a form, `Enter` saves without a custom key handler; `onKeyDown={(event) => onEscape(event, 'add')}` handles only Escape.
-
-For every ordered category row:
-
-1. Render its name as a neutral ghost selection button with `className="min-h-11 min-w-0 flex-1 justify-start whitespace-normal break-words text-left"`, `aria-pressed={selectedId === categoria.id}`, and `onClick={() => props.onSelect(categoria.id)}`. Keep the pencil in a shrink-free sibling so a long name wraps rather than causing horizontal overflow.
-2. When that row is not being edited, render only a 44px pencil action, not a large Rename control:
-
-```tsx
-<Tooltip>
-  <TooltipTrigger
-    render={
-      <Button
-        ref={(node) => {
-          if (node) editButtonRefs.current.set(categoria.id, node)
-          else editButtonRefs.current.delete(categoria.id)
-        }}
-        type="button"
-        intent="informational"
-        appearance="ghost"
-        size="icon"
-        className="size-11"
-        aria-label={`Editar categoria ${categoria.nome}`}
-        disabled={pending !== null}
-        onClick={() => {
-          setEditor({ mode: 'edit', categoryId: categoria.id })
-          setDraft(categoria.nome)
-          setError('')
-        }}
-      >
-        <Pencil aria-hidden="true" />
-      </Button>
+    try {
+      await removerCategoria(category.id)
+      onDeleted(category.id)
+      onRefresh()
+      toast.success('Categoria excluída')
+      finishMutation()
+      closeEditor(focusFallback?.id ?? 'add')
+    } catch (caught) {
+      finishMutation()
+      setError(errorMessage(caught))
+      toast.error('Não foi possível excluir a categoria')
     }
-  />
-  <TooltipContent>Editar categoria</TooltipContent>
-</Tooltip>
+  }
+
+  const createErrorId = 'new-category-error'
+
+  return (
+    <AdminPanel
+      title="Categorias"
+      description="Escolha uma seção para revisar produtos."
+      action={
+        <Button
+          ref={addButtonRef}
+          type="button"
+          intent="positive"
+          appearance="ghost"
+          size="sm"
+          className="min-h-11"
+          aria-label="Adicionar categoria"
+          disabled={pending !== null}
+          onClick={openCreate}
+        >
+          <Plus aria-hidden="true" />
+          Adicionar
+        </Button>
+      }
+    >
+      {editor.mode === 'create' ? (
+        <form
+          className="mb-3 flex flex-wrap items-end gap-2 border-b pb-3"
+          aria-busy={pending === 'create'}
+          onSubmit={submitCreate}
+          onKeyDown={(event) => handleEscape(event, 'add')}
+        >
+          <div className="min-w-0 flex-1 basis-48">
+            <label htmlFor="new-category-name" className="text-xs font-medium">
+              Nome da nova categoria
+            </label>
+            <Input
+              ref={inputRef}
+              id="new-category-name"
+              className="mt-1 min-h-11"
+              value={draft}
+              required
+              disabled={pending !== null}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? createErrorId : undefined}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            intent="neutral"
+            appearance="ghost"
+            className="min-h-11"
+            disabled={pending !== null}
+            aria-label="Cancelar nova categoria"
+            onClick={() => closeEditor('add')}
+          >
+            <X aria-hidden="true" />
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            intent="positive"
+            appearance="solid"
+            className="min-h-11"
+            disabled={pending !== null}
+            aria-label="Salvar nova categoria"
+          >
+            <Check aria-hidden="true" />
+            {pending === 'create' ? 'Criando...' : 'Criar'}
+          </Button>
+          {error ? (
+            <p id={createErrorId} className="basis-full text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
+
+      {ordered.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Nenhuma categoria criada. Use Adicionar para começar.
+        </p>
+      ) : (
+        <ul className="divide-y" aria-label="Categorias do cardápio">
+          {ordered.map((category) => {
+            const editing =
+              editor.mode === 'edit' && editor.categoryId === category.id
+            const errorId = `category-error-${category.id}`
+
+            return (
+              <li key={category.id} className="py-1 first:pt-0 last:pb-0">
+                <div className="flex min-w-0 items-center gap-1">
+                  <Button
+                    type="button"
+                    intent="neutral"
+                    appearance="ghost"
+                    className={cn(
+                      'min-h-11 min-w-0 flex-1 justify-start whitespace-normal break-words rounded-md text-left',
+                      selectedId === category.id && 'bg-muted font-semibold'
+                    )}
+                    aria-pressed={selectedId === category.id}
+                    disabled={pending !== null}
+                    onClick={() => onSelect(category.id)}
+                  >
+                    {category.nome}
+                  </Button>
+
+                  {!editing ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            ref={(node) => {
+                              if (node) editButtonRefs.current.set(category.id, node)
+                              else editButtonRefs.current.delete(category.id)
+                            }}
+                            type="button"
+                            intent="informational"
+                            appearance="ghost"
+                            size="icon"
+                            className="size-11 shrink-0"
+                            aria-label={`Editar categoria ${category.nome}`}
+                            disabled={pending !== null}
+                            onClick={() => openEdit(category)}
+                          />
+                        }
+                      >
+                        <Pencil aria-hidden="true" />
+                      </TooltipTrigger>
+                      <TooltipContent>Editar categoria</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                </div>
+
+                {editing ? (
+                  <form
+                    className="flex min-w-0 flex-wrap items-end gap-2 border-t py-3"
+                    aria-busy={pending !== null}
+                    onSubmit={(event) => submitRename(event, category)}
+                    onKeyDown={(event) => handleEscape(event, category.id)}
+                  >
+                    <div className="min-w-0 flex-1 basis-48">
+                      <label
+                        htmlFor={`category-name-${category.id}`}
+                        className="text-xs font-medium"
+                      >
+                        Nome da categoria {category.nome}
+                      </label>
+                      <Input
+                        ref={inputRef}
+                        id={`category-name-${category.id}`}
+                        className="mt-1 min-h-11"
+                        value={draft}
+                        required
+                        disabled={pending !== null}
+                        aria-invalid={error ? true : undefined}
+                        aria-describedby={error ? errorId : undefined}
+                        onChange={(event) => setDraft(event.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      intent="neutral"
+                      appearance="ghost"
+                      className="min-h-11"
+                      aria-label={`Cancelar edição de ${category.nome}`}
+                      disabled={pending !== null}
+                      onClick={() => closeEditor(category.id)}
+                    >
+                      <X aria-hidden="true" />
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      intent="destructive"
+                      appearance="ghost"
+                      className="min-h-11"
+                      aria-label={`Excluir categoria ${category.nome}`}
+                      disabled={pending !== null}
+                      onClick={() => void deleteCategory(category)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      Excluir
+                    </Button>
+                    <Button
+                      type="submit"
+                      intent="positive"
+                      appearance="solid"
+                      className="min-h-11"
+                      aria-label={`Salvar categoria ${category.nome}`}
+                      disabled={pending !== null}
+                    >
+                      <Check aria-hidden="true" />
+                      {pending === 'rename' ? 'Salvando...' : 'Salvar'}
+                    </Button>
+                    {error ? (
+                      <p
+                        id={errorId}
+                        className="basis-full text-sm text-destructive"
+                        role="alert"
+                      >
+                        {error}
+                      </p>
+                    ) : null}
+                  </form>
+                ) : null}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </AdminPanel>
+  )
+}
 ```
 
-3. When `editor` targets that row, replace its static controls with one real form using `className="flex min-w-0 flex-wrap items-end gap-2 border-t pt-3"`. The input label is `Nome da categoria ${categoria.nome}`; neutral ghost cancel uses `X`; positive solid save uses `Check`; the input and related controls are disabled while pending; the form receives `aria-busy={pending === 'rename'}`; error text remains directly below the same input with `className="basis-full" role="alert"`.
-4. Sorting is `const ordered = [...props.categorias].sort((a, b) => a.ordem - b.ordem)`. Never open create and edit simultaneously because `editor` is one discriminated union.
-5. When `ordered.length === 0`, keep the panel and Add action visible and render `Nenhuma categoria criada. Use Adicionar para começar.` as muted inline text. Do not wrap either inline form in another card.
+The selection button has text, weight/surface, and `aria-pressed`; pencil is the only icon-only idle action and has a specific accessible name. Every action target in this panel is at least 44px, every pending form exposes `aria-busy`, and errors remain adjacent to the active field.
 
-- [ ] **Step 5: Verify GREEN and the minimum interaction contract**
+- [ ] **Step 5: Verify GREEN for all transitions**
 
 ```powershell
 npm test -- tests/unit/business/category-manager.test.ts tests/unit/ui/tooltip.test.ts
 ```
 
-Expected: PASS for focus on open, native Enter submit, Escape cancellation, single-editor exclusivity, client blank validation, retained server error/draft, returned identity callback, pending double-submit protection, tooltip portal, and focus restoration.
+Expected: PASS for empty state; create/edit exclusivity; Enter/form submit; Escape; trim/blank validation; returned identity; next/previous/Add focus restoration; create/rename/delete pending repeat prevention; retained drafts/errors; confirmation; tooltip portal; and accessible labels/targets.
 
-- [ ] **Step 6: Commit inline create/edit**
+- [ ] **Step 6: Commit the complete manager work unit**
 
 ```powershell
 git add -- components/admin/admin-page.tsx components/admin/category-manager.tsx tests/unit/business/category-manager.test.ts
-git commit -m "feat(admin): add inline category creation and editing"
+git commit -m "feat(admin): add progressive category manager"
 ```
 
 ---
 
-### Task 7: Add guarded inline category deletion
+### Task 7: Isolate and test category deletion selection fallback
 
 **Files:**
-- Modify: `components/admin/category-manager.tsx`
-- Modify: `tests/unit/business/category-manager.test.ts`
+- Create: `lib/admin/category-selection.ts`
+- Create: `tests/unit/business/category-selection.test.ts`
 
 **Interfaces:**
-- Reuses the `onDeleted(id)` callback already present in `CategoryManagerProps`.
-- A delete attempt is possible only from the active pencil editor. Success closes the editor and restores focus to the next row, previous row, or Add button. Failure keeps the same editor and draft open.
+- Produces: `nextCategoryIdAfterDeletion(categories, deletedId, currentId): string`.
+- Preserves the current selection when another category is deleted; otherwise chooses next, then previous, then empty.
 
-- [ ] **Step 1: Add failing deletion visibility, confirmation, focus, error, and pending tests**
-
-Append to `tests/unit/business/category-manager.test.ts`:
-
-```ts
-it('reveals delete only inside the pencil editor and respects confirmation', async () => {
-  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-  renderManager()
-
-  expect(screen.queryByRole('button', { name: 'Excluir categoria Pizzas' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Excluir categoria Pizzas' })
-  )
-
-  expect(confirm).toHaveBeenCalledWith('Excluir a categoria "Pizzas"?')
-  expect(actions.removerCategoria).not.toHaveBeenCalled()
-  expect(screen.getByRole('textbox', { name: 'Nome da categoria Pizzas' })).toBeInTheDocument()
-})
-
-it('deletes once and restores focus to the next category pencil', async () => {
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
-  actions.removerCategoria.mockResolvedValueOnce(undefined)
-  const props = renderManager()
-
-  fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Excluir categoria Pizzas' })
-  )
-
-  await waitFor(() => {
-    expect(actions.removerCategoria).toHaveBeenCalledWith('cat-1')
-    expect(props.onDeleted).toHaveBeenCalledWith('cat-1')
-  })
-  expect(props.onRefresh).toHaveBeenCalledTimes(1)
-  expect(screen.getByRole('button', { name: 'Editar categoria Bebidas' })).toHaveFocus()
-})
-
-it('keeps the editor and exact server error when products block deletion', async () => {
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
-  actions.removerCategoria.mockRejectedValueOnce(
-    new Error('Remova os produtos antes de excluir a categoria')
-  )
-  renderManager()
-
-  fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Excluir categoria Pizzas' })
-  )
-
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Remova os produtos antes de excluir a categoria'
-  )
-  expect(screen.getByRole('textbox', { name: 'Nome da categoria Pizzas' })).toHaveValue('Pizzas')
-})
-
-it('disables editor actions while deletion is pending', async () => {
-  let resolveDelete!: () => void
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
-  actions.removerCategoria.mockImplementationOnce(
-    () => new Promise<void>((resolve) => { resolveDelete = resolve })
-  )
-  renderManager()
-
-  fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
-  const remove = await screen.findByRole('button', { name: 'Excluir categoria Pizzas' })
-  fireEvent.click(remove)
-  fireEvent.click(remove)
-
-  expect(actions.removerCategoria).toHaveBeenCalledTimes(1)
-  expect(remove.closest('form')).toHaveAttribute('aria-busy', 'true')
-  expect(screen.getByRole('button', { name: 'Salvar categoria Pizzas' })).toBeDisabled()
-
-  await act(async () => resolveDelete())
-})
-```
-
-Restore each `confirm` spy through the existing `vi.restoreAllMocks()` in `afterEach`; change `afterEach(cleanup)` to:
-
-```ts
-afterEach(() => {
-  cleanup()
-  vi.restoreAllMocks()
-})
-```
-
-- [ ] **Step 2: Run the component tests to verify RED**
+- [ ] **Step 0: Create the focused admin helper directory**
 
 ```powershell
-npm test -- tests/unit/business/category-manager.test.ts
+New-Item -ItemType Directory -Force lib/admin | Out-Null
 ```
 
-Expected: FAIL because no delete control is rendered and `removerCategoria` is not called.
+Expected: `lib/admin` exists and no unrelated directory is created.
 
-- [ ] **Step 3: Implement the guarded deletion transition**
+- [ ] **Step 1: Write the failing pure transition tests**
 
-Import `Trash2` and `removerCategoria`, then add this handler inside `CategoryManager`:
+Create `tests/unit/business/category-selection.test.ts`:
 
-```tsx
-  const deleteCategory = async (category: CategoryListItem) => {
-    if (pendingRef.current) return
-    if (!window.confirm(`Excluir a categoria "${category.nome}"?`)) return
+```ts
+import { describe, expect, it } from 'vitest'
 
-    const index = ordered.findIndex((item) => item.id === category.id)
-    const nextFocus = ordered[index + 1] ?? ordered[index - 1]
+import { nextCategoryIdAfterDeletion } from '@/lib/admin/category-selection'
 
-    if (!beginMutation('delete')) return
-    setError('')
-    try {
-      await removerCategoria(category.id)
-      props.onDeleted(category.id)
-      props.onRefresh()
-      toast.success('Categoria excluída')
-      closeEditor(nextFocus?.id ?? 'add')
-    } catch (caught) {
-      setError(messageFrom(caught))
-      toast.error('Não foi possível excluir a categoria')
-    } finally {
-      finishMutation()
-    }
-  }
+const categories = [{ id: 'cat-1' }, { id: 'cat-2' }, { id: 'cat-3' }]
+
+describe('nextCategoryIdAfterDeletion', () => {
+  it('uses the next category when the selected category is deleted', () => {
+    expect(nextCategoryIdAfterDeletion(categories, 'cat-2', 'cat-2')).toBe('cat-3')
+  })
+
+  it('uses the previous category when the deleted selection was last', () => {
+    expect(nextCategoryIdAfterDeletion(categories, 'cat-3', 'cat-3')).toBe('cat-2')
+  })
+
+  it('clears selection when the deleted category was the only category', () => {
+    expect(
+      nextCategoryIdAfterDeletion([{ id: 'cat-1' }], 'cat-1', 'cat-1')
+    ).toBe('')
+  })
+
+  it('preserves selection when a different category is deleted', () => {
+    expect(nextCategoryIdAfterDeletion(categories, 'cat-1', 'cat-3')).toBe('cat-3')
+  })
+})
 ```
 
-Define `ordered` before the handler so it is shared by the render and focus fallback. Inside the active edit form, add this control after the neutral Cancel button and before Save:
+- [ ] **Step 2: Run the helper test and verify RED**
 
-```tsx
-<Button
-  type="button"
-  intent="destructive"
-  appearance="ghost"
-  size="icon"
-  className="size-11"
-  aria-label={`Excluir categoria ${categoria.nome}`}
-  disabled={pending !== null}
-  onClick={() => void deleteCategory(categoria)}
->
-  <Trash2 aria-hidden="true" />
-</Button>
+```powershell
+npm test -- tests/unit/business/category-selection.test.ts
 ```
 
-Set the active edit form to `aria-busy={pending !== null}` and give its Save button `aria-label={`Salvar categoria ${categoria.nome}`}`. Do not expose deletion in the static list, page header, or a second management card. Do not navigate away on a failed delete.
+Expected: FAIL because `@/lib/admin/category-selection` does not exist.
+
+- [ ] **Step 3: Implement the pure fallback**
+
+Create `lib/admin/category-selection.ts`:
+
+```ts
+type CategoryIdentity = { id: string }
+
+export function nextCategoryIdAfterDeletion(
+  categories: CategoryIdentity[],
+  deletedId: string,
+  currentId: string
+): string {
+  if (currentId !== deletedId) return currentId
+
+  const index = categories.findIndex((category) => category.id === deletedId)
+  if (index < 0) return categories[0]?.id ?? ''
+  return categories[index + 1]?.id ?? categories[index - 1]?.id ?? ''
+}
+```
 
 - [ ] **Step 4: Verify GREEN**
 
 ```powershell
-npm test -- tests/unit/business/category-manager.test.ts
+npm test -- tests/unit/business/category-selection.test.ts
 ```
 
-Expected: PASS for hidden-by-default deletion, confirmation cancellation, exactly-once mutation, next/previous/Add focus fallback, retained editor on failure, exact inline business error, and pending protection.
+Expected: all four transition cases PASS.
 
-- [ ] **Step 5: Commit guarded deletion**
+- [ ] **Step 5: Commit the deterministic selection unit**
 
 ```powershell
-git add -- components/admin/category-manager.tsx tests/unit/business/category-manager.test.ts
-git commit -m "feat(admin): add guarded inline category deletion"
+git add -- lib/admin/category-selection.ts tests/unit/business/category-selection.test.ts
+git commit -m "feat(admin): define category deletion fallback"
 ```
 
 ---
-
 ### Task 8: Integrate progressive categories and semantic product actions
 
 **Files:**
@@ -1876,17 +2466,24 @@ git commit -m "feat(admin): add guarded inline category deletion"
 - Modify: `tests/unit/business/admin-management.test.ts`
 
 **Interfaces:**
-- `MenuAdminClient` remains the owner of selected category and product-form visibility.
-- `CategoryManager` owns only category editing. The parent receives the exact created `{ id, nome }`, keeps that temporary identity valid until refreshed props contain it, and computes deletion selection fallback.
-- Existing product action handlers and confirmation behavior remain unchanged; only hierarchy, labels, semantic button props, and empty-state treatment change.
+- Consumes: `CategoryManager`, `CreatedCategory`, and `nextCategoryIdAfterDeletion` from Tasks 5–7.
+- Preserves the real server action name `toggleDisponivel`.
+- `MenuAdminClient` owns selected-category/product-form state; `CategoryManager` owns editor state.
 
-- [ ] **Step 1: Write failing rendered integration tests**
+- [ ] **Step 1: Write the complete failing parent-state tests**
 
-Create `tests/unit/business/admin-menu-client.test.ts`. Mock the child manager at its contract boundary so these tests exercise parent state rather than repeating Task 6–7 interactions:
+Create `tests/unit/business/admin-menu-client.test.ts`:
 
 ```ts
 import { createElement } from 'react'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CategoryManagerProps } from '@/components/admin/category-manager'
 
@@ -1894,11 +2491,17 @@ const state = vi.hoisted(() => ({
   categoryProps: undefined as CategoryManagerProps | undefined,
   refresh: vi.fn(),
 }))
+const productActions = vi.hoisted(() => ({
+  removerProduto: vi.fn(),
+  toggleDisponivel: vi.fn(),
+}))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: state.refresh }),
 }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}))
 vi.mock('@/components/admin/category-manager', () => ({
   CategoryManager: (props: CategoryManagerProps) => {
     state.categoryProps = props
@@ -1906,159 +2509,283 @@ vi.mock('@/components/admin/category-manager', () => ({
   },
 }))
 vi.mock('@/components/admin/produto-form', () => ({
-  ProdutoForm: ({ categoriaId }: { categoriaId: string }) =>
-    createElement('div', {
-      'data-testid': 'product-form',
-      'data-category-id': categoriaId,
-    }),
+  ProdutoForm: ({
+    categoriaId,
+    open,
+  }: {
+    categoriaId: string
+    open: boolean
+  }) =>
+    open
+      ? createElement('div', {
+          'data-testid': 'product-form',
+          'data-category-id': categoriaId,
+        })
+      : null,
 }))
+vi.mock('@/lib/actions/produtos', () => productActions)
 
 import { MenuAdminClient } from '@/app/admin/menu/client'
 
 const lanches = { id: 'cat-1', nome: 'Lanches', ordem: 0, produtos: [] }
 const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1, produtos: [] }
+const doces = { id: 'cat-3', nome: 'Doces', ordem: 2, produtos: [] }
 
 beforeEach(() => {
   state.categoryProps = undefined
   vi.clearAllMocks()
 })
 afterEach(cleanup)
-```
 
-Add the parent-state cases:
+describe('MenuAdminClient category selection', () => {
+  it('uses unique empty-state copy and an accessible disabled reason', () => {
+    render(createElement(MenuAdminClient, { categorias: [] }))
 
-```ts
-it('starts empty with Novo produto disabled and an explicit reason', () => {
-  render(createElement(MenuAdminClient, { categorias: [] }))
+    const newProduct = screen.getByRole('button', { name: 'Novo produto' })
+    expect(newProduct).toBeDisabled()
+    expect(newProduct).toHaveAccessibleDescription(
+      'Selecione ou crie uma categoria para habilitar Novo produto.'
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Crie sua primeira categoria' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Crie uma categoria para começar a cadastrar produtos.')
+    ).toBeInTheDocument()
+  })
 
-  expect(screen.getByRole('button', { name: 'Novo produto' })).toBeDisabled()
-  expect(screen.getByText('Crie uma categoria antes de adicionar produtos.')).toBeInTheDocument()
-})
+  it('selects the server-created id immediately and opens product form for it', () => {
+    render(createElement(MenuAdminClient, { categorias: [] }))
 
-it('selects the first category from the create response before refreshed props arrive', () => {
-  render(createElement(MenuAdminClient, { categorias: [] }))
-
-  act(() => state.categoryProps!.onCreated({ id: 'cat-3', nome: 'Doces' }))
-  const createProduct = screen.getByRole('button', { name: 'Novo produto' })
-  expect(createProduct).toBeEnabled()
-  fireEvent.click(createProduct)
-  expect(screen.getByTestId('product-form')).toHaveAttribute('data-category-id', 'cat-3')
-})
-
-it('keeps the selected identity when refreshed props contain the created category', () => {
-  const view = render(createElement(MenuAdminClient, { categorias: [] }))
-  act(() => state.categoryProps!.onCreated({ id: 'cat-3', nome: 'Doces' }))
-
-  view.rerender(
-    createElement(MenuAdminClient, {
-      categorias: [{ id: 'cat-3', nome: 'Doces', ordem: 0, produtos: [] }],
+    act(() => {
+      state.categoryProps!.onCreated({ id: doces.id, nome: doces.nome })
     })
-  )
 
-  expect(state.categoryProps!.selectedId).toBe('cat-3')
+    const newProduct = screen.getByRole('button', { name: 'Novo produto' })
+    expect(newProduct).toBeEnabled()
+    expect(state.categoryProps!.selectedId).toBe(doces.id)
+    fireEvent.click(newProduct)
+    expect(screen.getByTestId('product-form')).toHaveAttribute(
+      'data-category-id',
+      doces.id
+    )
+  })
+
+  it('preserves the created selection when refreshed props contain it', async () => {
+    const view = render(createElement(MenuAdminClient, { categorias: [] }))
+    act(() => {
+      state.categoryProps!.onCreated({ id: doces.id, nome: doces.nome })
+    })
+
+    view.rerender(
+      createElement(MenuAdminClient, { categorias: [doces] })
+    )
+
+    await waitFor(() => expect(state.categoryProps!.selectedId).toBe(doces.id))
+  })
+
+  it('falls forward after deleting a selected middle category', () => {
+    render(
+      createElement(MenuAdminClient, {
+        categorias: [lanches, bebidas, doces],
+      })
+    )
+
+    act(() => state.categoryProps!.onSelect(bebidas.id))
+    act(() => state.categoryProps!.onDeleted(bebidas.id))
+    expect(state.categoryProps!.selectedId).toBe(doces.id)
+  })
+
+  it('falls backward after deleting the selected last category', () => {
+    render(createElement(MenuAdminClient, { categorias: [lanches, bebidas] }))
+
+    act(() => state.categoryProps!.onSelect(bebidas.id))
+    act(() => state.categoryProps!.onDeleted(bebidas.id))
+    expect(state.categoryProps!.selectedId).toBe(lanches.id)
+  })
+
+  it('clears selection after deleting the only category', () => {
+    render(createElement(MenuAdminClient, { categorias: [lanches] }))
+
+    act(() => state.categoryProps!.onDeleted(lanches.id))
+    expect(state.categoryProps!.selectedId).toBe('')
+    expect(screen.getByRole('button', { name: 'Novo produto' })).toBeDisabled()
+  })
+
+  it('falls to the first stable category after an external refresh removes selection', async () => {
+    const view = render(
+      createElement(MenuAdminClient, { categorias: [lanches, bebidas] })
+    )
+    act(() => state.categoryProps!.onSelect(bebidas.id))
+
+    view.rerender(createElement(MenuAdminClient, { categorias: [lanches] }))
+
+    await waitFor(() => expect(state.categoryProps!.selectedId).toBe(lanches.id))
+  })
+
+  it('shows the selected-category product empty state', () => {
+    render(createElement(MenuAdminClient, { categorias: [lanches] }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Nenhum produto nesta categoria' })
+    ).toBeInTheDocument()
+  })
 })
 
-it('falls forward, then backward, then empty when the selected category is deleted', () => {
-  const view = render(createElement(MenuAdminClient, { categorias: [lanches, bebidas] }))
-  expect(state.categoryProps!.selectedId).toBe('cat-1')
+describe('MenuAdminClient product actions', () => {
+  const product = {
+    id: 'prod-1',
+    nome: 'X-Salada',
+    descricao: null,
+    preco: '25.00',
+    imagemUrl: null,
+    disponivel: true,
+  }
 
-  act(() => state.categoryProps!.onDeleted('cat-1'))
-  expect(state.categoryProps!.selectedId).toBe('cat-2')
+  it('names edit, delete, and available-to-unavailable actions beyond color', async () => {
+    render(
+      createElement(MenuAdminClient, {
+        categorias: [{ ...lanches, produtos: [product] }],
+      })
+    )
 
-  view.rerender(createElement(MenuAdminClient, { categorias: [bebidas] }))
-  act(() => state.categoryProps!.onDeleted('cat-2'))
-  expect(state.categoryProps!.selectedId).toBe('')
-  expect(screen.getByRole('button', { name: 'Novo produto' })).toBeDisabled()
-})
+    expect(
+      screen.getByRole('button', { name: 'Editar produto X-Salada' })
+    ).toHaveClass('size-11')
+    expect(
+      screen.getByRole('button', { name: 'Excluir produto X-Salada' })
+    ).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: 'Excluir produto X-Salada' })).toHaveTextContent(
+      'Excluir'
+    )
+    const availability = screen.getByRole('button', {
+      name: 'Tornar X-Salada indisponível',
+    })
+    expect(availability).toHaveClass('min-h-11')
+    expect(availability).toHaveTextContent('Tornar indisponível')
+    fireEvent.click(availability)
+    await waitFor(() => {
+      expect(productActions.toggleDisponivel).toHaveBeenCalledWith(product.id)
+    })
+  })
 
-it('shows a selected-category product empty state instead of a blank panel', () => {
-  render(createElement(MenuAdminClient, { categorias: [lanches] }))
-  expect(screen.getByText('Nenhum produto nesta categoria')).toBeInTheDocument()
-})
-```
-
-Add a product fixture to the same file and assert semantic labels rather than colors alone:
-
-```ts
-it('names product edit, delete, and reversible availability actions', () => {
-  render(
-    createElement(MenuAdminClient, {
-      categorias: [{
-        ...lanches,
-        produtos: [{
-          id: 'prod-1',
-          nome: 'X-Salada',
-          descricao: null,
-          preco: '25.00',
-          imagemUrl: null,
-          disponivel: true,
+  it('names the unavailable-to-available action explicitly', () => {
+    render(
+      createElement(MenuAdminClient, {
+        categorias: [{
+          ...lanches,
+          produtos: [{ ...product, disponivel: false }],
         }],
-      }],
-    })
-  )
+      })
+    )
 
-  expect(screen.getByRole('button', { name: 'Editar produto X-Salada' })).toHaveClass(
-    '[--button-outline:var(--action-informational)]'
-  )
-  expect(screen.getByRole('button', { name: 'Excluir produto X-Salada' })).toHaveClass(
-    '[--button-outline:var(--action-destructive)]'
-  )
-  expect(screen.getByRole('button', { name: 'Tornar X-Salada indisponível' })).toHaveTextContent(
-    'Tornar indisponível'
-  )
+    expect(
+      screen.getByRole('button', { name: 'Disponibilizar X-Salada' })
+    ).toHaveTextContent('Disponibilizar')
+  })
 })
 ```
 
-If the product fixture has a schema-required field already used by `MenuAdminClient`, add that concrete field to this fixture with its neutral default; do not weaken the production prop type or cast the whole fixture to `any`.
+These tests exercise each deletion fallback independently; they do not compress forward/backward/empty into a rerender sequence that can hide stale state.
 
-- [ ] **Step 2: Tighten the source-structure regression before implementation**
+- [ ] **Step 2: Replace the old source-string menu tests with the real identifier**
 
-Update the menu assertions in `tests/unit/business/admin-management.test.ts`:
+In `tests/unit/business/admin-management.test.ts`, replace the two current menu-specific `it(...)` blocks with:
 
 ```ts
-expect(menu).toContain('<CategoryManager')
-expect(menu).toContain('intent="positive"')
-expect(menu).toContain('aria-describedby=')
-expect(menu).not.toContain('title="Adicionar categoria"')
-expect(menu).not.toContain('title="Gerenciar categoria"')
-expect(menu).not.toContain('Renomear categoria</Button>')
-expect(menu).toContain('Tornar indisponível')
-expect(menu).toContain('Disponibilizar')
+it('uses one progressive category manager without the old category cards', () => {
+  const menuClient = source('app/admin/menu/client.tsx')
+  const categoryManager = source('components/admin/category-manager.tsx')
+
+  expect(menuClient).toContain('<CategoryManager')
+  expect(menuClient).not.toContain('title="Nova categoria"')
+  expect(menuClient).not.toContain('Renomear categoria</Button>')
+  expect(categoryManager).toContain('aria-label="Adicionar categoria"')
+  expect(categoryManager).toContain('aria-label={`Editar categoria ${category.nome}`}')
+  expect(categoryManager).toContain('<TooltipContent>Editar categoria</TooltipContent>')
+  expect(categoryManager).toContain('aria-busy=')
+  expect(categoryManager).toContain('role="alert"')
+})
+
+it('uses real semantic product actions and the existing server names', () => {
+  const menuClient = source('app/admin/menu/client.tsx')
+  const productActions = source('lib/actions/produtos.ts')
+
+  expect(menuClient).toContain('toggleDisponivel')
+  expect(productActions).toContain('editarCategoria')
+  expect(productActions).toContain('removerCategoria')
+  expect(productActions).toContain('removerProduto')
+  expect(productActions).toContain("requireAccess('admin')")
+  expect(menuClient).toContain('Tornar indisponível')
+  expect(menuClient).toContain('Disponibilizar')
+  expect(menuClient).toContain('aria-label={`Editar produto ${p.nome}`}')
+  expect(menuClient).toContain('aria-label={`Excluir produto ${p.nome}`}')
+  expect(menuClient).not.toContain('<Badge')
+})
 ```
 
-- [ ] **Step 3: Run the integration tests to verify RED**
+The local variable is `menuClient` everywhere. Delete the obsolete assertions for `Nome da nova categoria`, `Adicionar Categoria`, the always-visible rename panel, and direct `removerCategoria` imports in the page.
+
+- [ ] **Step 3: Run integration tests and verify RED**
 
 ```powershell
-npm test -- tests/unit/business/admin-menu-client.test.ts tests/unit/business/admin-management.test.ts
+npm test -- tests/unit/business/admin-menu-client.test.ts tests/unit/business/admin-management.test.ts tests/unit/business/category-selection.test.ts
 ```
 
-Expected: FAIL because the page still owns separate add/manage panels, ignores the create response, lacks the new empty-state reason, and uses legacy product variants.
+Expected: FAIL because the page still owns the old forms, ignores the create payload, lacks the helper integration/unique empty copy, and uses native/legacy product controls.
 
-- [ ] **Step 4: Replace scattered category state with selection continuity**
+- [ ] **Step 4: Replace scattered category state with exact selection continuity**
 
-In `app/admin/menu/client.tsx`, import `useEffect`, `CategoryManager`, and `type CreatedCategory`; remove the old new-category, rename-category, and category-delete form state. Add:
+In `app/admin/menu/client.tsx`:
+
+1. Change the React import to `import { useEffect, useState } from 'react'`.
+2. Remove `Input`, `criarCategoria`, `editarCategoria`, and `removerCategoria` imports and their local states/handlers.
+3. Keep the real `removerProduto` and `toggleDisponivel` imports.
+4. Add imports for `CategoryManager`, `CreatedCategory`, and `nextCategoryIdAfterDeletion`.
+
+The resulting local imports are:
+
+```tsx
+import {
+  CategoryManager,
+} from '@/components/admin/category-manager'
+import {
+  removerProduto,
+  toggleDisponivel,
+  type CreatedCategory,
+} from '@/lib/actions/produtos'
+import { nextCategoryIdAfterDeletion } from '@/lib/admin/category-selection'
+```
+
+Use this complete state block after `const router = useRouter()`:
 
 ```tsx
 const [selectedCategoryId, setSelectedCategoryId] = useState(
   categorias[0]?.id ?? ''
 )
+const [formOpen, setFormOpen] = useState(false)
+const [editProduto, setEditProduto] = useState<Produto | undefined>()
 const [pendingCategory, setPendingCategory] = useState<CreatedCategory | null>(null)
+const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
+const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({})
 
-const displayedCategories = pendingCategory &&
+const displayedCategories =
+  pendingCategory &&
   !categorias.some((category) => category.id === pendingCategory.id)
-  ? [
-      ...categorias,
-      {
-        ...pendingCategory,
-        ordem: Number.MAX_SAFE_INTEGER,
-        produtos: [],
-      },
-    ]
-  : categorias
+    ? [
+        ...categorias,
+        {
+          ...pendingCategory,
+          ordem: Number.MAX_SAFE_INTEGER,
+          produtos: [],
+        },
+      ]
+    : categorias
 
 const selectedCategory = displayedCategories.find(
   (category) => category.id === selectedCategoryId
 )
+const produtoCount = selectedCategory?.produtos.length ?? 0
 
 useEffect(() => {
   if (
@@ -2069,40 +2796,71 @@ useEffect(() => {
   }
 
   setSelectedCategoryId((current) => {
-    const stillExists = categorias.some((category) => category.id === current)
-    const isPending = pendingCategory?.id === current
-    return stillExists || isPending ? current : (categorias[0]?.id ?? '')
+    const currentStillExists = categorias.some(
+      (category) => category.id === current
+    )
+    const currentIsPending = pendingCategory?.id === current
+    return currentStillExists || currentIsPending
+      ? current
+      : (categorias[0]?.id ?? '')
   })
 }, [categorias, pendingCategory])
 
-const handleCreated = (created: CreatedCategory) => {
+function handleCreated(created: CreatedCategory) {
   setPendingCategory(created)
   setSelectedCategoryId(created.id)
 }
 
-const handleDeleted = (deletedId: string) => {
+function handleDeleted(deletedId: string) {
   setPendingCategory((current) =>
     current?.id === deletedId ? null : current
   )
-  setSelectedCategoryId((current) => {
-    if (current !== deletedId) return current
-    const index = displayedCategories.findIndex(
-      (category) => category.id === deletedId
-    )
-    return (
-      displayedCategories[index + 1]?.id ??
-      displayedCategories[index - 1]?.id ??
-      ''
-    )
-  })
+  setSelectedCategoryId((current) =>
+    nextCategoryIdAfterDeletion(displayedCategories, deletedId, current)
+  )
 }
 ```
 
-Pass only ordered category fields to the manager and use the existing `router.refresh`:
+Keep `totalProdutos` and `totalDisponiveis` derived from the canonical `categorias` props so an optimistic identity without products does not distort server-backed metrics.
+
+- [ ] **Step 5: Render the one manager and unique empty-state descriptions**
+
+Keep `Novo produto` in `AdminPageHeader`; its action is:
+
+```tsx
+<>
+  <Button
+    type="button"
+    intent="positive"
+    appearance="solid"
+    className="min-h-11 w-full sm:w-auto"
+    aria-describedby={
+      selectedCategory ? undefined : 'novo-produto-disabled-reason'
+    }
+    disabled={!selectedCategory}
+    onClick={() => {
+      setEditProduto(undefined)
+      setFormOpen(true)
+    }}
+  >
+    <Plus aria-hidden="true" />
+    Novo produto
+  </Button>
+  <span id="novo-produto-disabled-reason" className="sr-only">
+    Selecione ou crie uma categoria para habilitar Novo produto.
+  </span>
+</>
+```
+
+Replace the complete old `<aside>` contents with:
 
 ```tsx
 <CategoryManager
-  categorias={displayedCategories.map(({ id, nome, ordem }) => ({ id, nome, ordem }))}
+  categorias={displayedCategories.map(({ id, nome, ordem }) => ({
+    id,
+    nome,
+    ordem,
+  }))}
   selectedId={selectedCategoryId}
   onSelect={setSelectedCategoryId}
   onCreated={handleCreated}
@@ -2111,56 +2869,189 @@ Pass only ordered category fields to the manager and use the existing `router.re
 />
 ```
 
-Remove the old standalone `Adicionar categoria` and `Gerenciar categoria` `AdminPanel`s completely. Do not retain hidden duplicate inputs or mutation handlers.
-
-- [ ] **Step 5: Keep Novo produto prominent but valid**
-
-Keep the action in `AdminPageHeader`, not inside `Categorias`:
+Use mutually exclusive product-area states with distinct copy:
 
 ```tsx
-<Button
-  type="button"
-  intent="positive"
-  appearance="solid"
-  className="min-h-11"
-  aria-describedby={selectedCategory ? undefined : 'novo-produto-sem-categoria'}
-  disabled={!selectedCategory}
-  onClick={() => setFormOpen(true)}
->
-  <Plus aria-hidden="true" />
-  Novo produto
-</Button>
-<span id="novo-produto-sem-categoria" className="sr-only">
-  Crie uma categoria antes de adicionar produtos.
-</span>
+{!selectedCategory ? (
+  <AdminEmptyState
+    title="Crie sua primeira categoria"
+    description="Crie uma categoria para começar a cadastrar produtos."
+  />
+) : produtoCount === 0 ? (
+  <AdminEmptyState
+    title="Nenhum produto nesta categoria"
+    description="Use Novo produto para cadastrar o primeiro item desta categoria."
+    action={
+      <Button
+        type="button"
+        intent="positive"
+        appearance="soft"
+        className="min-h-11"
+        onClick={() => {
+          setEditProduto(undefined)
+          setFormOpen(true)
+        }}
+      >
+        <Plus aria-hidden="true" />
+        Adicionar primeiro produto
+      </Button>
+    }
+  />
+) : (
+  <div className="space-y-2">
+    {selectedCategory.produtos.map((p) => (
+      <div
+        key={p.id}
+        className="grid gap-3 rounded-[var(--radius)] border bg-card px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      >
+        <div className="flex min-w-0 gap-3">
+          <div className="relative flex h-12 w-12 shrink-0 select-none items-center justify-center overflow-hidden rounded-[var(--radius)] bg-muted text-xl">
+            <span aria-hidden="true">🍕</span>
+            {p.imagemUrl && !brokenImages[p.id] ? (
+              <img
+                src={p.imagemUrl}
+                alt=""
+                className={`absolute inset-0 h-full w-full object-cover ${
+                  loadedImages[p.id] ? 'block' : 'hidden'
+                }`}
+                onLoad={() => {
+                  setLoadedImages((current) => ({ ...current, [p.id]: true }))
+                }}
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                  setBrokenImages((current) => ({ ...current, [p.id]: true }))
+                }}
+              />
+            ) : null}
+          </div>
+          <div className="min-w-0">
+            <p className="break-words text-sm font-medium">{p.nome}</p>
+            <p className="text-sm text-muted-foreground">
+              R$ {parseFloat(p.preco).toFixed(2)}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Button
+            type="button"
+            intent={p.disponivel ? 'warning' : 'positive'}
+            appearance="soft"
+            className="min-h-11"
+            aria-pressed={p.disponivel}
+            aria-label={
+              p.disponivel
+                ? `Tornar ${p.nome} indisponível`
+                : `Disponibilizar ${p.nome}`
+            }
+            onClick={() => handleToggleProduto(p)}
+          >
+            {p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}
+          </Button>
+          <Button
+            type="button"
+            intent="informational"
+            appearance="ghost"
+            size="icon"
+            className="size-11"
+            aria-label={`Editar produto ${p.nome}`}
+            onClick={() => {
+              setEditProduto(p)
+              setFormOpen(true)
+            }}
+          >
+            <Pencil aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            intent="destructive"
+            appearance="soft"
+            className="min-h-11"
+            aria-label={`Excluir produto ${p.nome}`}
+            onClick={() => handleRemoveProduto(p)}
+          >
+            Excluir
+          </Button>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
 ```
 
-Render `ProdutoForm` only with `categoriaId={selectedCategory.id}`. The pending created object counts as a selected category immediately, so the first category unlocks this action before router refresh completes.
+- [ ] **Step 6: Replace the product action block with real handlers and labels**
 
-When there is no selected category, show `AdminEmptyState` with heading `Crie sua primeira categoria` and body `Crie uma categoria antes de adicionar produtos.` When a selected category has no products, show heading `Nenhum produto nesta categoria` and an action that opens the same new-product form.
+Inside the existing `selectedCategory.produtos.map((p) => ...)` card, replace only the action-controls `<div>` with:
 
-- [ ] **Step 6: Apply semantic product actions without changing business handlers**
+```tsx
+<div className="flex flex-wrap items-center gap-2 sm:justify-end">
+  <Button
+    type="button"
+    intent={p.disponivel ? 'warning' : 'positive'}
+    appearance="soft"
+    className="min-h-11"
+    aria-pressed={p.disponivel}
+    aria-label={
+      p.disponivel
+        ? `Tornar ${p.nome} indisponível`
+        : `Disponibilizar ${p.nome}`
+    }
+    onClick={() => handleToggleProduto(p)}
+  >
+    {p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}
+  </Button>
+  <Button
+    type="button"
+    intent="informational"
+    appearance="ghost"
+    size="icon"
+    className="size-11"
+    aria-label={`Editar produto ${p.nome}`}
+    onClick={() => {
+      setEditProduto(p)
+      setFormOpen(true)
+    }}
+  >
+    <Pencil aria-hidden="true" />
+  </Button>
+  <Button
+    type="button"
+    intent="destructive"
+    appearance="soft"
+    className="min-h-11"
+    aria-label={`Excluir produto ${p.nome}`}
+    onClick={() => handleRemoveProduto(p)}
+  >
+    Excluir
+  </Button>
+</div>
+```
 
-Use these exact controls in each product row/card:
+Keep the existing functions and call `toggleDisponivel(produto.id)` inside `handleToggleProduto`; do not rename the import or action. The availability control exposes current state through `aria-pressed` and next action through explicit text, so color is never the only signal.
 
-| Action | Accessible label / visible text | Intent / appearance / target |
-| --- | --- | --- |
-| Edit | `Editar produto ${produto.nome}` | `informational + ghost`, `size-11` pencil |
-| Delete | `Excluir produto ${produto.nome}` | `destructive + soft`, keep confirmation |
-| Available → unavailable | aria-label `Tornar ${produto.nome} indisponível`; text `Tornar indisponível` | `warning + soft` |
-| Unavailable → available | aria-label `Disponibilizar ${produto.nome}`; text `Disponibilizar` | `positive + soft` |
+Render the product form only for a real or optimistic selected identity:
 
-Do not use generic text such as `Alterar status`; wording and icon/state must make the meaning available without color. Preserve the current `editarProduto`, `removerProduto`, and `alternarDisponibilidade` calls and their current pending/error behavior.
+```tsx
+{selectedCategory ? (
+  <ProdutoForm
+    key={editProduto?.id ?? 'new'}
+    open={formOpen}
+    onClose={() => setFormOpen(false)}
+    categoriaId={selectedCategory.id}
+    produto={editProduto}
+  />
+) : null}
+```
 
-- [ ] **Step 7: Verify GREEN and focused regressions**
+- [ ] **Step 7: Verify GREEN and every parent transition**
 
 ```powershell
-npm test -- tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager.test.ts tests/unit/business/admin-management.test.ts tests/unit/actions/produtos.test.ts
+npm test -- tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager.test.ts tests/unit/business/category-selection.test.ts tests/unit/business/admin-management.test.ts tests/unit/actions/produtos.test.ts
 ```
 
-Expected: PASS for zero-category state, immediate server-ID selection, refresh continuity, forward/back/empty deletion fallback, product empty state, semantic labels, progressive editor behavior, and action boundary validation.
+Expected: PASS for unique zero-state copy, immediate first-ID selection, refresh continuity, external-removal fallback, forward/backward/empty deletion, product empty state, semantic labels, the real `toggleDisponivel` name, manager transitions, and server ordering.
 
-- [ ] **Step 8: Commit the page integration**
+- [ ] **Step 8: Commit the integration work unit**
 
 ```powershell
 git add -- app/admin/menu/client.tsx tests/unit/business/admin-menu-client.test.ts tests/unit/business/admin-management.test.ts
@@ -2168,7 +3059,6 @@ git commit -m "feat(admin): integrate progressive category management"
 ```
 
 ---
-
 ### Task 9: Document the action contract and verify the complete change
 
 **Files:**
@@ -2252,7 +3142,7 @@ git commit -m "docs: document semantic action system"
 - [ ] **Step 6: Run the focused feature suite**
 
 ```powershell
-npm test -- tests/unit/ui/button.test.ts tests/unit/ui/tooltip.test.ts tests/unit/actions/produtos.test.ts tests/unit/design/design-system.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/admin-management.test.ts tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts
+npm test -- tests/unit/ui/button.test.ts tests/unit/ui/tooltip.test.ts tests/unit/actions/produtos.test.ts tests/unit/design/design-system.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/admin-management.test.ts tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager.test.ts tests/unit/business/category-selection.test.ts tests/unit/business/waiter-cart-actions.test.ts tests/unit/business/waiter-order-actions.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts
 ```
 
 Expected: all listed files PASS. Fix feature regressions before proceeding; do not delete an assertion merely to make the suite green.
@@ -2274,35 +3164,120 @@ Expected:
 Use `npx.cmd`, not `npx`, because the PowerShell execution policy blocks the `.ps1` shim in this environment.
 The recorded `package.json` has no `lint` script. Do not invent or report a lint gate; rely on the configured Vitest, Next build, TypeScript, browser, and Git checks unless a separate lint work unit is approved.
 
-- [ ] **Step 8: Verify the real UI at desktop and mobile widths**
+- [ ] **Step 8: Verify the real UI with a disposable database and explicit fixtures**
 
-Seed and start the existing local app in separate PowerShell terminals:
+Never point this verification at `dev.db`. In the first PowerShell terminal, create an isolated database under the OS temp directory and record the development DB hash only as a non-mutation guard:
 
 ```powershell
-$env:DATABASE_URL='file:./dev.db'; npm run db:seed
-$env:DATABASE_URL='file:./dev.db'; npm run dev
+$fixtureRoot = Join-Path $env:TEMP 'restaurante-comandas-semantic-actions'
+New-Item -ItemType Directory -Force $fixtureRoot | Out-Null
+$dbPath = Join-Path $fixtureRoot 'browser.db'
+foreach ($artifact in @($dbPath, "$dbPath-wal", "$dbPath-shm")) {
+  if (Test-Path -LiteralPath $artifact) {
+    Remove-Item -LiteralPath $artifact -Force
+  }
+}
+$devDbPath = Join-Path (Get-Location).Path 'dev.db'
+$devDbExistedBefore = Test-Path -LiteralPath $devDbPath
+$devHashBefore = if ($devDbExistedBefore) {
+  (Get-FileHash -LiteralPath $devDbPath -Algorithm SHA256).Hash
+} else {
+  $null
+}
+$env:DATABASE_URL = "file:$dbPath"
+npm run db:push
+npm run db:seed
 ```
 
-Use Playwright or the in-app browser against the printed localhost URL and sign in with the existing local admin fixture `admin@local.com` / `dev123456`. Do not modify authentication or make admin pages public for verification.
+Expected: `$dbPath` exists and seed output names the temp path. No database command or application server points at `dev.db`; `Get-FileHash` reads it only as the non-mutation guard.
 
-At `/admin/menu`, verify at `1440 × 900` and `390 × 844`:
+Start the app in a second terminal with the same explicit path:
 
-1. `Novo produto` stays in the page header; with zero categories it is disabled and the screen-reader reason exists.
-2. `Adicionar` is a compact detail inside `Categorias`, opens one focused inline input, Enter saves, Escape cancels, and focus returns to Add.
-3. Each static category shows only its name and discreet pencil; tooltip escapes the clipped panel; keyboard focus remains visible.
-4. Rename keeps a failed draft and inline `role="alert"`; Save/Delete controls expose busy and disabled states.
-5. Deleting a category with products leaves the editor open with `Remova os produtos antes de excluir a categoria`.
-6. Creating the first category selects the returned identity immediately and enables `Novo produto` for it.
-7. Long category/product names wrap without horizontal overflow; zero-category and zero-product states remain explicit.
-8. Semantic actions remain understandable with color ignored: wording, icon, label, confirmation, and disabled/busy state carry the meaning.
-9. Inspect computed colors/contrast for representative positive, informational, warning, destructive, and focus-ring states against their actual surfaces.
+```powershell
+$fixtureRoot = Join-Path $env:TEMP 'restaurante-comandas-semantic-actions'
+$dbPath = Join-Path $fixtureRoot 'browser.db'
+$env:DATABASE_URL = "file:$dbPath"
+npm run dev
+```
 
-In Chromium DevTools Rendering, repeat the representative action check with `Emulate vision deficiencies` set to protanopia and then deuteranopia; labels, icons, confirmations, and selected/busy states must still distinguish every action without relying on hue.
+Use Playwright or the in-app browser at the printed localhost URL. Sign in with the disposable seeded admin fixture `admin@local.com` / `dev123456`. Verify at `1440 × 900` and `390 × 844` in this order:
 
-Then spot-check one representative screen in admin tables/users, waiter cart/order, cashier payments, sign-in/profile/logout, and no-access/company selection. The kitchen screen has no shared action-button surface in the recorded base, so there is no fabricated kitchen migration. Preserve its existing order-state behavior.
+**Fixture A — populated:** the seed explicitly creates `Cozinha` with `Lasanha Bolonhesa` and other products.
 
-Do not use the full Chromium E2E suite as the acceptance gate for this feature: the recorded base already has five stale kitchen tests that assume unauthenticated public access and three passing waiter tests. If the suite is run for extra evidence, report that baseline split honestly and do not alter auth to satisfy stale fixtures.
+1. `/admin/menu` shows categories/products without horizontal overflow.
+2. `Novo produto` remains in the page header.
+3. Availability uses explicit `Tornar indisponível` / `Disponibilizar` wording and not color alone.
+4. Product edit pencil and every category pencil have visible focus, object-specific accessible names, and measured `44 × 44px` targets.
 
+**Fixture B — protected deletion failure:** still on the populated database, open the `Cozinha` pencil, choose `Excluir`, and confirm.
+
+1. The editor remains open.
+2. `Remova os produtos antes de excluir a categoria` appears inline with `role="alert"`.
+3. The category draft is preserved and the action is no longer busy after rejection.
+
+Stop the dev server before changing fixture state. In the first terminal, convert only the disposable database to the empty fixture:
+
+```powershell
+$fixtureRoot = Join-Path $env:TEMP 'restaurante-comandas-semantic-actions'
+$dbPath = Join-Path $fixtureRoot 'browser.db'
+@"
+const Database = require('better-sqlite3')
+const path = process.argv[2]
+const db = new Database(path)
+db.pragma('foreign_keys = ON')
+const tenantId = '00000000-0000-4000-8000-000000000001'
+db.transaction(() => {
+  db.prepare('DELETE FROM produto WHERE tenant_id = ?').run(tenantId)
+  db.prepare('DELETE FROM categoria WHERE tenant_id = ?').run(tenantId)
+})()
+db.close()
+"@ | node - "$dbPath"
+```
+
+Restart `npm run dev` with the same temp `DATABASE_URL`, sign in again, and verify:
+
+**Fixture C — empty:**
+
+1. The category panel keeps `Adicionar` visible with its local guidance.
+2. The product area shows `Crie sua primeira categoria` and the distinct description `Crie uma categoria para começar a cadastrar produtos.`
+3. Header `Novo produto` is disabled and its accessible description is `Selecione ou crie uma categoria para habilitar Novo produto.`
+
+**Fixture D — first category created through the real UI:**
+
+1. Activate `Adicionar`, confirm immediate input focus, and enter `Sobremesas artesanais da casa para compartilhar`.
+2. Press Enter once. While pending, the form announces busy and blocks a second submit.
+3. After success, focus returns to `Adicionar`, the returned identity is selected immediately, and header `Novo produto` becomes enabled without manual category selection.
+4. The long name wraps without pushing the 44px pencil outside the panel.
+5. Open the pencil: the portal tooltip is not clipped. Replace the name with spaces and submit to produce `Informe o nome da categoria`; confirm the draft/editor remains with `role="alert"`. Then restore a valid name, save once, and confirm busy plus pencil-focus restoration. Reopen and use Escape to confirm the same focus fallback.
+6. The new category has no products, so `Nenhum produto nesta categoria` and `Adicionar primeiro produto` are visible.
+
+Across both viewports, keyboard through every category/create/edit/delete control, confirm one editor at a time, and check that labels/icons/state still distinguish actions with color ignored. In Chromium DevTools Rendering, repeat representative positive/informational/warning/destructive checks with protanopia and deuteranopia emulation. Inspect computed contrast for text (≥4.5:1) and interactive borders/icons/focus (≥3:1).
+
+Before cleanup, spot-check representative admin, waiter, kitchen, cashier, sign-in/profile/logout, no-access, and company-selection screens using the same disposable database. Kitchen has no shared action-button surface in the recorded base; preserve its order-state behavior rather than inventing controls.
+
+Stop the server, verify the development database hash, then remove only the validated temp fixture directory:
+
+```powershell
+if ($devDbExistedBefore) {
+  $devHashAfter = (Get-FileHash -LiteralPath $devDbPath -Algorithm SHA256).Hash
+  if ($devHashAfter -ne $devHashBefore) {
+    throw 'dev.db changed during disposable browser verification'
+  }
+} elseif (Test-Path -LiteralPath $devDbPath) {
+  throw 'dev.db was created during disposable browser verification'
+}
+$resolvedFixture = (Resolve-Path -LiteralPath $fixtureRoot).Path
+$resolvedTemp = (Resolve-Path -LiteralPath $env:TEMP).Path
+if (-not $resolvedFixture.StartsWith(
+  $resolvedTemp + [IO.Path]::DirectorySeparatorChar,
+  [StringComparison]::OrdinalIgnoreCase
+)) {
+  throw "Refusing to remove fixture outside TEMP: $resolvedFixture"
+}
+Remove-Item -LiteralPath $resolvedFixture -Recurse -Force
+```
+
+Do not use the full Chromium suite as this feature's acceptance gate: the recorded base already has five stale kitchen tests that assume unauthenticated public access and three passing waiter tests. If run for extra evidence, report that baseline split honestly; never weaken auth to satisfy stale fixtures.
 - [ ] **Step 9: Audit the feature range, generated artifacts, and worktree**
 
 ```powershell
