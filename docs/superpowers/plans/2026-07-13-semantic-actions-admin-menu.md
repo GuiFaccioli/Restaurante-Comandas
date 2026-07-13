@@ -18,7 +18,7 @@
 - `warning` means a rare reversible operational disruption, including making a product unavailable.
 - `destructive` means deleting, removing, or canceling an existing persisted business object or order.
 - A dismissive `Cancelar` is neutral; `Cancelar pedido` remains destructive.
-- Use the approved colors exactly: positive `#15803d` / hover `#166534`, destructive `#b42318`, informational `#175cd3` / hover `#1849a9`, warning `#fde68a` with `#713f12`, and focus ring `#007f62`.
+- Use the approved colors exactly: positive `#15803d` / hover `#166534`, destructive `#b42318`, informational `#175cd3` / hover `#1849a9`, warning solid `#fde68a` with `#713f12`, warning soft `#fffbeb` with `#92400e`, warning outline `#b45309`, and focus ring `#007f62`.
 - Body text must reach `4.5:1`; interactive borders, icons, and focus indicators must reach `3:1` against adjacent surfaces.
 - Color must always be accompanied by wording, iconography, accessible state, or another non-color cue.
 - Preserve routes, tenant checks, auth, order/payment/preparation/delivery rules, SSE/polling behavior, and existing confirmations.
@@ -81,7 +81,9 @@
 - `tests/unit/actions/produtos.test.ts` — server-boundary normalization and rejection.
 - `components/admin/admin-page.tsx` — optional action slot in `AdminPanel` header.
 - `components/admin/category-manager.tsx` — exclusive inline create/edit/delete state, focus, pending, errors, and tooltip.
-- `tests/unit/business/category-manager.test.ts` — component interaction and accessibility behavior.
+- `tests/unit/business/category-manager-create.test.ts` — creation, empty, focus, busy, and error behavior.
+- `tests/unit/business/category-manager-edit.test.ts` — exclusive rename, tooltip, keyboard, busy, and focus behavior.
+- `tests/unit/business/category-manager-delete.test.ts` — confirmation, deletion focus, error, and duplicate-submit behavior.
 - `lib/admin/category-selection.ts` — pure next/previous/empty selection fallback after deletion.
 - `tests/unit/business/category-selection.test.ts` — deterministic deletion-selection transitions.
 - `app/admin/menu/client.tsx` — integrate CategoryManager, optimistic created selection, product actions, and empty states.
@@ -119,37 +121,155 @@ export type CategoryEditorState =
 
 `ButtonStyleProps` is a discriminated union: semantic callers may provide `intent` and `appearance` but not `variant`; legacy callers may provide `variant` but not semantic props. `CategoryManager` consumes ordered `{ id, nome, ordem }[]` rows and callbacks for select/create/delete/refresh; it does not own product state.
 
-## Recorded Feature Base
+## Delivery Gate and Recorded Feature Base
 
-Before Task 1 changes a file, record the exact base commit inside Git metadata:
+**Do not execute any implementation task until the user explicitly confirms the `feature-branch-chain` delivery strategy.** Planning approval alone is not delivery approval. After confirmation, create the tracker from an updated `main`, push it, and record that exact base:
 
 ```powershell
+git switch main
+git pull --ff-only
+git switch -c semantic-actions-admin-menu
+git push -u origin semantic-actions-admin-menu
 git rev-parse HEAD | Set-Content .git/semantic-actions-admin-menu.base
 Get-Content .git/semantic-actions-admin-menu.base
+@'
+param(
+  [Parameter(Mandatory = $true)][string]$ParentBranch,
+  [Parameter(Mandatory = $true)][string]$ChildBranch
+)
+$numstat = git diff --numstat "$ParentBranch...$ChildBranch"
+$sum = ($numstat | ForEach-Object {
+  $parts = $_ -split "`t"
+  if ($parts[0] -match '^\d+$' -and $parts[1] -match '^\d+$') {
+    [int]$parts[0] + [int]$parts[1]
+  } else {
+    0
+  }
+} | Measure-Object -Sum).Sum
+$changedLines = if ($null -eq $sum) { 0 } else { [int]$sum }
+if ($changedLines -gt 400) {
+  throw "Slice has $changedLines changed lines; split it before push/PR"
+}
+git diff --check "$ParentBranch...$ChildBranch"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+git diff --stat "$ParentBranch...$ChildBranch"
+Write-Host "Changed lines: $changedLines"
+'@ | Set-Content .git/check-semantic-actions-slice.ps1
 ```
 
-Expected: one 40-character commit hash. Keep this untracked marker through final verification. Range audits use `$(Get-Content .git/semantic-actions-admin-menu.base)..HEAD`; never assume a fixed number of commits because review fixes may add precise conventional commits.
+Expected: the tracker has no feature changes, its upstream is `origin/semantic-actions-admin-menu`, the base marker contains one 40-character hash, and the budget checker exists only under `.git`. Keep both metadata files untracked. Only the accumulated tracker will eventually target `main`.
 
 ## Review Workload Forecast
 
-This change is high-risk for the repository's 400-changed-line review budget. Do not claim an exact total before implementation: migrations of existing JSX may shrink or expand after formatting. Use a **feature-branch-chain** rooted at tracker `semantic-actions-admin-menu`: PR 1 targets the tracker, every later child targets its immediate predecessor so each review diff stays focused, and only the accumulated tracker ultimately targets `main`. Measure every child with `git diff --stat <parent>...HEAD` and keep it targeted at `≤400` changed lines. If a measured child exceeds the target, stop before opening the PR and split that child at the nearest behavior/test boundary.
+The implementation is exactly 12 autonomous child slices. Each child starts from the preceding child branch, keeps its tests with its behavior, and must measure `≤400` added-plus-deleted lines against its immediate parent before its PR is opened. The table is executable: every row names the plan steps, exact branch base/head, one commit, and its focused gate.
 
-| # | Child branch boundary | Autonomous, testable result | Required targeted gate |
-| --- | --- | --- | --- |
-| 1 | `semantic-actions/tokens` | Accessible semantic/focus tokens with contrast regression | design-system token tests |
-| 2 | `semantic-actions/button-api` | `intent + appearance`, alias resolver, type fixture, rendered matrix | Button/unit/type checks |
-| 3 | `semantic-actions/admin-controls` | Product/table/user admin create-save-toggle actions migrated | admin-management tests |
-| 4 | `semantic-actions/auth-overlays` | Auth/access/profile plus Dialog/Sheet neutral actions and 44px close targets | auth/routing tests |
-| 5 | `semantic-actions/waiter-cart` | Item card, observation, cart, and cart navigation semantics/labels/busy | button-semantics focused tests |
-| 6 | `semantic-actions/waiter-orders` | Back, order cancel/inspect/deliver, and pending-delivery semantics/busy | table-order tests |
-| 7 | `semantic-actions/cashier` | Cashier inspection/payment/dismiss semantics and announced pending form | cashier-order tests |
-| 8 | `semantic-actions/tooltip` | Portal Tooltip primitive and accessibility regression | Tooltip test |
-| 9 | `semantic-actions/category-boundary` | Trim/blank handling with tenant max-order append preserved | produtos action tests |
-| 10 | `semantic-actions/category-editor` | Complete CategoryManager create/edit state, focus, errors, and busy behavior | CategoryManager create/edit cases |
-| 11 | `semantic-actions/category-delete` | Guarded delete, next/previous/Add focus, and pure selection fallback | CategoryManager deletion + selection tests |
-| 12 | `semantic-actions/menu-integration` | Parent reconciliation, product semantics, empty states, DESIGN contract, and final audits | menu/design focused suite, full gates, browser fixtures |
+| # | Parent / PR base | Child / PR head | Plan work and exact commit | Required targeted gate |
+| --- | --- | --- | --- | --- |
+| 1 | `semantic-actions-admin-menu` | `semantic-actions/01-sse-prerequisite` | Task 0; `test(sse): use typed kitchen event fixture` | SSE Vitest, TypeScript, build |
+| 2 | `semantic-actions/01-sse-prerequisite` | `semantic-actions/02-action-tokens-docs` | Task 1 token/documentation steps; `feat(ui): add semantic action tokens` | design-system tests |
+| 3 | `semantic-actions/02-action-tokens-docs` | `semantic-actions/03-button-api` | Task 1 Button steps; `feat(ui): add semantic action buttons` | Button/unit/type checks |
+| 4 | `semantic-actions/03-button-api` | `semantic-actions/04-admin-auth-actions` | Task 2 plus the menu product-action block; `refactor(actions): apply administrative action semantics` | admin/auth/routing tests |
+| 5 | `semantic-actions/04-admin-auth-actions` | `semantic-actions/05-waiter-cart` | Task 3 cart steps; `refactor(waiter): apply semantic cart actions` | waiter-cart tests |
+| 6 | `semantic-actions/05-waiter-cart` | `semantic-actions/06-waiter-orders` | Task 3 order steps; `refactor(waiter): apply semantic order actions` | waiter-order tests |
+| 7 | `semantic-actions/06-waiter-orders` | `semantic-actions/07-cashier-disclosure` | Task 3 cashier/AdminStatCard steps; `refactor(cashier): apply semantic payment and disclosure actions` | cashier and disclosure tests |
+| 8 | `semantic-actions/07-cashier-disclosure` | `semantic-actions/08-category-foundations` | Tasks 4–5; `feat(categories): add accessible management foundations` | Tooltip and category-action tests |
+| 9 | `semantic-actions/08-category-foundations` | `semantic-actions/09-category-create` | Task 6 create steps; `feat(admin): add inline category creation` | category-create tests |
+| 10 | `semantic-actions/09-category-create` | `semantic-actions/10-category-edit` | Task 6 edit steps; `feat(admin): add inline category editing` | category-edit tests |
+| 11 | `semantic-actions/10-category-edit` | `semantic-actions/11-category-delete` | Task 6 delete plus Task 7; `feat(admin): add guarded category deletion` | category-delete/selection tests |
+| 12 | `semantic-actions/11-category-delete` | `semantic-actions/12-menu-integration` | Tasks 8–9 integration/verification; `feat(admin): integrate progressive category management` | menu suite, full gates, browser fixtures |
 
-Each child includes its production code and the tests that first failed for that behavior. The tracker accumulates the verified children; only the tracker targets `main`. Tasks below show the complete end state, while these boundaries govern commits/PRs during apply. Record the measured stat for every child in its PR; `≤400` is a target enforced from evidence, not an unsupported forecast.
+Each task below contains the exact `git switch`, commit, push, and `gh pr create` commands for its row. Immediately after that task assigns its exact `$parentBranch` and `$childBranch`, and before its push/PR, run this changed-line budget gate:
+
+```powershell
+$numstat = git diff --numstat "$parentBranch...$childBranch"
+$changedLines = ($numstat | ForEach-Object {
+  $parts = $_ -split "`t"
+  if ($parts[0] -match '^\d+$' -and $parts[1] -match '^\d+$') {
+    [int]$parts[0] + [int]$parts[1]
+  } else {
+    0
+  }
+} | Measure-Object -Sum).Sum
+if ($changedLines -gt 400) {
+  throw "Slice has $changedLines changed lines; split it before push/PR"
+}
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+```
+
+Expected: `git diff --check` is silent and `$changedLines` is at most `400`. If it exceeds `400`, stop before push/PR and revise the plan boundary; do not silently create a thirteenth slice or claim the table is still accurate. Review targeted PRs independently, then merge **from slice 12 back toward slice 1** so each reviewed child accumulates into its parent. Only after slice 1 has accumulated into `semantic-actions-admin-menu` may the tracker open one final integration PR to `main`; no child branch targets `main`.
+
+---
+
+### Task 0: Repair the typed SSE fixture prerequisite
+
+**Files:**
+- Modify: `tests/unit/sse.test.ts:15-21`
+
+**Interfaces:**
+- Preserves the production `KitchenEvent` contract in `lib/sse.ts`.
+- Removes the real build-blocking `TS2322` without changing `tsconfig.json`, `next.config.ts`, or production SSE behavior.
+
+- [ ] **Step 0: Create autonomous slice 1 from the tracker**
+
+```powershell
+git switch semantic-actions-admin-menu
+git switch -c semantic-actions/01-sse-prerequisite
+```
+
+Expected: `git branch --show-current` prints `semantic-actions/01-sse-prerequisite`.
+
+- [ ] **Step 1: Verify the exact RED type failure**
+
+```powershell
+npx.cmd tsc --noEmit --pretty false
+```
+
+Expected: exit `1` with exactly this feature prerequisite diagnostic:
+
+```text
+tests/unit/sse.test.ts(17,93): error TS2322: Type 'string' is not assignable to type '{ nome: string; quantidade: number; categoriaNome?: string | null | undefined; observacao?: string | null | undefined; }'.
+```
+
+- [ ] **Step 2: Correct only the invalid test fixture**
+
+In the first test, replace the `notifyKitchen` call with the real `KitchenEvent` item shape:
+
+```ts
+notifyKitchen({
+  type: 'novo_pedido',
+  payload: {
+    pedidoId: 'abc',
+    mesaNumero: 4,
+    itens: [{ nome: 'Margherita', quantidade: 1 }],
+  },
+})
+```
+
+Do not widen `KitchenEvent`, cast the fixture, exclude tests from TypeScript, or enable `ignoreBuildErrors`; the string array is the defect.
+
+- [ ] **Step 3: Verify the fixture, typecheck, and real Next build are GREEN**
+
+```powershell
+npm test -- tests/unit/sse.test.ts
+npx.cmd tsc --noEmit --pretty false
+npm run build
+```
+
+Expected: the SSE test passes, TypeScript exits `0` without diagnostics, and the Next production build exits `0`.
+
+- [ ] **Step 4: Commit and hand off autonomous slice 1**
+
+```powershell
+git add -- tests/unit/sse.test.ts
+git commit -m "test(sse): use typed kitchen event fixture"
+$parentBranch = 'semantic-actions-admin-menu'
+$childBranch = 'semantic-actions/01-sse-prerequisite'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "test(sse): use typed kitchen event fixture" --body "Slice 1/12. TypeScript and Next build prerequisite."
+```
+
+The checker in Step 4 must report at most `400` changed lines before push/PR.
 
 ---
 
@@ -163,18 +283,21 @@ Each child includes its production code and the tests that first failed for that
 - Modify: `tests/unit/design/design-system.test.ts:10-45`
 - Modify: `tests/unit/design/button-semantics.test.ts:10-18`
 - Modify: `tests/unit/business/admin-management.test.ts:126-145`
+- Modify: `DESIGN.md`
 
 **Interfaces:**
 - Consumes: existing Base UI `Button`, CVA, Tailwind 4, `cn`, and current legacy `variant` callers.
 - Produces: `Button`, `buttonVariants`, `ButtonProps`, `ButtonStyleProps`, `ButtonIntent`, `ButtonAppearance`, and `LegacyButtonVariant` with the signatures documented above.
 
-- [ ] **Step 0: Create the new test directories explicitly**
+- [ ] **Step 0: Create autonomous slice 2 and the new test directories**
 
 ```powershell
+git switch semantic-actions/01-sse-prerequisite
+git switch -c semantic-actions/02-action-tokens-docs
 New-Item -ItemType Directory -Force tests/unit/ui, tests/types | Out-Null
 ```
 
-Expected: both directories exist. Do not add placeholder files; the next step creates their tracked tests.
+Expected: the current branch is `semantic-actions/02-action-tokens-docs` and both directories exist. Do not add placeholder files; the next step creates their tracked tests.
 
 - [ ] **Step 1: Write failing rendered and token tests**
 
@@ -383,27 +506,29 @@ it('defines accessible semantic action and focus tokens', () => {
   expect(token(css, 'action-positive-hover')).toBe('#166534')
   expect(token(css, 'action-informational')).toBe('#175cd3')
   expect(token(css, 'action-warning')).toBe('#fde68a')
-  expect(token(css, 'action-warning-foreground')).toBe('#713f12')
+  expect(token(css, 'action-warning-solid-foreground')).toBe('#713f12')
+  expect(token(css, 'action-warning-soft')).toBe('#fffbeb')
+  expect(token(css, 'action-warning-soft-foreground')).toBe('#92400e')
   expect(token(css, 'action-destructive')).toBe('#b42318')
   expect(token(css, 'focus-ring')).toBe('#007f62')
 
   expect(contrast(token(css, 'action-positive'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
   expect(contrast(token(css, 'action-informational'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
   expect(
-    contrast(token(css, 'action-warning-foreground'), token(css, 'action-warning'))
+    contrast(token(css, 'action-warning-solid-foreground'), token(css, 'action-warning'))
   ).toBeGreaterThanOrEqual(4.5)
   expect(contrast(token(css, 'action-destructive'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
   const hoverPairs = [
     ['action-positive-hover', '#ffffff'],
     ['action-informational-hover', '#ffffff'],
-    ['action-warning-foreground', token(css, 'action-warning-hover')],
+    ['action-warning-solid-foreground', token(css, 'action-warning-hover')],
     ['action-destructive-hover', '#ffffff'],
   ] as const
   const softPairs = [
     ['action-neutral-foreground', 'action-neutral-soft'],
     ['action-positive-foreground', 'action-positive-soft'],
     ['action-informational-foreground', 'action-informational-soft'],
-    ['action-warning-foreground', 'action-warning-soft'],
+    ['action-warning-soft-foreground', 'action-warning-soft'],
     ['action-destructive-foreground', 'action-destructive-soft'],
     ['action-disabled-foreground', 'action-disabled'],
   ] as const
@@ -454,7 +579,7 @@ npm test -- tests/unit/ui/button.test.ts tests/unit/design/design-system.test.ts
 npx.cmd tsc --noEmit --pretty false
 ```
 
-Expected: Vitest FAIL because semantic props are not translated into classes, `#007f62` and the new action tokens do not exist, and the alias map is absent. TypeScript also reports a new `tests/types/button-props.ts` export/contract diagnostic in addition to the recorded unrelated `tests/unit/sse.test.ts(17,93)` baseline.
+Expected: Vitest FAIL because semantic props are not translated into classes, `#007f62` and the new action tokens do not exist, and the alias map is absent. TypeScript reports only the new `tests/types/button-props.ts` export/contract diagnostic; Task 0 already removed the SSE fixture diagnostic.
 
 - [ ] **Step 3: Add exact semantic CSS tokens**
 
@@ -501,7 +626,7 @@ Replace the current action/focus declarations in `:root` with this exact semanti
 --action-warning-solid-foreground: #713f12;
 --action-warning-soft: #fffbeb;
 --action-warning-soft-hover: #fef3c7;
---action-warning-foreground: #713f12;
+--action-warning-soft-foreground: #92400e;
 --action-warning-outline: #b45309;
 
 --action-destructive: #b42318;
@@ -528,15 +653,90 @@ Replace the current action/focus declarations in `:root` with this exact semanti
 
 In `.dark`, replace `--ring` and `--sidebar-ring` with `var(--focus-ring)`. Do not design a new dark palette in this change.
 
-- [ ] **Step 3a: Verify and commit autonomous slice 1 (tokens)**
+- [ ] **Step 3a: Add the failing documentation assertion and approved contract**
+
+Add this test to `tests/unit/design/design-system.test.ts` before changing `DESIGN.md`:
+
+```ts
+it('documents solid and soft warning foregrounds separately', () => {
+  const guide = source('DESIGN.md')
+
+  expect(guide).toContain('neutral, positive, informational, warning, destructive')
+  expect(guide).toContain('solid, soft, outline, ghost, link')
+  expect(guide).toContain('warning solid `#fde68a` with `#713f12`')
+  expect(guide).toContain('warning soft `#fffbeb` with `#92400e`')
+  expect(guide).toContain('#007f62')
+  expect(guide).toContain('Color is never the only cue')
+  expect(guide).not.toContain('green success actions')
+  expect(guide).not.toContain('Focus Mint')
+})
+```
+
+Run `npm test -- tests/unit/design/design-system.test.ts`; expected RED because the guide still records the legacy palette. Then update the `DESIGN.md` frontmatter color map with these exact keys:
+
+```yaml
+action-positive: "#15803d"
+action-positive-hover: "#166534"
+action-informational: "#175cd3"
+action-informational-hover: "#1849a9"
+action-warning: "#fde68a"
+action-warning-solid-foreground: "#713f12"
+action-warning-soft: "#fffbeb"
+action-warning-soft-foreground: "#92400e"
+action-warning-outline: "#b45309"
+action-destructive: "#b42318"
+focus-ring: "#007f62"
+```
+
+Replace the legacy Buttons/action prose with this exact contract:
+
+```md
+## Semantic actions
+
+Buttons combine an intent (`neutral, positive, informational, warning, destructive`)
+with an appearance (`solid, soft, outline, ghost, link`). Intent describes the
+business meaning; appearance describes visual emphasis. Color is never the only
+cue: pair it with explicit wording, an icon, accessible state, or confirmation.
+
+| Intent | Use | Approved palette |
+| --- | --- | --- |
+| neutral | navigation, inspect, close, logout, or discard an unpersisted draft | existing foreground/secondary tokens |
+| positive | create, add, save, confirm, register, or complete | `#15803d`; hover `#166534` |
+| informational | edit or configure | `#175cd3`; hover `#1849a9` |
+| warning | reversible operational disruption | warning solid `#fde68a` with `#713f12`; warning soft `#fffbeb` with `#92400e`; outline `#b45309` |
+| destructive | delete, remove, or cancel persisted work | `#b42318` |
+
+Use focus ring `#007f62`. Body text must meet 4.5:1 contrast; interactive borders,
+icons, and focus indicators must meet 3:1 against adjacent surfaces. Dismissive
+“Cancelar” is neutral, while “Cancelar pedido” is destructive. Icon-only controls
+have an accessible name and at least a 44 × 44px target.
+```
+
+Remove legacy success/focus prose and replace `button-success` examples with semantic positive, informational, warning, and destructive examples that reference these tokens.
+
+- [ ] **Step 3b: Verify and commit autonomous slice 2 (tokens and contract)**
 
 ```powershell
 npm test -- tests/unit/design/design-system.test.ts
-git add -- app/globals.css tests/unit/design/design-system.test.ts
-git commit -m "feat(ui): add accessible semantic action tokens"
+git add -- app/globals.css DESIGN.md tests/unit/design/design-system.test.ts
+git commit -m "feat(ui): add semantic action tokens"
+$parentBranch = 'semantic-actions/01-sse-prerequisite'
+$childBranch = 'semantic-actions/02-action-tokens-docs'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "feat(ui): add semantic action tokens" --body "Slice 2/12. Accessible tokens and matching design contract."
 ```
 
-Expected: the design-system test passes with contrast/token assertions; no Button implementation file belongs to this commit.
+Expected: the design-system test passes with separate `#713f12` solid and `#92400e` soft warning assertions. The measured slice is `≤400` changed lines; no Button implementation file belongs to this commit.
+
+- [ ] **Step 3c: Create autonomous slice 3**
+
+```powershell
+git switch semantic-actions/02-action-tokens-docs
+git switch -c semantic-actions/03-button-api
+```
+
+Expected: the current branch is `semantic-actions/03-button-api` before changing `components/ui/button.tsx`.
 
 - [ ] **Step 4: Replace `components/ui/button.tsx` with the semantic resolver**
 
@@ -615,7 +815,7 @@ const buttonStyles = cva(
         informational:
           '[--button-solid:var(--action-informational)] [--button-solid-hover:var(--action-informational-hover)] [--button-solid-foreground:var(--action-informational-solid-foreground)] [--button-soft:var(--action-informational-soft)] [--button-soft-hover:var(--action-informational-soft-hover)] [--button-foreground:var(--action-informational-foreground)] [--button-outline:var(--action-informational-outline)]',
         warning:
-          '[--button-solid:var(--action-warning)] [--button-solid-hover:var(--action-warning-hover)] [--button-solid-foreground:var(--action-warning-solid-foreground)] [--button-soft:var(--action-warning-soft)] [--button-soft-hover:var(--action-warning-soft-hover)] [--button-foreground:var(--action-warning-foreground)] [--button-outline:var(--action-warning-outline)]',
+          '[--button-solid:var(--action-warning)] [--button-solid-hover:var(--action-warning-hover)] [--button-solid-foreground:var(--action-warning-solid-foreground)] [--button-soft:var(--action-warning-soft)] [--button-soft-hover:var(--action-warning-soft-hover)] [--button-foreground:var(--action-warning-soft-foreground)] [--button-outline:var(--action-warning-outline)]',
         destructive:
           '[--button-solid:var(--action-destructive)] [--button-solid-hover:var(--action-destructive-hover)] [--button-solid-foreground:var(--action-destructive-solid-foreground)] [--button-soft:var(--action-destructive-soft)] [--button-soft-hover:var(--action-destructive-soft-hover)] [--button-foreground:var(--action-destructive-foreground)] [--button-outline:var(--action-destructive-outline)]',
       },
@@ -697,14 +897,21 @@ npm run build
 npx.cmd tsc --noEmit --pretty false
 ```
 
-Expected: targeted Vitest files PASS and Next production build exits `0`. TypeScript reports no `tests/types/button-props.ts` diagnostic; only the recorded unrelated `tests/unit/sse.test.ts(17,93)` baseline remains. Vitest currently prints one pre-existing `vite-tsconfig-paths` deprecation warning; this task must add no new warning.
+Expected: targeted Vitest files PASS, TypeScript exits `0` without diagnostics, and Next production build exits `0`. Vitest currently prints one pre-existing `vite-tsconfig-paths` deprecation warning; this task must add no new warning.
 
 - [ ] **Step 6: Commit the semantic foundation**
 
 ```powershell
 git add -- components/ui/button.tsx tests/unit/ui/button.test.ts tests/types/button-props.ts tests/unit/design/button-semantics.test.ts tests/unit/business/admin-management.test.ts
 git commit -m "feat(ui): add semantic action buttons"
+$parentBranch = 'semantic-actions/02-action-tokens-docs'
+$childBranch = 'semantic-actions/03-button-api'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "feat(ui): add semantic action buttons" --body "Slice 3/12. Semantic Button API and compatibility boundary."
 ```
+
+Expected: the measured slice is `≤400` changed lines before push/PR.
 
 ### Task 2: Migrate admin and authentication actions
 
@@ -712,6 +919,7 @@ git commit -m "feat(ui): add semantic action buttons"
 - Modify: `components/admin/produto-form.tsx:97-102`
 - Modify: `app/admin/mesas/client.tsx:60-99`
 - Modify: `app/admin/usuarios/page.tsx:1-8,128-147`
+- Modify: `app/admin/menu/client.tsx`
 - Modify: `app/auth/sign-in/client.tsx:73-75`
 - Modify: `app/auth/sign-up/page.tsx:33-35`
 - Modify: `components/auth/profile-menu.tsx:60-64`
@@ -727,6 +935,15 @@ git commit -m "feat(ui): add semantic action buttons"
 **Interfaces:**
 - Consumes: Task 1 `Button` and `buttonVariants` semantic props.
 - Produces: explicit semantic call sites in admin/auth and removes duplicated native action styles from users, profile, and table availability controls.
+
+- [ ] **Step 0: Create autonomous slice 4**
+
+```powershell
+git switch semantic-actions/03-button-api
+git switch -c semantic-actions/04-admin-auth-actions
+```
+
+Expected: the current branch is `semantic-actions/04-admin-auth-actions`.
 
 - [ ] **Step 1: Add failing admin/auth semantic assertions**
 
@@ -754,6 +971,13 @@ expect(productFormSource).toMatch(/intent="positive"[\s\S]*Salvar/)
 expect(productFormSource).toContain('aria-busy={saving}')
 expect(mesasSource).toContain("intent={m.ativa ? 'warning' : 'positive'}")
 expect(mesasSource).toContain("m.ativa ? 'Desativar' : 'Ativar'")
+
+// tests/unit/business/admin-management.test.ts, menu product-actions test
+expect(menuClient).toContain('toggleDisponivel')
+expect(menuClient).toContain("intent={p.disponivel ? 'warning' : 'positive'}")
+expect(menuClient).toContain("p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'")
+expect(menuClient).toContain('aria-label={`Editar produto ${p.nome}`}')
+expect(menuClient).toContain('aria-label={`Excluir produto ${p.nome}`}')
 ```
 
 Add this focused overlay target test to `tests/unit/routing/access-navigation.test.ts`:
@@ -814,6 +1038,54 @@ Replace the active/inactive native button in `app/admin/mesas/client.tsx` with:
 </Button>
 ```
 
+In `app/admin/menu/client.tsx`, preserve the existing `handleToggleProduto`, `handleRemoveProduto`, confirmation, toast, and `toggleDisponivel(produto.id)` call. Replace each product action group with:
+
+```tsx
+<div className="flex flex-wrap items-center gap-2 sm:justify-end">
+  <Button
+    type="button"
+    intent={p.disponivel ? 'warning' : 'positive'}
+    appearance="soft"
+    className="min-h-11"
+    aria-pressed={p.disponivel}
+    aria-label={
+      p.disponivel
+        ? `Tornar ${p.nome} indisponível`
+        : `Disponibilizar ${p.nome}`
+    }
+    onClick={() => handleToggleProduto(p)}
+  >
+    {p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}
+  </Button>
+  <Button
+    type="button"
+    intent="informational"
+    appearance="ghost"
+    size="icon"
+    className="size-11"
+    aria-label={`Editar produto ${p.nome}`}
+    onClick={() => {
+      setEditProduto(p)
+      setFormOpen(true)
+    }}
+  >
+    <Pencil aria-hidden="true" />
+  </Button>
+  <Button
+    type="button"
+    intent="destructive"
+    appearance="soft"
+    className="min-h-11"
+    aria-label={`Excluir produto ${p.nome}`}
+    onClick={() => handleRemoveProduto(p)}
+  >
+    Excluir
+  </Button>
+</div>
+```
+
+This slice changes only product action presentation/labels; Task 8 later changes category hierarchy and selection state without rewriting this group.
+
 Import `Button` in `app/admin/usuarios/page.tsx`. In `components/auth/profile-menu-client.tsx`, import `Button` and replace its native trigger with:
 
 ```tsx
@@ -839,19 +1111,19 @@ rg -n "<button|variant=" app/admin/usuarios/page.tsx app/admin/mesas/client.tsx 
 
 Expected: tests PASS. `rg` returns no native `<button>` or legacy `variant=` in these migrated files; an exit code of `1` from `rg` means the audit found no matches and is success for this command.
 
-- [ ] **Step 5: Commit autonomous slice 3 (admin controls)**
+- [ ] **Step 5: Commit and hand off autonomous slice 4**
 
 ```powershell
-git add -- components/admin/produto-form.tsx app/admin/mesas/client.tsx app/admin/usuarios/page.tsx tests/unit/business/admin-management.test.ts
-git commit -m "refactor(admin): apply semantic action intents"
+git add -- components/admin/produto-form.tsx app/admin/mesas/client.tsx app/admin/usuarios/page.tsx app/admin/menu/client.tsx app/auth/sign-in/client.tsx app/auth/sign-up/page.tsx components/auth/profile-menu.tsx components/auth/profile-menu-client.tsx app/sem-acesso/page.tsx app/selecionar-empresa/page.tsx components/ui/dialog.tsx components/ui/sheet.tsx tests/unit/business/admin-management.test.ts tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts
+git commit -m "refactor(actions): apply administrative action semantics"
+$parentBranch = 'semantic-actions/03-button-api'
+$childBranch = 'semantic-actions/04-admin-auth-actions'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "refactor(actions): apply administrative action semantics" --body "Slice 4/12. Admin, menu product, auth, access, and overlay actions."
 ```
 
-- [ ] **Step 6: Commit autonomous slice 4 (auth/access/overlays)**
-
-```powershell
-git add -- app/auth/sign-in/client.tsx app/auth/sign-up/page.tsx components/auth/profile-menu.tsx components/auth/profile-menu-client.tsx app/sem-acesso/page.tsx app/selecionar-empresa/page.tsx components/ui/dialog.tsx components/ui/sheet.tsx tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts
-git commit -m "refactor(auth): apply neutral action semantics"
-```
+Expected: all slice tests pass and the measured diff is `≤400` changed lines before push/PR.
 
 ### Task 3: Migrate waiter and cashier actions without weakening destructive meaning
 
@@ -864,15 +1136,26 @@ git commit -m "refactor(auth): apply neutral action semantics"
 - Modify: `components/garcom/cart-drawer.tsx:68-132`
 - Modify: `components/garcom/cart-fab.tsx:12-21`
 - Modify: `app/admin/pedidos/client.tsx:251-347`
+- Modify: `components/admin/admin-page.tsx:1-107`
 - Modify: `tests/unit/design/button-semantics.test.ts:10-36`
 - Create: `tests/unit/business/waiter-cart-actions.test.ts`
 - Create: `tests/unit/business/waiter-order-actions.test.ts`
 - Modify: `tests/unit/business/table-orders-panel.test.ts:47-53`
 - Modify: `tests/unit/business/cashier-orders.test.ts:24-36`
+- Modify: `tests/unit/business/cashier-responsible-metrics.test.ts:53-88`
 
 **Interfaces:**
 - Consumes: Task 1 semantic Button API and Task 2 neutral/danger distinction.
 - Produces: explicit operational semantics, 44px icon actions, and a repository regression that protects neutral dismissals while preserving actual order cancellation.
+
+- [ ] **Step 0: Create autonomous slice 5**
+
+```powershell
+git switch semantic-actions/04-admin-auth-actions
+git switch -c semantic-actions/05-waiter-cart
+```
+
+Expected: the current branch is `semantic-actions/05-waiter-cart`. In Steps 1–5, create/change only the waiter-cart files assigned to slice 5; the order and cashier blocks shown below are executed only after their own child branches are created.
 
 - [ ] **Step 1: Replace brittle legacy expectations with failing semantic regressions**
 
@@ -909,7 +1192,7 @@ describe('waiter cart action semantics', () => {
 })
 ```
 
-Create `tests/unit/business/waiter-order-actions.test.ts`:
+The next block is the exact RED test for slice 6. **Do not create it on slice 5.** After slice 5 is committed, create `tests/unit/business/waiter-order-actions.test.ts` on `semantic-actions/06-waiter-orders`:
 
 ```ts
 import { readFileSync } from 'node:fs'
@@ -940,7 +1223,7 @@ describe('waiter order action semantics', () => {
 })
 ```
 
-Replace the operational tests in `tests/unit/design/button-semantics.test.ts` with:
+The cross-surface guard belongs to slice 7, after all operational call sites exist. **Do not change this file on slices 5 or 6.** On `semantic-actions/07-cashier-disclosure`, replace the operational tests in `tests/unit/design/button-semantics.test.ts` with:
 
 ```ts
 describe('operational button semantics', () => {
@@ -1015,7 +1298,7 @@ describe('operational button semantics', () => {
 })
 ```
 
-Update the final assertions in `tests/unit/business/table-orders-panel.test.ts`:
+On slice 6, update the final assertions in `tests/unit/business/table-orders-panel.test.ts`:
 
 ```ts
 expect(panel).toMatch(/intent="destructive"[\s\S]*Cancelar/)
@@ -1025,7 +1308,7 @@ expect(panel).toContain('aria-busy={canceling}')
 expect(panel).toContain('aria-busy={confirming}')
 ```
 
-Replace the legacy success assertion in `tests/unit/business/cashier-orders.test.ts`:
+On slice 7 only, replace the legacy success assertion in `tests/unit/business/cashier-orders.test.ts`:
 
 ```ts
 expect(client).toMatch(/intent="positive"[\s\S]*Registrar pagamento/)
@@ -1033,17 +1316,43 @@ expect(client).toMatch(/intent="neutral"[\s\S]*Cancelar/)
 expect(client).toContain('aria-busy={isPending}')
 ```
 
+Also on slice 7, add this source regression to `tests/unit/business/cashier-orders.test.ts`:
+
+```ts
+it('uses the shared semantic utility for the native stat disclosure', () => {
+  const adminPage = readProjectFile('components/admin/admin-page.tsx')
+
+  expect(adminPage).toContain("import { buttonVariants } from '@/components/ui/button'")
+  expect(adminPage).toContain('buttonVariants({')
+  expect(adminPage).toContain("intent: 'neutral'")
+  expect(adminPage).toContain("appearance: 'ghost'")
+  expect(adminPage).toContain('whitespace-normal')
+})
+```
+
+On slice 7, in the interactive `AdminStatCard` test in `tests/unit/business/cashier-responsible-metrics.test.ts`, add:
+
+```ts
+expect(button).toHaveClass(
+  'rounded-[var(--radius)]',
+  'whitespace-normal',
+  'focus-visible:ring-2',
+  'focus-visible:ring-ring'
+)
+expect(button).not.toHaveClass('rounded-full')
+```
+
 - [ ] **Step 2: Run the operational tests to verify RED**
 
 ```powershell
-npm test -- tests/unit/business/waiter-cart-actions.test.ts tests/unit/business/waiter-order-actions.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts
+npm test -- tests/unit/business/waiter-cart-actions.test.ts
 ```
 
-Expected: FAIL because the listed files still use legacy `success`, red dismiss/back controls, and 40px unnamed icon actions.
+Expected: FAIL because the cart files still use legacy `success`, a red dismiss control, and 40px unnamed icon actions. Future-slice tests do not exist on this branch yet.
 
-- [ ] **Step 3: Apply the exact waiter/cashier intent matrix**
+- [ ] **Step 3: Apply the exact matrix one autonomous slice at a time**
 
-Preserve handlers, disabled conditions, polling/SSE state, forms, and routes. Replace the semantic props as follows:
+Preserve handlers, disabled conditions, polling/SSE state, forms, and routes. On slice 5 apply only the `item-card.tsx`, `observacao-sheet.tsx`, `cart-drawer.tsx`, and `cart-fab.tsx` rows/snippets. Slice 6 applies only waiter-order rows; slice 7 applies only cashier/AdminStatCard rows. Do not pre-edit a later slice.
 
 | Path and action | Intent / appearance |
 | --- | --- |
@@ -1177,35 +1486,130 @@ For pending buttons, expose the actual local pending boolean on the control (and
 </form>
 ```
 
+For the justified native disclosure in `components/admin/admin-page.tsx`, import the shared utility:
+
+```ts
+import { buttonVariants } from '@/components/ui/button'
+```
+
+Keep the card-selection presentation. Replace only the current `cardClassName` calculation with:
+
+```ts
+const baseCardClassName =
+  'h-auto min-h-11 w-full rounded-[var(--radius)] border p-4 text-left'
+const staticCardClassName = cn(baseCardClassName, toneClass)
+const interactiveCardClassName = buttonVariants({
+  intent: 'neutral',
+  appearance: 'ghost',
+  className: cn(
+    baseCardClassName,
+    'items-stretch justify-start whitespace-normal text-foreground transition-shadow hover:shadow-sm',
+    toneClass,
+    expanded && 'ring-2 ring-foreground ring-offset-2'
+  ),
+})
+```
+
+Then keep the native `<button>` and its disclosure ARIA, changing only its class expression; keep the static branch visually identical:
+
+```tsx
+if (onClick) {
+  return (
+    <button
+      type="button"
+      className={cn(interactiveCardClassName)}
+      onClick={onClick}
+      aria-expanded={expanded}
+      aria-controls={controls}
+    >
+      {content}
+    </button>
+  )
+}
+
+return <div className={staticCardClassName}>{content}</div>
+```
+
+`cn(...)` resolves the shared pill/default-size classes in favor of `h-auto`, `rounded-[var(--radius)]`, `p-4`, and `whitespace-normal`. The result remains a full stat-card disclosure while inheriting the centralized semantic hover, focus, active, disabled, and color variables.
+
 - [ ] **Step 4: Verify GREEN and remove operational legacy aliases**
 
 ```powershell
-npm test -- tests/unit/business/waiter-cart-actions.test.ts tests/unit/business/waiter-order-actions.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts
-rg -n "variant=|buttonVariants\(\{ variant" app/garcom components/garcom app/admin/pedidos/client.tsx
+npm test -- tests/unit/business/waiter-cart-actions.test.ts
+rg -n "variant=|buttonVariants\(\{ variant" components/garcom/item-card.tsx components/garcom/observacao-sheet.tsx components/garcom/cart-drawer.tsx components/garcom/cart-fab.tsx
 ```
 
-Expected: tests PASS. `rg` finds no legacy Button aliases in the migrated operational files; exit `1` is the expected no-match result.
+Expected: the slice 5 test passes. `rg` finds no legacy Button aliases in those four files; exit `1` is the expected no-match result.
 
 - [ ] **Step 5: Commit autonomous slice 5 (waiter cart)**
 
 ```powershell
 git add -- components/garcom/item-card.tsx components/garcom/observacao-sheet.tsx components/garcom/cart-drawer.tsx components/garcom/cart-fab.tsx tests/unit/business/waiter-cart-actions.test.ts
 git commit -m "refactor(waiter): apply semantic cart actions"
+$parentBranch = 'semantic-actions/04-admin-auth-actions'
+$childBranch = 'semantic-actions/05-waiter-cart'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "refactor(waiter): apply semantic cart actions" --body "Slice 5/12. Cart, item quantity, observation, and cart navigation actions."
 ```
 
-- [ ] **Step 6: Commit autonomous slice 6 (waiter orders)**
+- [ ] **Step 6: Execute and hand off autonomous slice 6 (waiter orders)**
 
 ```powershell
+git switch semantic-actions/05-waiter-cart
+git switch -c semantic-actions/06-waiter-orders
+```
+
+Create the previously shown waiter-order test and replace only the shown `table-orders-panel.test.ts` assertions. Run:
+
+```powershell
+npm test -- tests/unit/business/waiter-order-actions.test.ts tests/unit/business/table-orders-panel.test.ts
+```
+
+Expected RED: the new waiter-order assertions fail against legacy semantics. Apply only the waiter-order rows and pending snippets. Then run:
+
+```powershell
+npm test -- tests/unit/business/waiter-order-actions.test.ts tests/unit/business/table-orders-panel.test.ts
+rg -n "variant=|buttonVariants\(\{ variant" "app/garcom/mesa/[id]/client.tsx" components/garcom/table-orders-panel.tsx components/garcom/pending-deliveries-client.tsx
 git add -- "app/garcom/mesa/[id]/client.tsx" components/garcom/table-orders-panel.tsx components/garcom/pending-deliveries-client.tsx tests/unit/business/waiter-order-actions.test.ts tests/unit/business/table-orders-panel.test.ts
 git commit -m "refactor(waiter): apply semantic order actions"
+$parentBranch = 'semantic-actions/05-waiter-cart'
+$childBranch = 'semantic-actions/06-waiter-orders'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "refactor(waiter): apply semantic order actions" --body "Slice 6/12. Waiter order, delivery, back, and pending semantics."
 ```
 
-- [ ] **Step 7: Commit autonomous slice 7 (cashier and cross-surface guard)**
+Expected GREEN: both tests pass, `rg` has no match, and the measured slice is `≤400` changed lines.
+
+- [ ] **Step 7: Execute and hand off autonomous slice 7 (cashier disclosure)**
 
 ```powershell
-git add -- app/admin/pedidos/client.tsx tests/unit/business/cashier-orders.test.ts tests/unit/design/button-semantics.test.ts
-git commit -m "refactor(cashier): apply semantic payment actions"
+git switch semantic-actions/06-waiter-orders
+git switch -c semantic-actions/07-cashier-disclosure
 ```
+
+Apply only the previously shown test changes to `cashier-orders.test.ts`, `cashier-responsible-metrics.test.ts`, and the cross-surface guard. Run:
+
+```powershell
+npm test -- tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-responsible-metrics.test.ts tests/unit/design/button-semantics.test.ts
+```
+
+Expected RED: cashier semantic assertions and the shared-utility/stat-card assertions fail. Apply only the previously shown cashier pending/action and `AdminStatCard` production changes. Then run and commit:
+
+```powershell
+npm test -- tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-responsible-metrics.test.ts tests/unit/design/button-semantics.test.ts
+rg -n "variant=|buttonVariants\(\{ variant" app/admin/pedidos/client.tsx
+git add -- app/admin/pedidos/client.tsx components/admin/admin-page.tsx tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-responsible-metrics.test.ts tests/unit/design/button-semantics.test.ts
+git commit -m "refactor(cashier): apply semantic payment and disclosure actions"
+$parentBranch = 'semantic-actions/06-waiter-orders'
+$childBranch = 'semantic-actions/07-cashier-disclosure'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "refactor(cashier): apply semantic payment and disclosure actions" --body "Slice 7/12. Cashier controls and shared semantic native disclosure."
+```
+
+Expected GREEN: all three tests pass, the native disclosure retains card classes while consuming `buttonVariants`, and the measured slice is `≤400` changed lines.
 
 ---
 
@@ -1218,6 +1622,15 @@ git commit -m "refactor(cashier): apply semantic payment actions"
 **Interfaces:**
 - Consumes: `Tooltip.Root`, `Tooltip.Trigger`, `Tooltip.Portal`, `Tooltip.Positioner`, `Tooltip.Popup`, and `Tooltip.Provider` from the already-installed `@base-ui/react/tooltip` entry point.
 - Produces: `Tooltip`, `TooltipTrigger`, `TooltipContent`, and `TooltipProvider`. `TooltipContent` accepts all popup props plus an optional `sideOffset` and always portals outside clipping admin panels.
+
+- [ ] **Step 0: Create autonomous slice 8**
+
+```powershell
+git switch semantic-actions/07-cashier-disclosure
+git switch -c semantic-actions/08-category-foundations
+```
+
+Expected: the current branch is `semantic-actions/08-category-foundations`.
 
 - [ ] **Step 1: Write the failing portal and accessibility test**
 
@@ -1349,12 +1762,14 @@ npm test -- tests/unit/ui/tooltip.test.ts
 
 Expected: PASS; the trigger remains accessible by name and the tooltip exists under `document.body`, not inside the test's clipping container.
 
-- [ ] **Step 5: Commit the Tooltip primitive**
+- [ ] **Step 5: Keep the verified Tooltip in slice 8 for Task 5**
 
 ```powershell
-git add -- components/ui/tooltip.tsx tests/unit/ui/tooltip.test.ts
-git commit -m "feat(ui): add accessible portal tooltip"
+npm test -- tests/unit/ui/tooltip.test.ts
+git status --short -- components/ui/tooltip.tsx tests/unit/ui/tooltip.test.ts
 ```
+
+Expected: the Tooltip test passes and both files remain uncommitted on slice 8. Task 5 adds the category server boundary, then commits the complete category-foundations slice once.
 
 ---
 
@@ -1499,12 +1914,19 @@ rg -n "crypto\.randomUUID|max\(|id: categoria\.id|nome: categoria\.nome" lib/act
 
 Expected: Vitest PASS. `rg` shows the existing UUID generator, max-order append, and typed return projection.
 
-- [ ] **Step 5: Commit the preserved-order boundary change**
+- [ ] **Step 5: Commit and hand off autonomous slice 8**
 
 ```powershell
-git add -- lib/actions/produtos.ts tests/unit/actions/produtos.test.ts
-git commit -m "fix(categories): validate names without changing order"
+git add -- components/ui/tooltip.tsx tests/unit/ui/tooltip.test.ts lib/actions/produtos.ts tests/unit/actions/produtos.test.ts
+git commit -m "feat(categories): add accessible management foundations"
+$parentBranch = 'semantic-actions/07-cashier-disclosure'
+$childBranch = 'semantic-actions/08-category-foundations'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "feat(categories): add accessible management foundations" --body "Slice 8/12. Portal tooltip and typed tenant-safe category creation boundary."
 ```
+
+Expected: Tooltip and category-action tests pass and the measured slice is `≤400` changed lines before push/PR.
 
 ---
 ### Task 6: Implement the complete progressive CategoryManager
@@ -1512,7 +1934,9 @@ git commit -m "fix(categories): validate names without changing order"
 **Files:**
 - Modify: `components/admin/admin-page.tsx:101-128`
 - Create: `components/admin/category-manager.tsx`
-- Create: `tests/unit/business/category-manager.test.ts`
+- Create: `tests/unit/business/category-manager-create.test.ts`
+- Create: `tests/unit/business/category-manager-edit.test.ts`
+- Create: `tests/unit/business/category-manager-delete.test.ts`
 
 **Interfaces:**
 
@@ -1535,9 +1959,18 @@ export type CategoryManagerProps = {
 
 The component owns the exclusive editor, draft, inline error, mutation guard, and focus restoration. The page owns selection and product state. This task includes create, rename, and delete completely; no handler or return tree is deferred to prose.
 
-- [ ] **Step 1: Write the complete failing transition suite**
+- [ ] **Step 0: Create autonomous slice 9**
 
-Create `tests/unit/business/category-manager.test.ts`:
+```powershell
+git switch semantic-actions/08-category-foundations
+git switch -c semantic-actions/09-category-create
+```
+
+Expected: the current branch is `semantic-actions/09-category-create`.
+
+- [ ] **Step 1: Write only the slice 9 creation suite**
+
+Create `tests/unit/business/category-manager-create.test.ts`. The first code block below is this slice's file; the edit/delete blocks are explicitly deferred until their own child branches.
 
 ```ts
 import { createElement } from 'react'
@@ -1604,42 +2037,21 @@ describe('CategoryManager', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens create with focus and makes create/edit/other rows mutually exclusive', async () => {
+  it('opens create with focus and Escape restores Add', async () => {
     renderManager()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
-    expect(
-      await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
-    ).toHaveFocus()
-    expect(screen.getByRole('button', { name: 'Pizzas' })).toHaveClass('min-h-11')
-    for (const name of [
-      'Cancelar edição de Pizzas',
-      'Excluir categoria Pizzas',
-      'Salvar categoria Pizzas',
-    ]) {
-      expect(screen.getByRole('button', { name })).toHaveClass('min-h-11')
-    }
-
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar categoria' }))
-    expect(
-      await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
-    ).toHaveFocus()
+    const add = screen.getByRole('button', { name: 'Adicionar categoria' })
+    fireEvent.click(add)
+    const input = await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    expect(input).toHaveFocus()
     expect(screen.getByRole('button', { name: 'Cancelar nova categoria' })).toHaveClass(
       'min-h-11'
     )
     expect(screen.getByRole('button', { name: 'Salvar nova categoria' })).toHaveClass(
       'min-h-11'
     )
-    expect(screen.queryByRole('textbox', { name: 'Nome da categoria Pizzas' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar nova categoria' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Bebidas' }))
-
-    expect(
-      await screen.findByRole('textbox', { name: 'Nome da categoria Bebidas' })
-    ).toHaveFocus()
-    expect(screen.queryByRole('textbox', { name: 'Nome da categoria Pizzas' })).toBeNull()
+    fireEvent.keyDown(input, { key: 'Escape' })
+    await waitFor(() => expect(add).toHaveFocus())
   })
 
   it('creates the trimmed name once, forwards server identity, and restores Add focus', async () => {
@@ -1675,6 +2087,18 @@ describe('CategoryManager', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
   })
 
+  it('rejects a blank create draft before a server call', async () => {
+    renderManager()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar categoria' }))
+    const input = await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.submit(input.closest('form')!)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Informe o nome da categoria')
+    expect(actions.criarCategoria).not.toHaveBeenCalled()
+  })
+
   it('marks create busy, disables related controls, and ignores repeat submit', async () => {
     let resolveCreate!: (value: { id: string; nome: string }) => void
     actions.criarCategoria.mockImplementationOnce(
@@ -1695,6 +2119,86 @@ describe('CategoryManager', () => {
     expect(screen.getByRole('button', { name: 'Salvar nova categoria' })).toBeDisabled()
 
     await act(async () => resolveCreate({ id: doces.id, nome: doces.nome }))
+  })
+})
+```
+
+The following is the exact slice 10 file; do not create it until Step 7 creates `semantic-actions/10-category-edit`. Create `tests/unit/business/category-manager-edit.test.ts` then:
+
+```ts
+import { createElement } from 'react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const actions = vi.hoisted(() => ({
+  criarCategoria: vi.fn(),
+  editarCategoria: vi.fn(),
+  removerCategoria: vi.fn(),
+}))
+
+vi.mock('@/lib/actions/produtos', () => actions)
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}))
+
+import {
+  CategoryManager,
+  type CategoryManagerProps,
+} from '@/components/admin/category-manager'
+
+const pizzas = { id: 'cat-1', nome: 'Pizzas', ordem: 0 }
+const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1 }
+
+function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
+  const props: CategoryManagerProps = {
+    categorias: [pizzas, bebidas],
+    selectedId: pizzas.id,
+    onSelect: vi.fn(),
+    onCreated: vi.fn(),
+    onDeleted: vi.fn(),
+    onRefresh: vi.fn(),
+    ...overrides,
+  }
+  render(createElement(CategoryManager, props))
+  return props
+}
+
+beforeEach(() => vi.clearAllMocks())
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
+
+describe('CategoryManager edit', () => {
+  it('keeps create, one edit row, and another edit row mutually exclusive', async () => {
+    renderManager()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
+    expect(
+      await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
+    ).toHaveFocus()
+    for (const name of ['Cancelar edição de Pizzas', 'Salvar categoria Pizzas']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('min-h-11')
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar categoria' }))
+    expect(
+      await screen.findByRole('textbox', { name: 'Nome da nova categoria' })
+    ).toHaveFocus()
+    expect(screen.queryByRole('textbox', { name: 'Nome da categoria Pizzas' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Bebidas' }))
+    expect(
+      await screen.findByRole('textbox', { name: 'Nome da categoria Bebidas' })
+    ).toHaveFocus()
+    expect(screen.queryByRole('textbox', { name: 'Nome da nova categoria' })).toBeNull()
   })
 
   it('Escape cancels rename and restores the same pencil', async () => {
@@ -1755,7 +2259,7 @@ describe('CategoryManager', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Nome indisponível')
     expect(input).toHaveValue('Bebidas geladas')
-    expect(screen.getByRole('button', { name: 'Excluir categoria Bebidas' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Salvar categoria Bebidas' })).toBeInTheDocument()
   })
 
   it('rejects blank drafts in create and rename before a server call', async () => {
@@ -1775,6 +2279,64 @@ describe('CategoryManager', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Informe o nome da categoria')
     expect(actions.editarCategoria).not.toHaveBeenCalled()
   })
+})
+```
+
+The following is the exact slice 11 file; do not create it until Step 11 creates `semantic-actions/11-category-delete`. Create `tests/unit/business/category-manager-delete.test.ts` then:
+
+```ts
+import { createElement } from 'react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const actions = vi.hoisted(() => ({
+  criarCategoria: vi.fn(),
+  editarCategoria: vi.fn(),
+  removerCategoria: vi.fn(),
+}))
+
+vi.mock('@/lib/actions/produtos', () => actions)
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}))
+
+import {
+  CategoryManager,
+  type CategoryManagerProps,
+} from '@/components/admin/category-manager'
+
+const pizzas = { id: 'cat-1', nome: 'Pizzas', ordem: 0 }
+const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1 }
+const doces = { id: 'cat-3', nome: 'Doces', ordem: 2 }
+
+function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
+  const props: CategoryManagerProps = {
+    categorias: [pizzas, bebidas],
+    selectedId: pizzas.id,
+    onSelect: vi.fn(),
+    onCreated: vi.fn(),
+    onDeleted: vi.fn(),
+    onRefresh: vi.fn(),
+    ...overrides,
+  }
+  render(createElement(CategoryManager, props))
+  return props
+}
+
+beforeEach(() => vi.clearAllMocks())
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
+
+describe('CategoryManager delete', () => {
 
   it('shows delete only in edit mode and preserves the confirmation', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
@@ -1831,6 +2393,30 @@ describe('CategoryManager', () => {
     })
   })
 
+  it('preserves a different selection and restores its pencil after deletion', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    actions.removerCategoria.mockResolvedValueOnce(undefined)
+    const props = renderManager({
+      categorias: [pizzas, bebidas, doces],
+      selectedId: doces.id,
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Editar categoria Bebidas' })
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Excluir categoria Bebidas' })
+    )
+
+    await waitFor(() => {
+      expect(props.onDeleted).toHaveBeenCalledWith(bebidas.id)
+      expect(props.onSelect).not.toHaveBeenCalled()
+      expect(
+        screen.getByRole('button', { name: 'Editar categoria Doces' })
+      ).toHaveFocus()
+    })
+  })
+
   it('retains delete editor, draft, and server error when products block deletion', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     actions.removerCategoria.mockRejectedValueOnce(
@@ -1876,7 +2462,7 @@ describe('CategoryManager', () => {
 - [ ] **Step 2: Run the component suite and verify RED**
 
 ```powershell
-npm test -- tests/unit/business/category-manager.test.ts
+npm test -- tests/unit/business/category-manager-create.test.ts
 ```
 
 Expected: FAIL with `Failed to resolve import "@/components/admin/category-manager"`. Fix test setup errors until the failure is specifically the missing production component.
@@ -1920,9 +2506,9 @@ export function AdminPanel({
 
 This preserves optional titles, the current radius/background/padding, and every existing caller.
 
-- [ ] **Step 4: Implement the complete CategoryManager**
+- [ ] **Step 4: Implement the complete slice 9 creation component**
 
-Create `components/admin/category-manager.tsx` exactly as follows:
+Create `components/admin/category-manager.tsx` with this creation-only, independently usable implementation:
 
 ```tsx
 'use client'
@@ -1934,7 +2520,264 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
-import { Check, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Check, Plus, X } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { AdminPanel } from '@/components/admin/admin-page'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  criarCategoria,
+  type CreatedCategory,
+} from '@/lib/actions/produtos'
+
+export type CategoryListItem = {
+  id: string
+  nome: string
+  ordem: number
+}
+
+export type CategoryManagerProps = {
+  categorias: CategoryListItem[]
+  selectedId: string
+  onSelect: (id: string) => void
+  onCreated: (category: CreatedCategory) => void
+  onDeleted: (id: string) => void
+  onRefresh: () => void
+}
+
+type EditorState = { mode: 'idle' } | { mode: 'create' }
+
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : 'Não foi possível salvar a categoria'
+}
+
+export function CategoryManager({
+  categorias,
+  selectedId,
+  onSelect,
+  onCreated,
+  onRefresh,
+}: CategoryManagerProps) {
+  const [editor, setEditor] = useState<EditorState>({ mode: 'idle' })
+  const [draft, setDraft] = useState('')
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
+  const restoreAddFocusRef = useRef(false)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const ordered = [...categorias].sort((a, b) => a.ordem - b.ordem)
+
+  useEffect(() => {
+    if (editor.mode === 'create') {
+      inputRef.current?.focus()
+      return
+    }
+    if (!restoreAddFocusRef.current) return
+    restoreAddFocusRef.current = false
+    queueMicrotask(() => addButtonRef.current?.focus())
+  }, [editor])
+
+  function closeCreate() {
+    restoreAddFocusRef.current = true
+    setEditor({ mode: 'idle' })
+    setDraft('')
+    setError('')
+  }
+
+  function openCreate() {
+    setEditor({ mode: 'create' })
+    setDraft('')
+    setError('')
+  }
+
+  function handleEscape(event: KeyboardEvent<HTMLFormElement>) {
+    if (event.key !== 'Escape' || pendingRef.current) return
+    event.preventDefault()
+    closeCreate()
+  }
+
+  async function submitCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const nome = draft.trim()
+    if (!nome) {
+      setError('Informe o nome da categoria')
+      return
+    }
+    if (pendingRef.current) return
+    pendingRef.current = true
+    setPending(true)
+    setError('')
+
+    try {
+      const created = await criarCategoria(nome)
+      onCreated(created)
+      onRefresh()
+      toast.success('Categoria criada')
+      pendingRef.current = false
+      setPending(false)
+      closeCreate()
+    } catch (caught) {
+      pendingRef.current = false
+      setPending(false)
+      setError(errorMessage(caught))
+      toast.error('Não foi possível criar a categoria')
+    }
+  }
+
+  const errorId = 'new-category-error'
+
+  return (
+    <AdminPanel
+      title="Categorias"
+      description="Escolha uma seção para revisar produtos."
+      action={
+        <Button
+          ref={addButtonRef}
+          type="button"
+          intent="positive"
+          appearance="ghost"
+          size="sm"
+          className="min-h-11"
+          aria-label="Adicionar categoria"
+          disabled={pending}
+          onClick={openCreate}
+        >
+          <Plus aria-hidden="true" />
+          Adicionar
+        </Button>
+      }
+    >
+      {editor.mode === 'create' ? (
+        <form
+          className="mb-3 flex flex-wrap items-end gap-2 border-b pb-3"
+          aria-busy={pending}
+          onSubmit={submitCreate}
+          onKeyDown={handleEscape}
+        >
+          <div className="min-w-0 flex-1 basis-48">
+            <label htmlFor="new-category-name" className="text-xs font-medium">
+              Nome da nova categoria
+            </label>
+            <Input
+              ref={inputRef}
+              id="new-category-name"
+              className="mt-1 min-h-11"
+              value={draft}
+              required
+              disabled={pending}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            intent="neutral"
+            appearance="ghost"
+            className="min-h-11"
+            disabled={pending}
+            aria-label="Cancelar nova categoria"
+            onClick={closeCreate}
+          >
+            <X aria-hidden="true" />
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            intent="positive"
+            appearance="solid"
+            className="min-h-11"
+            disabled={pending}
+            aria-label="Salvar nova categoria"
+          >
+            <Check aria-hidden="true" />
+            {pending ? 'Criando...' : 'Criar'}
+          </Button>
+          {error ? (
+            <p id={errorId} className="basis-full text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
+
+      {ordered.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Nenhuma categoria criada. Use Adicionar para começar.
+        </p>
+      ) : (
+        <ul className="divide-y" aria-label="Categorias do cardápio">
+          {ordered.map((category) => (
+            <li key={category.id} className="py-1 first:pt-0 last:pb-0">
+              <Button
+                type="button"
+                intent="neutral"
+                appearance="ghost"
+                className="min-h-11 w-full justify-start whitespace-normal break-words rounded-md text-left"
+                aria-pressed={selectedId === category.id}
+                disabled={pending}
+                onClick={() => onSelect(category.id)}
+              >
+                {category.nome}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AdminPanel>
+  )
+}
+```
+
+- [ ] **Step 5: Verify and hand off autonomous slice 9**
+
+```powershell
+npm test -- tests/unit/business/category-manager-create.test.ts
+git add -- components/admin/admin-page.tsx components/admin/category-manager.tsx tests/unit/business/category-manager-create.test.ts
+git commit -m "feat(admin): add inline category creation"
+$parentBranch = 'semantic-actions/08-category-foundations'
+$childBranch = 'semantic-actions/09-category-create'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "feat(admin): add inline category creation" --body "Slice 9/12. Inline category creation, empty state, focus, busy, and errors."
+```
+
+Expected: the creation suite passes and the measured slice is `≤400` changed lines.
+
+- [ ] **Step 6: Create slice 10 and verify edit RED**
+
+```powershell
+git switch semantic-actions/09-category-create
+git switch -c semantic-actions/10-category-edit
+```
+
+Create the previously shown edit test file, then run:
+
+```powershell
+npm test -- tests/unit/business/category-manager-edit.test.ts
+```
+
+Expected: FAIL because slice 9 has no edit pencils or rename editor.
+
+- [ ] **Step 7: Replace the component with the complete create/edit version**
+
+Replace `components/admin/category-manager.tsx` with the following create/edit implementation. Deletion remains absent until slice 11:
+
+```tsx
+'use client'
+
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
+import { Check, Pencil, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AdminPanel } from '@/components/admin/admin-page'
@@ -1948,7 +2791,6 @@ import {
 import {
   criarCategoria,
   editarCategoria,
-  removerCategoria,
   type CreatedCategory,
 } from '@/lib/actions/produtos'
 import { cn } from '@/lib/utils'
@@ -1973,7 +2815,7 @@ type EditorState =
   | { mode: 'create' }
   | { mode: 'edit'; categoryId: string }
 
-type PendingMutation = null | 'create' | 'rename' | 'delete'
+type PendingMutation = null | 'create' | 'rename'
 type FocusTarget = 'add' | string
 
 function errorMessage(error: unknown) {
@@ -1987,7 +2829,6 @@ export function CategoryManager({
   selectedId,
   onSelect,
   onCreated,
-  onDeleted,
   onRefresh,
 }: CategoryManagerProps) {
   const [editor, setEditor] = useState<EditorState>({ mode: 'idle' })
@@ -2104,29 +2945,6 @@ export function CategoryManager({
       finishMutation()
       setError(errorMessage(caught))
       toast.error('Não foi possível renomear a categoria')
-    }
-  }
-
-  async function deleteCategory(category: CategoryListItem) {
-    if (pendingRef.current) return
-    if (!window.confirm(`Excluir a categoria "${category.nome}"?`)) return
-
-    const index = ordered.findIndex((item) => item.id === category.id)
-    const focusFallback = ordered[index + 1] ?? ordered[index - 1]
-    if (!beginMutation('delete')) return
-
-    setError('')
-    try {
-      await removerCategoria(category.id)
-      onDeleted(category.id)
-      onRefresh()
-      toast.success('Categoria excluída')
-      finishMutation()
-      closeEditor(focusFallback?.id ?? 'add')
-    } catch (caught) {
-      finishMutation()
-      setError(errorMessage(caught))
-      toast.error('Não foi possível excluir a categoria')
     }
   }
 
@@ -2302,18 +3120,6 @@ export function CategoryManager({
                       Cancelar
                     </Button>
                     <Button
-                      type="button"
-                      intent="destructive"
-                      appearance="ghost"
-                      className="min-h-11"
-                      aria-label={`Excluir categoria ${category.nome}`}
-                      disabled={pending !== null}
-                      onClick={() => void deleteCategory(category)}
-                    >
-                      <Trash2 aria-hidden="true" />
-                      Excluir
-                    </Button>
-                    <Button
                       type="submit"
                       intent="positive"
                       appearance="solid"
@@ -2345,22 +3151,98 @@ export function CategoryManager({
 }
 ```
 
-The selection button has text, weight/surface, and `aria-pressed`; pencil is the only icon-only idle action and has a specific accessible name. Every action target in this panel is at least 44px, every pending form exposes `aria-busy`, and errors remain adjacent to the active field.
+The selection button has text, weight/surface, and `aria-pressed`; the pencil is the only icon-only idle action and has a specific accessible name. Every slice 10 target is at least 44px, pending forms expose `aria-busy`, and rename errors remain beside the field.
 
-- [ ] **Step 5: Verify GREEN for all transitions**
-
-```powershell
-npm test -- tests/unit/business/category-manager.test.ts tests/unit/ui/tooltip.test.ts
-```
-
-Expected: PASS for empty state; create/edit exclusivity; Enter/form submit; Escape; trim/blank validation; returned identity; next/previous/Add focus restoration; create/rename/delete pending repeat prevention; retained drafts/errors; confirmation; tooltip portal; and accessible labels/targets.
-
-- [ ] **Step 6: Commit the complete manager work unit**
+- [ ] **Step 8: Verify and hand off autonomous slice 10**
 
 ```powershell
-git add -- components/admin/admin-page.tsx components/admin/category-manager.tsx tests/unit/business/category-manager.test.ts
-git commit -m "feat(admin): add progressive category manager"
+npm test -- tests/unit/business/category-manager-create.test.ts tests/unit/business/category-manager-edit.test.ts tests/unit/ui/tooltip.test.ts
+git add -- components/admin/category-manager.tsx tests/unit/business/category-manager-edit.test.ts
+git commit -m "feat(admin): add inline category editing"
+$parentBranch = 'semantic-actions/09-category-create'
+$childBranch = 'semantic-actions/10-category-edit'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "feat(admin): add inline category editing" --body "Slice 10/12. Exclusive inline rename, tooltip, focus, busy, and errors."
 ```
+
+Expected: create/edit suites pass and the measured slice is `≤400` changed lines.
+
+- [ ] **Step 9: Create autonomous slice 11 and verify deletion RED**
+
+```powershell
+git switch semantic-actions/10-category-edit
+git switch -c semantic-actions/11-category-delete
+```
+
+Create the previously shown deletion test file, then run:
+
+```powershell
+npm test -- tests/unit/business/category-manager-delete.test.ts
+```
+
+Expected: FAIL because the edit form has no guarded delete action.
+
+- [ ] **Step 10: Add guarded deletion with selection-aware focus**
+
+In `components/admin/category-manager.tsx`, add `Trash2` to the Lucide import, add `removerCategoria` to the action import, extend `PendingMutation` with `'delete'`, and destructure `onDeleted`. Add this complete handler after `submitRename`:
+
+```ts
+async function deleteCategory(category: CategoryListItem) {
+  if (pendingRef.current) return
+  if (!window.confirm(`Excluir a categoria "${category.nome}"?`)) return
+
+  const index = ordered.findIndex((item) => item.id === category.id)
+  const selectedCategorySurvives =
+    selectedId !== category.id &&
+    ordered.some((item) => item.id === selectedId)
+  const focusFallback = selectedCategorySurvives
+    ? ordered.find((item) => item.id === selectedId)
+    : (ordered[index + 1] ?? ordered[index - 1])
+
+  if (!beginMutation('delete')) return
+  setError('')
+  try {
+    await removerCategoria(category.id)
+    onDeleted(category.id)
+    onRefresh()
+    toast.success('Categoria excluída')
+    finishMutation()
+    closeEditor(focusFallback?.id ?? 'add')
+  } catch (caught) {
+    finishMutation()
+    setError(errorMessage(caught))
+    toast.error('Não foi possível excluir a categoria')
+  }
+}
+```
+
+Insert this action between Cancel and Save in the active edit form:
+
+```tsx
+<Button
+  type="button"
+  intent="destructive"
+  appearance="ghost"
+  className="min-h-11"
+  aria-label={`Excluir categoria ${category.nome}`}
+  disabled={pending !== null}
+  onClick={() => void deleteCategory(category)}
+>
+  <Trash2 aria-hidden="true" />
+  Excluir
+</Button>
+```
+
+The focus rule is exact: when a different category is deleted, preserve `selectedId` and focus that selected category's pencil; choose next, previous, or Add only when the deleted row was selected or no selected row survives.
+
+- [ ] **Step 11: Verify the rendered deletion behavior before adding the parent helper**
+
+```powershell
+npm test -- tests/unit/business/category-manager-delete.test.ts
+```
+
+Expected: PASS for confirmation cancel, next/previous/Add fallback, non-selected deletion preserving/focusing the selected pencil, retained server error/draft, and duplicate-delete prevention. Do not commit yet; Task 7 completes the same slice with the parent selection helper.
 
 ---
 
@@ -2450,12 +3332,20 @@ npm test -- tests/unit/business/category-selection.test.ts
 
 Expected: all four transition cases PASS.
 
-- [ ] **Step 5: Commit the deterministic selection unit**
+- [ ] **Step 5: Verify and hand off autonomous slice 11**
 
 ```powershell
-git add -- lib/admin/category-selection.ts tests/unit/business/category-selection.test.ts
-git commit -m "feat(admin): define category deletion fallback"
+npm test -- tests/unit/business/category-manager-create.test.ts tests/unit/business/category-manager-edit.test.ts tests/unit/business/category-manager-delete.test.ts tests/unit/business/category-selection.test.ts
+git add -- components/admin/category-manager.tsx tests/unit/business/category-manager-delete.test.ts lib/admin/category-selection.ts tests/unit/business/category-selection.test.ts
+git commit -m "feat(admin): add guarded category deletion"
+$parentBranch = 'semantic-actions/10-category-edit'
+$childBranch = 'semantic-actions/11-category-delete'
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "feat(admin): add guarded category deletion" --body "Slice 11/12. Guarded delete, preserved non-selected selection, focus fallback, and pure parent transition."
 ```
+
+Expected: all four files pass, including the rendered non-selected deletion path, and the measured slice is `≤400` changed lines.
 
 ---
 ### Task 8: Integrate progressive categories and semantic product actions
@@ -2469,6 +3359,15 @@ git commit -m "feat(admin): define category deletion fallback"
 - Consumes: `CategoryManager`, `CreatedCategory`, and `nextCategoryIdAfterDeletion` from Tasks 5–7.
 - Preserves the real server action name `toggleDisponivel`.
 - `MenuAdminClient` owns selected-category/product-form state; `CategoryManager` owns editor state.
+
+- [ ] **Step 0: Create autonomous slice 12**
+
+```powershell
+git switch semantic-actions/11-category-delete
+git switch -c semantic-actions/12-menu-integration
+```
+
+Expected: the current branch is `semantic-actions/12-menu-integration`.
 
 - [ ] **Step 1: Write the complete failing parent-state tests**
 
@@ -2491,11 +3390,6 @@ const state = vi.hoisted(() => ({
   categoryProps: undefined as CategoryManagerProps | undefined,
   refresh: vi.fn(),
 }))
-const productActions = vi.hoisted(() => ({
-  removerProduto: vi.fn(),
-  toggleDisponivel: vi.fn(),
-}))
-
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: state.refresh }),
 }))
@@ -2523,7 +3417,10 @@ vi.mock('@/components/admin/produto-form', () => ({
         })
       : null,
 }))
-vi.mock('@/lib/actions/produtos', () => productActions)
+vi.mock('@/lib/actions/produtos', () => ({
+  removerProduto: vi.fn(),
+  toggleDisponivel: vi.fn(),
+}))
 
 import { MenuAdminClient } from '@/app/admin/menu/client'
 
@@ -2632,58 +3529,6 @@ describe('MenuAdminClient category selection', () => {
   })
 })
 
-describe('MenuAdminClient product actions', () => {
-  const product = {
-    id: 'prod-1',
-    nome: 'X-Salada',
-    descricao: null,
-    preco: '25.00',
-    imagemUrl: null,
-    disponivel: true,
-  }
-
-  it('names edit, delete, and available-to-unavailable actions beyond color', async () => {
-    render(
-      createElement(MenuAdminClient, {
-        categorias: [{ ...lanches, produtos: [product] }],
-      })
-    )
-
-    expect(
-      screen.getByRole('button', { name: 'Editar produto X-Salada' })
-    ).toHaveClass('size-11')
-    expect(
-      screen.getByRole('button', { name: 'Excluir produto X-Salada' })
-    ).toHaveClass('min-h-11')
-    expect(screen.getByRole('button', { name: 'Excluir produto X-Salada' })).toHaveTextContent(
-      'Excluir'
-    )
-    const availability = screen.getByRole('button', {
-      name: 'Tornar X-Salada indisponível',
-    })
-    expect(availability).toHaveClass('min-h-11')
-    expect(availability).toHaveTextContent('Tornar indisponível')
-    fireEvent.click(availability)
-    await waitFor(() => {
-      expect(productActions.toggleDisponivel).toHaveBeenCalledWith(product.id)
-    })
-  })
-
-  it('names the unavailable-to-available action explicitly', () => {
-    render(
-      createElement(MenuAdminClient, {
-        categorias: [{
-          ...lanches,
-          produtos: [{ ...product, disponivel: false }],
-        }],
-      })
-    )
-
-    expect(
-      screen.getByRole('button', { name: 'Disponibilizar X-Salada' })
-    ).toHaveTextContent('Disponibilizar')
-  })
-})
 ```
 
 These tests exercise each deletion fallback independently; they do not compress forward/backward/empty into a rerender sequence that can hide stale state.
@@ -2979,55 +3824,15 @@ Use mutually exclusive product-area states with distinct copy:
 )}
 ```
 
-- [ ] **Step 6: Replace the product action block with real handlers and labels**
+- [ ] **Step 6: Preserve the already-reviewed slice 4 product actions**
 
-Inside the existing `selectedCategory.produtos.map((p) => ...)` card, replace only the action-controls `<div>` with:
+Task 8 moves the product list under the new category states but must not rewrite its action group. Verify the exact handler/labels committed in slice 4:
 
-```tsx
-<div className="flex flex-wrap items-center gap-2 sm:justify-end">
-  <Button
-    type="button"
-    intent={p.disponivel ? 'warning' : 'positive'}
-    appearance="soft"
-    className="min-h-11"
-    aria-pressed={p.disponivel}
-    aria-label={
-      p.disponivel
-        ? `Tornar ${p.nome} indisponível`
-        : `Disponibilizar ${p.nome}`
-    }
-    onClick={() => handleToggleProduto(p)}
-  >
-    {p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}
-  </Button>
-  <Button
-    type="button"
-    intent="informational"
-    appearance="ghost"
-    size="icon"
-    className="size-11"
-    aria-label={`Editar produto ${p.nome}`}
-    onClick={() => {
-      setEditProduto(p)
-      setFormOpen(true)
-    }}
-  >
-    <Pencil aria-hidden="true" />
-  </Button>
-  <Button
-    type="button"
-    intent="destructive"
-    appearance="soft"
-    className="min-h-11"
-    aria-label={`Excluir produto ${p.nome}`}
-    onClick={() => handleRemoveProduto(p)}
-  >
-    Excluir
-  </Button>
-</div>
+```powershell
+rg -n "toggleDisponivel|Tornar indisponível|Disponibilizar|Editar produto|Excluir produto" app/admin/menu/client.tsx
 ```
 
-Keep the existing functions and call `toggleDisponivel(produto.id)` inside `handleToggleProduto`; do not rename the import or action. The availability control exposes current state through `aria-pressed` and next action through explicit text, so color is never the only signal.
+Expected: the real `toggleDisponivel(produto.id)` call and both explicit availability labels remain; edit/delete keep object-specific accessible names and 44px classes.
 
 Render the product form only for a real or optimistic selected identity:
 
@@ -3046,7 +3851,7 @@ Render the product form only for a real or optimistic selected identity:
 - [ ] **Step 7: Verify GREEN and every parent transition**
 
 ```powershell
-npm test -- tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager.test.ts tests/unit/business/category-selection.test.ts tests/unit/business/admin-management.test.ts tests/unit/actions/produtos.test.ts
+npm test -- tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager-create.test.ts tests/unit/business/category-manager-edit.test.ts tests/unit/business/category-manager-delete.test.ts tests/unit/business/category-selection.test.ts tests/unit/business/admin-management.test.ts tests/unit/actions/produtos.test.ts
 ```
 
 Expected: PASS for unique zero-state copy, immediate first-ID selection, refresh continuity, external-removal fallback, forward/backward/empty deletion, product empty state, semantic labels, the real `toggleDisponivel` name, manager transitions, and server ordering.
@@ -3059,95 +3864,30 @@ git commit -m "feat(admin): integrate progressive category management"
 ```
 
 ---
-### Task 9: Document the action contract and verify the complete change
+### Task 9: Verify the documented contract and complete the chain
 
 **Files:**
-- Modify: `DESIGN.md`
-- Modify: `tests/unit/design/design-system.test.ts`
+- Verify: `DESIGN.md` and `tests/unit/design/design-system.test.ts` committed in autonomous slice 2.
 - Verify only: every file in the feature range; do not commit screenshots, `test-results/`, database files, or server logs.
 
-- [ ] **Step 1: Write the failing design-contract regression**
-
-Extend `tests/unit/design/design-system.test.ts`:
-
-```ts
-it('documents the semantic action taxonomy and accessible token values', () => {
-  const guide = source('DESIGN.md')
-
-  expect(guide).toContain('neutral, positive, informational, warning, destructive')
-  expect(guide).toContain('solid, soft, outline, ghost, link')
-  expect(guide).toContain('#15803d')
-  expect(guide).toContain('#175cd3')
-  expect(guide).toContain('#fde68a')
-  expect(guide).toContain('#007f62')
-  expect(guide).toContain('Color is never the only cue')
-  expect(guide).not.toContain('green success actions')
-  expect(guide).not.toContain('Focus Mint')
-})
-```
-
-- [ ] **Step 2: Run the design-system test to verify RED**
-
-```powershell
-npm test -- tests/unit/design/design-system.test.ts
-```
-
-Expected: FAIL because the current guide still describes the old success/destructive vocabulary and does not record all approved tokens.
-
-- [ ] **Step 3: Replace the legacy Button section in `DESIGN.md`**
-
-Keep the existing document structure. In the frontmatter color map replace the legacy success/focus entries with `action-positive: "#15803d"`, `action-positive-hover: "#166534"`, `action-informational: "#175cd3"`, `action-informational-hover: "#1849a9"`, `action-warning: "#fde68a"`, `action-warning-foreground: "#713f12"`, `action-destructive: "#b42318"`, and `focus-ring: "#007f62"`. Replace `button-success` with semantic examples named `button-positive`, `button-informational`, and `button-warning`; keep the destructive example but point it at `action-destructive`.
-
-Then replace the prose Buttons/action section with this contract:
-
-```md
-## Semantic actions
-
-Buttons combine an intent (`neutral, positive, informational, warning, destructive`)
-with an appearance (`solid, soft, outline, ghost, link`). Intent describes the
-business meaning; appearance describes visual emphasis. Color is never the only
-cue: pair it with explicit wording, an icon, accessible state, or confirmation.
-
-| Intent | Use | Base token |
-| --- | --- | --- |
-| neutral | navigation, inspect, close, logout, or discard an unpersisted draft | existing foreground/secondary tokens |
-| positive | create, add, save, confirm, register, or complete | `#15803d`; hover `#166534` |
-| informational | edit or configure | `#175cd3`; hover `#1849a9` |
-| warning | reversible operational disruption | soft `#fde68a` with text `#713f12` |
-| destructive | delete, remove, or cancel persisted work | `#b42318` |
-
-Use focus ring `#007f62`. Body text must meet 4.5:1 contrast; interactive borders,
-icons, and focus indicators must meet 3:1 against adjacent surfaces. Dismissive
-“Cancelar” is neutral, while “Cancelar pedido” is destructive. Icon-only controls
-have an accessible name and at least a 44 × 44px target.
-```
-
-Remove any frontmatter or prose that calls mint green the primary success action, maps every Cancel button to destructive red, or describes color without its semantic/non-color cue.
-
-- [ ] **Step 4: Verify the documentation test is GREEN**
+- [ ] **Step 1: Re-verify the slice 2 design contract without changing it**
 
 ```powershell
 npm test -- tests/unit/design/design-system.test.ts tests/unit/design/button-semantics.test.ts
+rg -n "#713f12|#92400e|#b45309|Color is never the only cue" DESIGN.md app/globals.css
 ```
 
-Expected: PASS with the exact approved action vocabulary and tokens.
+Expected: PASS. Both warning foregrounds and the outline are present in the contract and CSS; `git diff -- DESIGN.md tests/unit/design/design-system.test.ts` is empty on slice 12 because documentation belongs to slice 2.
 
-- [ ] **Step 5: Commit the documented contract**
-
-```powershell
-git add -- DESIGN.md tests/unit/design/design-system.test.ts
-git commit -m "docs: document semantic action system"
-```
-
-- [ ] **Step 6: Run the focused feature suite**
+- [ ] **Step 2: Run the focused feature suite**
 
 ```powershell
-npm test -- tests/unit/ui/button.test.ts tests/unit/ui/tooltip.test.ts tests/unit/actions/produtos.test.ts tests/unit/design/design-system.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/admin-management.test.ts tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager.test.ts tests/unit/business/category-selection.test.ts tests/unit/business/waiter-cart-actions.test.ts tests/unit/business/waiter-order-actions.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts
+npm test -- tests/unit/sse.test.ts tests/unit/ui/button.test.ts tests/unit/ui/tooltip.test.ts tests/unit/actions/produtos.test.ts tests/unit/design/design-system.test.ts tests/unit/design/button-semantics.test.ts tests/unit/business/admin-management.test.ts tests/unit/business/admin-menu-client.test.ts tests/unit/business/category-manager-create.test.ts tests/unit/business/category-manager-edit.test.ts tests/unit/business/category-manager-delete.test.ts tests/unit/business/category-selection.test.ts tests/unit/business/waiter-cart-actions.test.ts tests/unit/business/waiter-order-actions.test.ts tests/unit/business/table-orders-panel.test.ts tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-responsible-metrics.test.ts tests/unit/auth/logout-button.test.ts tests/unit/routing/access-navigation.test.ts
 ```
 
 Expected: all listed files PASS. Fix feature regressions before proceeding; do not delete an assertion merely to make the suite green.
 
-- [ ] **Step 7: Run repository gates and distinguish known baseline failures**
+- [ ] **Step 3: Run clean repository gates**
 
 ```powershell
 npm test
@@ -3159,12 +3899,12 @@ Expected:
 
 - `npm test`: all tests PASS; the existing `vite-tsconfig-paths` warning may remain.
 - `npm run build`: PASS.
-- `npx.cmd tsc --noEmit`: no new feature diagnostic. At the recorded base this command already exits non-zero at `tests/unit/sse.test.ts(17,93)` because its string payload conflicts with the declared SSE payload type. Record that exact baseline diagnostic separately; do not misreport the typecheck as green and do not broaden this feature to fix the unrelated SSE test.
+- `npx.cmd tsc --noEmit`: PASS with no diagnostics. Task 0 fixed the invalid SSE fixture without weakening compiler/build configuration.
 
 Use `npx.cmd`, not `npx`, because the PowerShell execution policy blocks the `.ps1` shim in this environment.
 The recorded `package.json` has no `lint` script. Do not invent or report a lint gate; rely on the configured Vitest, Next build, TypeScript, browser, and Git checks unless a separate lint work unit is approved.
 
-- [ ] **Step 8: Verify the real UI with a disposable database and explicit fixtures**
+- [ ] **Step 4: Verify the real UI with a disposable database and explicit fixtures**
 
 Never point this verification at `dev.db`. In the first PowerShell terminal, create an isolated database under the OS temp directory and record the development DB hash only as a non-mutation guard:
 
@@ -3278,7 +4018,7 @@ Remove-Item -LiteralPath $resolvedFixture -Recurse -Force
 ```
 
 Do not use the full Chromium suite as this feature's acceptance gate: the recorded base already has five stale kitchen tests that assume unauthenticated public access and three passing waiter tests. If run for extra evidence, report that baseline split honestly; never weaken auth to satisfy stale fixtures.
-- [ ] **Step 9: Audit the feature range, generated artifacts, and worktree**
+- [ ] **Step 5: Audit the feature range and hand off autonomous slice 12**
 
 ```powershell
 $base = Get-Content .git/semantic-actions-admin-menu.base
@@ -3287,18 +4027,35 @@ git diff --stat "$base..HEAD"
 git diff --name-only "$base..HEAD"
 rg -n "variant=|buttonVariants\(\{ variant|<button" app components
 git status --short
+$parentBranch = 'semantic-actions/11-category-delete'
+$childBranch = 'semantic-actions/12-menu-integration'
+$numstat = git diff --numstat "$parentBranch...$childBranch"
+$changedLines = ($numstat | ForEach-Object {
+  $parts = $_ -split "`t"
+  if ($parts[0] -match '^\d+$' -and $parts[1] -match '^\d+$') {
+    [int]$parts[0] + [int]$parts[1]
+  } else {
+    0
+  }
+} | Measure-Object -Sum).Sum
+if ($changedLines -gt 400) {
+  throw "Slice 12 has $changedLines changed lines; split before push/PR"
+}
+powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
+git push -u origin $childBranch
+gh pr create --base $parentBranch --head $childBranch --title "feat(admin): integrate progressive category management" --body "Slice 12/12. Parent selection, empty states, product form continuity, full gates, and browser evidence. Changed lines: $changedLines"
 ```
 
 Expected:
 
 - `git diff --check` prints nothing and exits `0`.
-- The changed-file list contains only paths named in this plan plus any separately reviewed test fixture required by an actual compiler error.
+- The changed-file list contains only paths named in this plan, including the explicit Task 0 SSE fixture correction.
 - No `test-results/`, screenshots, local database changes, logs, or `.env` files appear.
 - Every remaining legacy alias call is either removed or listed as an intentional compatibility consumer; every remaining native `<button>` is a justified tab, disclosure, row selector, or accessible primitive and uses the shared semantic utility rather than a duplicated action palette.
 - `DESIGNTESTE.MD` and `revisao_geral.md` remain untracked and untouched.
-- The range consists of the conventional work-unit commits recorded in Tasks 1–9, without AI attribution.
+- The range consists of exactly the 12 conventional work-unit commits mapped in the delivery table, without AI attribution; slice 12 measures at most `400` changed lines against slice 11.
 
-If implementation review produces a code correction after its task commit, make one narrowly scoped conventional follow-up commit; never hide review corrections by rewriting unrelated history.
+If verification finds a defect before a slice is pushed, fix it, rerun that slice's gates, and amend that slice's single commit. Do not add a thirteenth work-unit commit or rewrite an already reviewed/pushed slice; stop and re-plan the affected boundary instead.
 
 ## Completion Evidence
 
@@ -3309,7 +4066,7 @@ Before requesting merge or push, attach a concise evidence table with:
 | Focused Vitest | command plus passing file/test counts |
 | Full Vitest | command plus passing file/test counts |
 | Next build | successful command exit |
-| TypeScript | exact pre-existing SSE diagnostic only, or a clean run if separately fixed before this work |
+| TypeScript | clean `npx.cmd tsc --noEmit` after the explicit Task 0 fixture correction |
 | Browser | desktop/mobile routes, keyboard/focus flows, error path, and contrast observations |
 | Git | `diff --check`, range stat, commit list, and clean feature paths |
 
