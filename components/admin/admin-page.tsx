@@ -42,11 +42,17 @@ export function AdminStatCard({
   value,
   detail,
   tone = 'default',
+  onClick,
+  expanded = false,
+  controls,
 }: {
   label: string
   value: ReactNode
   detail?: ReactNode
   tone?: 'default' | 'success' | 'warning' | 'danger'
+  onClick?: () => void
+  expanded?: boolean
+  controls?: string
 }) {
   const toneClass = {
     default: 'border-border bg-card',
@@ -60,17 +66,44 @@ export function AdminStatCard({
     warning: 'bg-amber-500',
     danger: 'bg-destructive',
   }[tone]
-
-  return (
-    <div className={cn('rounded-[var(--radius)] border p-4', toneClass)}>
+  const cardClassName = cn(
+    'min-h-11 w-full rounded-[var(--radius)] border p-4 text-left',
+    toneClass,
+    onClick &&
+      'transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+    onClick && expanded && 'ring-2 ring-foreground ring-offset-2'
+  )
+  const content = (
+    <>
       <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
         <div className={cn('h-full w-10 rounded-full', markerClass)} />
       </div>
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-2 text-3xl font-bold tracking-[-0.03em]">{value}</p>
       {detail ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p> : null}
-    </div>
+      {onClick ? (
+        <span className="mt-3 block text-xs font-semibold underline underline-offset-4">
+          {expanded ? 'Ocultar responsáveis' : 'Ver responsáveis'}
+        </span>
+      ) : null}
+    </>
   )
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className={cardClassName}
+        onClick={onClick}
+        aria-expanded={expanded}
+        aria-controls={controls}
+      >
+        {content}
+      </button>
+    )
+  }
+
+  return <div className={cardClassName}>{content}</div>
 }
 
 export function AdminPanel({
