@@ -81,6 +81,7 @@
 - `tests/unit/actions/produtos.test.ts` — server-boundary normalization and rejection.
 - `components/admin/admin-page.tsx` — optional action slot in `AdminPanel` header.
 - `components/admin/category-manager.tsx` — exclusive inline create/edit/delete state, focus, pending, errors, and tooltip.
+- `tests/unit/business/category-manager-test-helpers.tsx` — shared rendered harness, mocks, fixtures, and cleanup created with slice 9.
 - `tests/unit/business/category-manager-create.test.ts` — creation, empty, focus, busy, and error behavior.
 - `tests/unit/business/category-manager-edit.test.ts` — exclusive rename, tooltip, keyboard, busy, and focus behavior.
 - `tests/unit/business/category-manager-delete.test.ts` — confirmation, deletion focus, error, and duplicate-submit behavior.
@@ -173,10 +174,20 @@ The implementation is exactly 12 autonomous child slices. Each child starts from
 | 6 | `semantic-actions/05-waiter-cart` | `semantic-actions/06-waiter-orders` | Task 3 order steps; `refactor(waiter): apply semantic order actions` | waiter-order tests |
 | 7 | `semantic-actions/06-waiter-orders` | `semantic-actions/07-cashier-disclosure` | Task 3 cashier/AdminStatCard steps; `refactor(cashier): apply semantic payment and disclosure actions` | cashier and disclosure tests |
 | 8 | `semantic-actions/07-cashier-disclosure` | `semantic-actions/08-category-foundations` | Tasks 4–5; `feat(categories): add accessible management foundations` | Tooltip and category-action tests |
-| 9 | `semantic-actions/08-category-foundations` | `semantic-actions/09-category-create` | Task 6 create steps; `feat(admin): add inline category creation` | category-create tests |
-| 10 | `semantic-actions/09-category-create` | `semantic-actions/10-category-edit` | Task 6 edit steps; `feat(admin): add inline category editing` | category-edit tests |
-| 11 | `semantic-actions/10-category-edit` | `semantic-actions/11-category-delete` | Task 6 delete plus Task 7; `feat(admin): add guarded category deletion` | category-delete/selection tests |
+| 9 | `semantic-actions/08-category-foundations` | `semantic-actions/09-category-create` | Task 6 shared test harness plus create steps; `feat(admin): add inline category creation` | category-create tests |
+| 10 | `semantic-actions/09-category-create` | `semantic-actions/10-category-edit` | Task 6 edit test reusing the slice 9 harness plus edit implementation; `feat(admin): add inline category editing` | category-edit tests |
+| 11 | `semantic-actions/10-category-edit` | `semantic-actions/11-category-delete` | Task 6 delete test reusing the harness plus Task 7; `feat(admin): add guarded category deletion` | category-delete/selection tests |
 | 12 | `semantic-actions/11-category-delete` | `semantic-actions/12-menu-integration` | Tasks 8–9 integration/verification; `feat(admin): integrate progressive category management` | menu suite, full gates, browser fixtures |
+
+The three manager slices have a conservative pre-implementation budget derived from the exact code blocks below and line-based LCS against their immediate parent:
+
+| Slice | Conservative calculation | Ceiling |
+| --- | --- | --- |
+| 9 | shared harness `44` + create test `109` + creation component `220` + `AdminPanel` LCS delta `15` | `388` |
+| 10 | create→edit component LCS delta `257` + reused-harness edit test `113` | `370` |
+| 11 | delete test `132` + handler/button/import component delta budget `70` + selection test `25` + helper `13` | `240` |
+
+These are ceilings, not exemptions. The executable checker still measures the real Git diff and must report `≤400` before each push. If an exact snippet changes during implementation, recalculate the corresponding ceiling before coding rather than adding a thirteenth slice.
 
 Each task below contains the exact `git switch`, commit, push, and `gh pr create` commands for its row. Immediately after that task assigns its exact `$parentBranch` and `$childBranch`, and before its push/PR, run this changed-line budget gate:
 
@@ -196,7 +207,7 @@ if ($changedLines -gt 400) {
 powershell -NoProfile -ExecutionPolicy Bypass -File .git/check-semantic-actions-slice.ps1 -ParentBranch $parentBranch -ChildBranch $childBranch
 ```
 
-Expected: `git diff --check` is silent and `$changedLines` is at most `400`. If it exceeds `400`, stop before push/PR and revise the plan boundary; do not silently create a thirteenth slice or claim the table is still accurate. Review targeted PRs independently, then merge **from slice 12 back toward slice 1** so each reviewed child accumulates into its parent. Only after slice 1 has accumulated into `semantic-actions-admin-menu` may the tracker open one final integration PR to `main`; no child branch targets `main`.
+Expected: `git diff --check` is silent and `$changedLines` is at most `400`. If it exceeds `400`, stop before push/PR and revise the plan boundary; do not silently create a thirteenth slice or claim the table is still accurate. Review targeted PRs independently, then execute Task 9 Steps 6–8 exactly: merge slice 12 back through slice 1 with merge commits, prove all 12 recorded work-unit SHAs reached the tracker, and only then open the tracker PR to `main`. No child branch targets `main`.
 
 ---
 
@@ -287,7 +298,7 @@ The checker in Step 4 must report at most `400` changed lines before push/PR.
 
 **Interfaces:**
 - Consumes: existing Base UI `Button`, CVA, Tailwind 4, `cn`, and current legacy `variant` callers.
-- Produces: `Button`, `buttonVariants`, `ButtonProps`, `ButtonStyleProps`, `ButtonIntent`, `ButtonAppearance`, and `LegacyButtonVariant` with the signatures documented above.
+- Produces: layout-free `actionSemantics`, geometric `buttonVariants`, `Button`, `ButtonProps`, `ButtonStyleProps`, `ButtonIntent`, `ButtonAppearance`, and `LegacyButtonVariant` with the signatures documented above.
 
 - [ ] **Step 0: Create autonomous slice 2 and the new test directories**
 
@@ -308,7 +319,7 @@ import { createElement } from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { Button, buttonVariants } from '@/components/ui/button'
+import { actionSemantics, Button, buttonVariants } from '@/components/ui/button'
 
 afterEach(cleanup)
 
@@ -420,6 +431,15 @@ describe('semantic Button', () => {
     )
   })
 
+  it('keeps the shared semantic layer free of button geometry', () => {
+    const classes = actionSemantics({ intent: 'neutral', appearance: 'ghost' })
+
+    expect(classes).toContain('focus-visible:ring-2')
+    for (const geometry of ['inline-flex', 'flex-row', 'gap-', 'h-10', 'rounded-full']) {
+      expect(classes).not.toContain(geometry)
+    }
+  })
+
   it('uses native disabled state without opacity as the only cue', () => {
     render(createElement(Button, { disabled: true }, 'Salvar'))
 
@@ -453,9 +473,9 @@ const legacy: ButtonProps = { variant: 'success' }
 // @ts-expect-error legacy aliases cannot be mixed with semantic props
 const mixedIntent: ButtonProps = { variant: 'success', intent: 'positive' }
 
-// @ts-expect-error legacy aliases cannot be mixed with semantic appearance
 const mixedAppearance: ButtonProps = {
   variant: 'outline',
+  // @ts-expect-error legacy aliases cannot be mixed with semantic appearance
   appearance: 'outline',
 }
 
@@ -803,8 +823,8 @@ const legacyVariantMap = {
   { intent: ButtonIntent; appearance: ButtonAppearance }
 >
 
-const buttonStyles = cva(
-  'group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding text-sm font-medium leading-[1.3] whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:cursor-not-allowed disabled:border-[var(--action-disabled-border)] disabled:bg-[var(--action-disabled)] disabled:text-[var(--action-disabled-foreground)] disabled:opacity-100 aria-busy:pointer-events-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4',
+const actionSemantics = cva(
+  'transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:border-[var(--action-disabled-border)] disabled:bg-[var(--action-disabled)] disabled:text-[var(--action-disabled-foreground)] disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20',
   {
     variants: {
       intent: {
@@ -831,6 +851,18 @@ const buttonStyles = cva(
         link:
           'bg-transparent text-[var(--button-outline)] underline-offset-4 hover:underline',
       },
+    },
+    defaultVariants: {
+      intent: 'neutral',
+      appearance: 'solid',
+    },
+  }
+)
+
+const buttonGeometry = cva(
+  'group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding text-sm font-medium leading-[1.3] whitespace-nowrap select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:cursor-not-allowed aria-busy:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4',
+  {
+    variants: {
       size: {
         default:
           'h-10 gap-1.5 px-5 has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4',
@@ -843,11 +875,7 @@ const buttonStyles = cva(
         'icon-lg': 'size-9',
       },
     },
-    defaultVariants: {
-      intent: 'neutral',
-      appearance: 'solid',
-      size: 'default',
-    },
+    defaultVariants: { size: 'default' },
   }
 )
 
@@ -861,12 +889,11 @@ function resolveButtonSemantics(props: ButtonStyleProps) {
 
 function buttonVariants(props: ButtonStyleProps = {}) {
   const { intent, appearance } = resolveButtonSemantics(props)
-  return buttonStyles({
-    intent,
-    appearance,
-    size: props.size ?? 'default',
-    className: props.className,
-  })
+  return cn(
+    buttonGeometry({ size: props.size ?? 'default' }),
+    actionSemantics({ intent, appearance }),
+    props.className
+  )
 }
 
 function Button({
@@ -884,7 +911,7 @@ function Button({
   return <ButtonPrimitive data-slot="button" className={cn(classNames)} {...props} />
 }
 
-export { Button, buttonVariants }
+export { actionSemantics, Button, buttonVariants }
 ```
 
 - [ ] **Step 5: Verify GREEN and the compatibility boundary**
@@ -897,7 +924,7 @@ npm run build
 npx.cmd tsc --noEmit --pretty false
 ```
 
-Expected: targeted Vitest files PASS, TypeScript exits `0` without diagnostics, and Next production build exits `0`. Vitest currently prints one pre-existing `vite-tsconfig-paths` deprecation warning; this task must add no new warning.
+Expected: targeted Vitest files PASS, TypeScript exits `0` with neither `TS2322` nor unused-directive `TS2578`, and Next production build exits `0`. Vitest currently prints one pre-existing `vite-tsconfig-paths` deprecation warning; this task must add no new warning.
 
 - [ ] **Step 6: Commit the semantic foundation**
 
@@ -1322,11 +1349,13 @@ Also on slice 7, add this source regression to `tests/unit/business/cashier-orde
 it('uses the shared semantic utility for the native stat disclosure', () => {
   const adminPage = readProjectFile('components/admin/admin-page.tsx')
 
-  expect(adminPage).toContain("import { buttonVariants } from '@/components/ui/button'")
-  expect(adminPage).toContain('buttonVariants({')
+  expect(adminPage).toContain("import { actionSemantics } from '@/components/ui/button'")
+  expect(adminPage).toContain('actionSemantics({')
   expect(adminPage).toContain("intent: 'neutral'")
   expect(adminPage).toContain("appearance: 'ghost'")
+  expect(adminPage).toContain('flex w-full flex-col gap-0')
   expect(adminPage).toContain('whitespace-normal')
+  expect(adminPage).not.toContain('interactiveCardClassName = buttonVariants')
 })
 ```
 
@@ -1334,12 +1363,24 @@ On slice 7, in the interactive `AdminStatCard` test in `tests/unit/business/cash
 
 ```ts
 expect(button).toHaveClass(
+  'flex',
+  'w-full',
+  'flex-col',
+  'gap-0',
   'rounded-[var(--radius)]',
   'whitespace-normal',
   'focus-visible:ring-2',
   'focus-visible:ring-ring'
 )
-expect(button).not.toHaveClass('rounded-full')
+for (const buttonOnlyClass of [
+  'inline-flex',
+  'flex-row',
+  'gap-1.5',
+  'whitespace-nowrap',
+  'rounded-full',
+]) {
+  expect(button).not.toHaveClass(buttonOnlyClass)
+}
 ```
 
 - [ ] **Step 2: Run the operational tests to verify RED**
@@ -1486,28 +1527,25 @@ For pending buttons, expose the actual local pending boolean on the control (and
 </form>
 ```
 
-For the justified native disclosure in `components/admin/admin-page.tsx`, import the shared utility:
+For the justified native disclosure in `components/admin/admin-page.tsx`, import the layout-free shared utility rather than `buttonVariants`:
 
 ```ts
-import { buttonVariants } from '@/components/ui/button'
+import { actionSemantics } from '@/components/ui/button'
 ```
 
 Keep the card-selection presentation. Replace only the current `cardClassName` calculation with:
 
 ```ts
 const baseCardClassName =
-  'h-auto min-h-11 w-full rounded-[var(--radius)] border p-4 text-left'
+  'flex w-full flex-col gap-0 h-auto min-h-11 rounded-[var(--radius)] border p-4 text-left'
 const staticCardClassName = cn(baseCardClassName, toneClass)
-const interactiveCardClassName = buttonVariants({
-  intent: 'neutral',
-  appearance: 'ghost',
-  className: cn(
-    baseCardClassName,
-    'items-stretch justify-start whitespace-normal text-foreground transition-shadow hover:shadow-sm',
-    toneClass,
-    expanded && 'ring-2 ring-foreground ring-offset-2'
-  ),
-})
+const interactiveCardClassName = cn(
+  baseCardClassName,
+  actionSemantics({ intent: 'neutral', appearance: 'ghost' }),
+  'items-stretch justify-start whitespace-normal text-foreground transition-shadow hover:shadow-sm',
+  toneClass,
+  expanded && 'ring-2 ring-foreground ring-offset-2'
+)
 ```
 
 Then keep the native `<button>` and its disclosure ARIA, changing only its class expression; keep the static branch visually identical:
@@ -1517,7 +1555,7 @@ if (onClick) {
   return (
     <button
       type="button"
-      className={cn(interactiveCardClassName)}
+      className={interactiveCardClassName}
       onClick={onClick}
       aria-expanded={expanded}
       aria-controls={controls}
@@ -1530,7 +1568,7 @@ if (onClick) {
 return <div className={staticCardClassName}>{content}</div>
 ```
 
-`cn(...)` resolves the shared pill/default-size classes in favor of `h-auto`, `rounded-[var(--radius)]`, `p-4`, and `whitespace-normal`. The result remains a full stat-card disclosure while inheriting the centralized semantic hover, focus, active, disabled, and color variables.
+`actionSemantics` contributes only intent/appearance colors and focus states. `baseCardClassName` exclusively owns the card geometry (`flex w-full flex-col gap-0`, radius, padding, and wrapping), so no Button row, gap, size, or pill class can leak into the disclosure.
 
 - [ ] **Step 4: Verify GREEN and remove operational legacy aliases**
 
@@ -1609,7 +1647,7 @@ git push -u origin $childBranch
 gh pr create --base $parentBranch --head $childBranch --title "refactor(cashier): apply semantic payment and disclosure actions" --body "Slice 7/12. Cashier controls and shared semantic native disclosure."
 ```
 
-Expected GREEN: all three tests pass, the native disclosure retains card classes while consuming `buttonVariants`, and the measured slice is `≤400` changed lines.
+Expected GREEN: all three tests pass, the native disclosure retains `flex-col gap-0` card layout while consuming `actionSemantics`, and the measured slice is `≤400` changed lines.
 
 ---
 
@@ -1934,6 +1972,7 @@ Expected: Tooltip and category-action tests pass and the measured slice is `≤4
 **Files:**
 - Modify: `components/admin/admin-page.tsx:101-128`
 - Create: `components/admin/category-manager.tsx`
+- Create: `tests/unit/business/category-manager-test-helpers.tsx`
 - Create: `tests/unit/business/category-manager-create.test.ts`
 - Create: `tests/unit/business/category-manager-edit.test.ts`
 - Create: `tests/unit/business/category-manager-delete.test.ts`
@@ -1968,21 +2007,14 @@ git switch -c semantic-actions/09-category-create
 
 Expected: the current branch is `semantic-actions/09-category-create`.
 
-- [ ] **Step 1: Write only the slice 9 creation suite**
+- [ ] **Step 1: Write the shared rendered-test harness and only the slice 9 creation suite**
 
-Create `tests/unit/business/category-manager-create.test.ts`. The first code block below is this slice's file; the edit/delete blocks are explicitly deferred until their own child branches.
+Create `tests/unit/business/category-manager-test-helpers.tsx` in slice 9 so later slices reuse setup instead of paying for it again:
 
-```ts
+```tsx
 import { createElement } from 'react'
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { afterEach, beforeEach, vi } from 'vitest'
 
 const actions = vi.hoisted(() => ({
   criarCategoria: vi.fn(),
@@ -2000,11 +2032,12 @@ import {
   type CategoryManagerProps,
 } from '@/components/admin/category-manager'
 
-const pizzas = { id: 'cat-1', nome: 'Pizzas', ordem: 0 }
-const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1 }
-const doces = { id: 'cat-3', nome: 'Doces', ordem: 2 }
+export { actions }
+export const pizzas = { id: 'cat-1', nome: 'Pizzas', ordem: 0 }
+export const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1 }
+export const doces = { id: 'cat-3', nome: 'Doces', ordem: 2 }
 
-function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
+export function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
   const props: CategoryManagerProps = {
     categorias: [pizzas, bebidas],
     selectedId: pizzas.id,
@@ -2014,7 +2047,6 @@ function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
     onRefresh: vi.fn(),
     ...overrides,
   }
-
   render(createElement(CategoryManager, props))
   return props
 }
@@ -2024,6 +2056,23 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
 })
+```
+
+Then create `tests/unit/business/category-manager-create.test.ts`. The first code block below is this slice's file; the edit/delete blocks remain deferred until their own child branches.
+
+```ts
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import {
+  actions,
+  doces,
+  renderManager,
+} from './category-manager-test-helpers'
 
 describe('CategoryManager', () => {
   it('keeps Add and empty guidance visible with 44px controls', () => {
@@ -2126,55 +2175,14 @@ describe('CategoryManager', () => {
 The following is the exact slice 10 file; do not create it until Step 7 creates `semantic-actions/10-category-edit`. Create `tests/unit/business/category-manager-edit.test.ts` then:
 
 ```ts
-import { createElement } from 'react'
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const actions = vi.hoisted(() => ({
-  criarCategoria: vi.fn(),
-  editarCategoria: vi.fn(),
-  removerCategoria: vi.fn(),
-}))
-
-vi.mock('@/lib/actions/produtos', () => actions)
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}))
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 
 import {
-  CategoryManager,
-  type CategoryManagerProps,
-} from '@/components/admin/category-manager'
-
-const pizzas = { id: 'cat-1', nome: 'Pizzas', ordem: 0 }
-const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1 }
-
-function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
-  const props: CategoryManagerProps = {
-    categorias: [pizzas, bebidas],
-    selectedId: pizzas.id,
-    onSelect: vi.fn(),
-    onCreated: vi.fn(),
-    onDeleted: vi.fn(),
-    onRefresh: vi.fn(),
-    ...overrides,
-  }
-  render(createElement(CategoryManager, props))
-  return props
-}
-
-beforeEach(() => vi.clearAllMocks())
-afterEach(() => {
-  cleanup()
-  vi.restoreAllMocks()
-})
+  actions,
+  pizzas,
+  renderManager,
+} from './category-manager-test-helpers'
 
 describe('CategoryManager edit', () => {
   it('keeps create, one edit row, and another edit row mutually exclusive', async () => {
@@ -2285,56 +2293,16 @@ describe('CategoryManager edit', () => {
 The following is the exact slice 11 file; do not create it until Step 11 creates `semantic-actions/11-category-delete`. Create `tests/unit/business/category-manager-delete.test.ts` then:
 
 ```ts
-import { createElement } from 'react'
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const actions = vi.hoisted(() => ({
-  criarCategoria: vi.fn(),
-  editarCategoria: vi.fn(),
-  removerCategoria: vi.fn(),
-}))
-
-vi.mock('@/lib/actions/produtos', () => actions)
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}))
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
-  CategoryManager,
-  type CategoryManagerProps,
-} from '@/components/admin/category-manager'
-
-const pizzas = { id: 'cat-1', nome: 'Pizzas', ordem: 0 }
-const bebidas = { id: 'cat-2', nome: 'Bebidas', ordem: 1 }
-const doces = { id: 'cat-3', nome: 'Doces', ordem: 2 }
-
-function renderManager(overrides: Partial<CategoryManagerProps> = {}) {
-  const props: CategoryManagerProps = {
-    categorias: [pizzas, bebidas],
-    selectedId: pizzas.id,
-    onSelect: vi.fn(),
-    onCreated: vi.fn(),
-    onDeleted: vi.fn(),
-    onRefresh: vi.fn(),
-    ...overrides,
-  }
-  render(createElement(CategoryManager, props))
-  return props
-}
-
-beforeEach(() => vi.clearAllMocks())
-afterEach(() => {
-  cleanup()
-  vi.restoreAllMocks()
-})
+  actions,
+  bebidas,
+  doces,
+  pizzas,
+  renderManager,
+} from './category-manager-test-helpers'
 
 describe('CategoryManager delete', () => {
 
@@ -2737,7 +2705,7 @@ export function CategoryManager({
 
 ```powershell
 npm test -- tests/unit/business/category-manager-create.test.ts
-git add -- components/admin/admin-page.tsx components/admin/category-manager.tsx tests/unit/business/category-manager-create.test.ts
+git add -- components/admin/admin-page.tsx components/admin/category-manager.tsx tests/unit/business/category-manager-test-helpers.tsx tests/unit/business/category-manager-create.test.ts
 git commit -m "feat(admin): add inline category creation"
 $parentBranch = 'semantic-actions/08-category-foundations'
 $childBranch = 'semantic-actions/09-category-create'
@@ -2746,7 +2714,7 @@ git push -u origin $childBranch
 gh pr create --base $parentBranch --head $childBranch --title "feat(admin): add inline category creation" --body "Slice 9/12. Inline category creation, empty state, focus, busy, and errors."
 ```
 
-Expected: the creation suite passes and the measured slice is `≤400` changed lines.
+Expected: the creation suite passes; the exact planned ceiling is `388`, and the measured slice is `≤400` changed lines.
 
 - [ ] **Step 6: Create slice 10 and verify edit RED**
 
@@ -3166,7 +3134,7 @@ git push -u origin $childBranch
 gh pr create --base $parentBranch --head $childBranch --title "feat(admin): add inline category editing" --body "Slice 10/12. Exclusive inline rename, tooltip, focus, busy, and errors."
 ```
 
-Expected: create/edit suites pass and the measured slice is `≤400` changed lines.
+Expected: create/edit suites pass; the exact planned ceiling is `370`, and the measured slice is `≤400` changed lines.
 
 - [ ] **Step 9: Create autonomous slice 11 and verify deletion RED**
 
@@ -3345,7 +3313,7 @@ git push -u origin $childBranch
 gh pr create --base $parentBranch --head $childBranch --title "feat(admin): add guarded category deletion" --body "Slice 11/12. Guarded delete, preserved non-selected selection, focus fallback, and pure parent transition."
 ```
 
-Expected: all four files pass, including the rendered non-selected deletion path, and the measured slice is `≤400` changed lines.
+Expected: all four files pass, including the rendered non-selected deletion path; the conservative planned ceiling is `240`, and the measured slice is `≤400` changed lines.
 
 ---
 ### Task 8: Integrate progressive categories and semantic product actions
@@ -4053,13 +4021,135 @@ Expected:
 - No `test-results/`, screenshots, local database changes, logs, or `.env` files appear.
 - Every remaining legacy alias call is either removed or listed as an intentional compatibility consumer; every remaining native `<button>` is a justified tab, disclosure, row selector, or accessible primitive and uses the shared semantic utility rather than a duplicated action palette.
 - `DESIGNTESTE.MD` and `revisao_geral.md` remain untracked and untouched.
-- The range consists of exactly the 12 conventional work-unit commits mapped in the delivery table, without AI attribution; slice 12 measures at most `400` changed lines against slice 11.
+- The range contains the 12 conventional work-unit SHAs mapped in the delivery table, without AI attribution; merge commits are expected during reverse accumulation, so do not assert an exact final commit count. Slice 12 still measures at most `400` changed lines against slice 11.
 
-If verification finds a defect before a slice is pushed, fix it, rerun that slice's gates, and amend that slice's single commit. Do not add a thirteenth work-unit commit or rewrite an already reviewed/pushed slice; stop and re-plan the affected boundary instead.
+If verification finds a defect before a slice is pushed, fix it, rerun that slice's gates, and amend that slice's single work-unit commit. Do not add a thirteenth work unit or rewrite an already reviewed/pushed slice; stop and re-plan the affected boundary instead. The merge commits below are integration history, not extra work units.
+
+- [ ] **Step 6: Record the 12 immutable work-unit SHAs before any reverse merge**
+
+Run after all 12 child PRs exist and their slice gates are green:
+
+```powershell
+$workUnits = @(
+  [pscustomobject]@{ Slice = 1; Base = 'semantic-actions-admin-menu'; Branch = 'semantic-actions/01-sse-prerequisite'; Subject = 'test(sse): use typed kitchen event fixture' }
+  [pscustomobject]@{ Slice = 2; Base = 'semantic-actions/01-sse-prerequisite'; Branch = 'semantic-actions/02-action-tokens-docs'; Subject = 'feat(ui): add semantic action tokens' }
+  [pscustomobject]@{ Slice = 3; Base = 'semantic-actions/02-action-tokens-docs'; Branch = 'semantic-actions/03-button-api'; Subject = 'feat(ui): add semantic action buttons' }
+  [pscustomobject]@{ Slice = 4; Base = 'semantic-actions/03-button-api'; Branch = 'semantic-actions/04-admin-auth-actions'; Subject = 'refactor(actions): apply administrative action semantics' }
+  [pscustomobject]@{ Slice = 5; Base = 'semantic-actions/04-admin-auth-actions'; Branch = 'semantic-actions/05-waiter-cart'; Subject = 'refactor(waiter): apply semantic cart actions' }
+  [pscustomobject]@{ Slice = 6; Base = 'semantic-actions/05-waiter-cart'; Branch = 'semantic-actions/06-waiter-orders'; Subject = 'refactor(waiter): apply semantic order actions' }
+  [pscustomobject]@{ Slice = 7; Base = 'semantic-actions/06-waiter-orders'; Branch = 'semantic-actions/07-cashier-disclosure'; Subject = 'refactor(cashier): apply semantic payment and disclosure actions' }
+  [pscustomobject]@{ Slice = 8; Base = 'semantic-actions/07-cashier-disclosure'; Branch = 'semantic-actions/08-category-foundations'; Subject = 'feat(categories): add accessible management foundations' }
+  [pscustomobject]@{ Slice = 9; Base = 'semantic-actions/08-category-foundations'; Branch = 'semantic-actions/09-category-create'; Subject = 'feat(admin): add inline category creation' }
+  [pscustomobject]@{ Slice = 10; Base = 'semantic-actions/09-category-create'; Branch = 'semantic-actions/10-category-edit'; Subject = 'feat(admin): add inline category editing' }
+  [pscustomobject]@{ Slice = 11; Base = 'semantic-actions/10-category-edit'; Branch = 'semantic-actions/11-category-delete'; Subject = 'feat(admin): add guarded category deletion' }
+  [pscustomobject]@{ Slice = 12; Base = 'semantic-actions/11-category-delete'; Branch = 'semantic-actions/12-menu-integration'; Subject = 'feat(admin): integrate progressive category management' }
+)
+
+git fetch origin
+$records = @($workUnits | ForEach-Object {
+  $sha = (git rev-parse "origin/$($_.Branch)").Trim()
+  $subject = (git show -s --format=%s $sha).Trim()
+  if ($sha -notmatch '^[0-9a-f]{40}$' -or $subject -ne $_.Subject) {
+    throw "Unexpected work-unit tip for slice $($_.Slice): $sha / $subject"
+  }
+  [pscustomobject]@{
+    Slice = $_.Slice
+    Base = $_.Base
+    Branch = $_.Branch
+    Subject = $_.Subject
+    Sha = $sha
+  }
+})
+if ($records.Count -ne 12) { throw "Expected 12 work-unit SHAs, found $($records.Count)" }
+$records | ConvertTo-Json -Depth 3 | Set-Content .git/semantic-actions-work-unit-shas.json
+```
+
+Expected: the untracked JSON contains 12 distinct 40-character SHAs with the exact subjects from the delivery table. Do not regenerate it after merges; it is the ancestry evidence.
+
+- [ ] **Step 7: Merge child PRs in reverse order with merge commits only**
+
+Use the recorded objects from Step 6. This loop processes slice 12→11 first and slice 1→tracker last. It waits for required checks and requires an approved review at every newly accumulated parent diff:
+
+```powershell
+function Get-UniqueChainPr([string]$Base, [string]$Head) {
+  $json = (gh pr list --state open --base $Base --head $Head --json number,baseRefName,headRefName) -join "`n"
+  $prs = if ($json.Trim()) { @($json | ConvertFrom-Json) } else { @() }
+  if ($prs.Count -ne 1) {
+    throw "Expected one open PR for $Head -> $Base, found $($prs.Count)"
+  }
+  return $prs[0]
+}
+
+foreach ($unit in ($records | Sort-Object Slice -Descending)) {
+  $pr = Get-UniqueChainPr -Base $unit.Base -Head $unit.Branch
+  gh pr checks $pr.number --required --watch
+  if ($LASTEXITCODE -ne 0) { throw "Required checks failed for PR #$($pr.number)" }
+
+  $review = gh pr view $pr.number --json reviewDecision | ConvertFrom-Json
+  if ($review.reviewDecision -ne 'APPROVED') {
+    throw "PR #$($pr.number) must be approved after its latest accumulated diff"
+  }
+
+  gh pr merge $pr.number --merge
+  if ($LASTEXITCODE -ne 0) { throw "Merge failed for PR #$($pr.number)" }
+  git fetch origin
+  git merge-base --is-ancestor $unit.Sha "origin/$($unit.Base)"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Work-unit $($unit.Sha) is not an ancestor of $($unit.Base)"
+  }
+}
+
+git fetch origin
+foreach ($unit in $records) {
+  git merge-base --is-ancestor $unit.Sha origin/semantic-actions-admin-menu
+  if ($LASTEXITCODE -ne 0) {
+    throw "Tracker is missing slice $($unit.Slice) SHA $($unit.Sha)"
+  }
+}
+```
+
+Expected: all 12 PRs are merged with `--merge`, every recorded work-unit SHA is an ancestor of `origin/semantic-actions-admin-menu`, and the history also contains merge commits. Never use squash or rebase for these PRs because either would invalidate the recorded-SHA ancestry contract.
+
+- [ ] **Step 8: Gate, approve, and merge the final tracker PR to `main`**
+
+Synchronize current `main` into the tracker without rewriting its recorded SHAs, rerun the repository gates, then open the only PR that targets `main`:
+
+```powershell
+git switch semantic-actions-admin-menu
+git pull --ff-only origin semantic-actions-admin-menu
+git fetch origin
+git merge --no-edit origin/main
+git push origin semantic-actions-admin-menu
+
+npm test
+npm run build
+npx.cmd tsc --noEmit
+
+$finalPrUrl = gh pr create --base main --head semantic-actions-admin-menu --title "feat(admin): add semantic actions and progressive categories" --body "Integrates the 12 reviewed work-unit SHAs through the approved feature-branch chain. Includes full test, build, TypeScript, browser, accessibility, and Git evidence from this plan."
+$finalPr = gh pr view $finalPrUrl --json number | ConvertFrom-Json
+gh pr checks $finalPr.number --required --watch
+if ($LASTEXITCODE -ne 0) { throw "Required checks failed for final PR #$($finalPr.number)" }
+$finalReview = gh pr view $finalPr.number --json reviewDecision | ConvertFrom-Json
+if ($finalReview.reviewDecision -ne 'APPROVED') {
+  throw "Final tracker PR #$($finalPr.number) requires approval before merge"
+}
+gh pr merge $finalPr.number --merge
+if ($LASTEXITCODE -ne 0) { throw "Final tracker merge failed" }
+
+git fetch origin
+foreach ($unit in $records) {
+  git merge-base --is-ancestor $unit.Sha origin/main
+  if ($LASTEXITCODE -ne 0) {
+    throw "main is missing slice $($unit.Slice) SHA $($unit.Sha)"
+  }
+}
+```
+
+Expected: full tests, build, TypeScript, required final-PR checks, and approval are green before the `--merge` command; all 12 recorded work-unit SHAs are ancestors of `origin/main`. Merge commits make the final commit count greater than 12 by design, while the number of feature work units remains exactly 12.
 
 ## Completion Evidence
 
-Before requesting merge or push, attach a concise evidence table with:
+Before executing any `gh pr merge` in Steps 7–8, attach a concise evidence table with:
 
 | Gate | Required evidence |
 | --- | --- |
@@ -4068,6 +4158,6 @@ Before requesting merge or push, attach a concise evidence table with:
 | Next build | successful command exit |
 | TypeScript | clean `npx.cmd tsc --noEmit` after the explicit Task 0 fixture correction |
 | Browser | desktop/mobile routes, keyboard/focus flows, error path, and contrast observations |
-| Git | `diff --check`, range stat, commit list, and clean feature paths |
+| Git | `diff --check`, range stat, 12 recorded work-unit SHAs, reverse-merge PR numbers, tracker/main ancestry proof, and clean feature paths |
 
 Do not claim completion while a new feature test, build error, accessibility regression, or unreviewed file remains.
