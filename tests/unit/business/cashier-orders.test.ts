@@ -47,4 +47,16 @@ describe('cashier order control', () => {
     expect(queries).toContain('getCashierOrders')
     expect(queries).toContain("ne(pedido.status, 'cancelado')")
   })
+
+  it('returns optional order creator and registered payment metadata', () => {
+    const queries = readProjectFile('lib/orders/queries.ts')
+
+    expect(queries).toContain('export type CashierResponsible')
+    expect(queries).toContain('criadoPor: CashierResponsible | null')
+    expect(queries).toContain('pagamento: CashierPayment | null')
+    expect(queries).toContain('createdByUserId: pedido.createdByUserId')
+    expect(queries).toContain('registradoPorUsuarioId: pagamentoPedido.registradoPorUsuarioId')
+    expect(queries).toContain('valor: pagamentoPedido.valor')
+    expect(queries).toContain('registradoEm: pagamentoPedido.registradoEm')
+  })
 })
