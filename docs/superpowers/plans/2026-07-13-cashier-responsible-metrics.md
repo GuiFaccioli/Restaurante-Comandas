@@ -36,10 +36,22 @@
 - `lib/actions/pedidos.ts` — writes authenticated waiter `usuarioId` into new orders.
 - `tests/unit/actions/pedidos.test.ts` — action persistence regression.
 - `lib/orders/queries.ts` — tenant-scoped responsible lookup and enriched `CashierOrder` contract.
-- `tests/unit/business/cashier-orders.test.ts` — cashier query contract and tenant-isolation regression.
+- `tests/unit/business/cashier-orders.test.ts` — cashier response-contract regression.
+- `tests/unit/business/cashier-orders-query.test.ts` — behavioral tenant-separated fixtures for responsible resolution and reversed-payment selection.
 - `components/admin/admin-page.tsx` — optional interactive behavior for `AdminStatCard`, retaining static behavior.
 - `app/admin/pedidos/client.tsx` — selected-metric state and responsive responsibility panel derived from `pedidos`.
 - `tests/unit/business/cashier-responsible-metrics.test.ts` — component interaction, fallback, empty-state, SSE, polling, and static-card regressions.
+
+## Recorded Feature Base
+
+Before Task 1 changes any file, record the exact starting commit in Git's local metadata:
+
+```bash
+git rev-parse HEAD > .git/cashier-responsible-metrics.base
+cat .git/cashier-responsible-metrics.base
+```
+
+Expected: the second command prints one 40-character commit hash. Keep this untracked `.git/` marker through Task 6. All final range audits must use `$(cat .git/cashier-responsible-metrics.base)..HEAD`; never assume a fixed number of feature commits because review/correction commits may be added during execution.
 
 ---
 
@@ -90,6 +102,24 @@ it('ships an additive nullable order creator migration without speculative backf
   expect(migration).toContain('idx_pedido_created_by_user_id')
   expect(migration).not.toMatch(/UPDATE\s+pedido/i)
 })
+
+it('declares the reference-schema creator foreign key only after usuario exists', () => {
+  const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
+  const pedidoStart = sqlSchema.indexOf('CREATE TABLE pedido')
+  const pedidoEnd = sqlSchema.indexOf(');', pedidoStart)
+  const usuarioStart = sqlSchema.indexOf('CREATE TABLE usuario')
+  const usuarioEnd = sqlSchema.indexOf(');', usuarioStart)
+  const creatorForeignKey = sqlSchema.indexOf(
+    'ADD CONSTRAINT pedido_created_by_user_id_fkey'
+  )
+
+  expect(pedidoStart).toBeGreaterThanOrEqual(0)
+  expect(usuarioStart).toBeGreaterThan(pedidoEnd)
+  expect(creatorForeignKey).toBeGreaterThan(usuarioEnd)
+  expect(sqlSchema.slice(pedidoStart, pedidoEnd)).not.toContain(
+    'created_by_user_id UUID REFERENCES usuario(id)'
+  )
+})
 ```
 
 - [ ] **Step 2: Run the schema test to verify RED**
@@ -100,7 +130,7 @@ Run:
 npm test -- tests/unit/db/schema.test.ts
 ```
 
-Expected: FAIL because `pedido.createdByUserId` and the migration file do not exist.
+Expected: FAIL because `pedido.createdByUserId`, the migration file, and the post-`usuario` reference-schema FK do not exist.
 
 - [ ] **Step 3: Add the PostgreSQL and SQLite Drizzle fields**
 
@@ -307,6 +337,7 @@ git commit -m "feat(orders): record authenticated waiter"
 
 **Files:**
 - Modify: `tests/unit/business/cashier-orders.test.ts`
+- Create: `tests/unit/business/cashier-orders-query.test.ts`
 - Modify: `lib/orders/queries.ts:1-17,83-158`
 
 **Interfaces:**
@@ -331,9 +362,23 @@ export type CashierOrder = TableOrder & {
   criadoPor: CashierResponsible | null
   pagamento: CashierPayment | null
 }
+
+export type CashierResponsibleMembership = CashierResponsible & {
+  tenantId: string
+}
+
+export function resolveTenantResponsible(
+  memberships: CashierResponsibleMembership[],
+  tenantId: string,
+  usuarioId: string | null
+): CashierResponsible | null
+
+export function findRegisteredPayment<
+  T extends { pedidoId: string; status: StatusPagamento },
+>(payments: T[], pedidoId: string): T | undefined
 ```
 
-- [ ] **Step 1: Add failing cashier contract and tenant-boundary assertions**
+- [ ] **Step 1: Add the failing cashier response-contract assertions**
 
 Extend `tests/unit/business/cashier-orders.test.ts` with:
 
@@ -349,37 +394,106 @@ it('returns optional order creator and registered payment metadata', () => {
   expect(queries).toContain('valor: pagamentoPedido.valor')
   expect(queries).toContain('registradoEm: pagamentoPedido.registradoEm')
 })
+```
 
-it('resolves every responsible name through the selected tenant membership', () => {
-  const queries = readProjectFile('lib/orders/queries.ts')
+Do not add source-string assertions for tenant safety or reversed payments. Those behaviors require executable fixtures in the next step.
 
-  expect(queries).toContain('tenantUser')
-  expect(queries).toContain('usuario')
-  expect(queries).toContain('eq(tenantUser.tenantId, input.tenantId)')
-  expect(queries).toContain('inArray(tenantUser.usuarioId, responsibleUserIds)')
-  expect(queries).toContain('innerJoin(usuario, eq(tenantUser.usuarioId, usuario.id))')
-  expect(queries).not.toMatch(/\.from\(usuario\)\s*\.where\(inArray\(usuario\.id/)
-})
+- [ ] **Step 2: Add behavioral tenant-separated and reversed-payment tests**
 
-it('ignores reversed payments when choosing the displayed cashier', () => {
-  const queries = readProjectFile('lib/orders/queries.ts')
+Create `tests/unit/business/cashier-orders-query.test.ts` with exactly:
 
-  expect(queries).toContain("pagamento.status === 'registrado'")
-  expect(queries).toContain('pagamento: pagamentoRegistrado')
+```ts
+import { describe, expect, it } from 'vitest'
+
+import {
+  findRegisteredPayment,
+  resolveTenantResponsible,
+  type CashierResponsibleMembership,
+} from '@/lib/orders/queries'
+
+const memberships: CashierResponsibleMembership[] = [
+  { tenantId: 'tenant-a', usuarioId: 'waiter-a', nome: 'Alice Garçom' },
+  { tenantId: 'tenant-a', usuarioId: 'cashier-a', nome: 'Carlos Caixa' },
+  { tenantId: 'tenant-b', usuarioId: 'waiter-b', nome: 'Bruno Garçom' },
+  { tenantId: 'tenant-b', usuarioId: 'cashier-b', nome: 'Bianca Caixa' },
+]
+
+const payments = [
+  {
+    pedidoId: 'order-a',
+    status: 'estornado' as const,
+    registradoPorUsuarioId: 'cashier-b',
+    valor: '90.00',
+  },
+  {
+    pedidoId: 'order-b',
+    status: 'registrado' as const,
+    registradoPorUsuarioId: 'cashier-a',
+    valor: '48.00',
+  },
+]
+
+describe('cashier responsible resolution', () => {
+  it('does not resolve an order creator who belongs only to another tenant', () => {
+    const responsible = resolveTenantResponsible(
+      memberships,
+      'tenant-a',
+      'waiter-b'
+    )
+
+    expect(responsible).toBeNull()
+  })
+
+  it('does not resolve a payment registrar who belongs only to another tenant', () => {
+    const responsible = resolveTenantResponsible(
+      memberships,
+      'tenant-a',
+      'cashier-b'
+    )
+
+    expect(responsible).toBeNull()
+  })
+
+  it('returns the responsible only when user and tenant membership both match', () => {
+    expect(
+      resolveTenantResponsible(memberships, 'tenant-a', 'waiter-a')
+    ).toEqual({ usuarioId: 'waiter-a', nome: 'Alice Garçom' })
+    expect(
+      resolveTenantResponsible(memberships, 'tenant-b', 'cashier-b')
+    ).toEqual({ usuarioId: 'cashier-b', nome: 'Bianca Caixa' })
+  })
+
+  it('ignores a reversed payment instead of exposing its registrar', () => {
+    const payment = findRegisteredPayment(payments, 'order-a')
+
+    expect(payment).toBeUndefined()
+  })
+
+  it('selects the registered payment for the requested order', () => {
+    const payment = findRegisteredPayment(payments, 'order-b')
+
+    expect(payment).toEqual(expect.objectContaining({
+      pedidoId: 'order-b',
+      status: 'registrado',
+      registradoPorUsuarioId: 'cashier-a',
+    }))
+  })
 })
 ```
 
-- [ ] **Step 2: Run the cashier query test to verify RED**
+These fixtures intentionally include two tenants in the same collection. A helper that looks up only by `usuarioId`, or accepts `estornado`, will fail behaviorally.
+
+- [ ] **Step 3: Run both cashier tests to verify RED**
 
 Run:
 
 ```bash
-npm test -- tests/unit/business/cashier-orders.test.ts
+npm test -- tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-orders-query.test.ts
 ```
 
-Expected: FAIL because `CashierOrder` has no responsible/payment fields and no membership-scoped user lookup.
+Expected: FAIL because `CashierOrder` has no responsible/payment fields and `resolveTenantResponsible`/`findRegisteredPayment` are not exported.
 
-- [ ] **Step 3: Extend imports and the cashier data contract**
+- [ ] **Step 4: Extend imports, the cashier data contract, and behavioral helpers**
 
 Change the schema import and replace the current `CashierOrder` declaration:
 
@@ -393,6 +507,7 @@ import {
   tenantUser,
   usuario,
 } from '@/lib/db/schema'
+import type { StatusPagamento } from '@/lib/db/schema'
 
 export type CashierResponsible = {
   usuarioId: string
@@ -411,9 +526,37 @@ export type CashierOrder = TableOrder & {
   criadoPor: CashierResponsible | null
   pagamento: CashierPayment | null
 }
+
+export type CashierResponsibleMembership = CashierResponsible & {
+  tenantId: string
+}
+
+export function resolveTenantResponsible(
+  memberships: CashierResponsibleMembership[],
+  tenantId: string,
+  usuarioId: string | null
+): CashierResponsible | null {
+  if (!usuarioId) return null
+
+  const membership = memberships.find(
+    (candidate) => candidate.tenantId === tenantId && candidate.usuarioId === usuarioId
+  )
+
+  return membership
+    ? { usuarioId: membership.usuarioId, nome: membership.nome }
+    : null
+}
+
+export function findRegisteredPayment<
+  T extends { pedidoId: string; status: StatusPagamento },
+>(payments: T[], pedidoId: string): T | undefined {
+  return payments.find(
+    (payment) => payment.pedidoId === pedidoId && payment.status === 'registrado'
+  )
+}
 ```
 
-- [ ] **Step 4: Select creator and payment metadata**
+- [ ] **Step 5: Select creator and payment metadata**
 
 Add `createdByUserId` to the order select:
 
@@ -444,7 +587,7 @@ const pagamentos =
     : []
 ```
 
-- [ ] **Step 5: Resolve names through the selected tenant only**
+- [ ] **Step 6: Resolve names through the selected tenant only**
 
 Insert this block after loading payments and before mapping orders:
 
@@ -460,6 +603,7 @@ const responsibleUsers =
   responsibleUserIds.length > 0
     ? await db
         .select({
+          tenantId: tenantUser.tenantId,
           usuarioId: tenantUser.usuarioId,
           nome: usuario.nome,
         })
@@ -473,26 +617,27 @@ const responsibleUsers =
         )
     : []
 
-const responsibleById = new Map(
-  responsibleUsers.map((responsible) => [responsible.usuarioId, responsible])
-)
 ```
 
-This is the security boundary: an ID that exists globally but has no membership in `input.tenantId` must map to `null`, not a global name.
+The SQL predicate limits fetched memberships, and `resolveTenantResponsible` independently requires `tenantId` again when mapping. This defense in depth makes the behavioral tenant-separated fixtures pass even if a future query accidentally supplies mixed-tenant candidates.
 
-- [ ] **Step 6: Map active payment and optional responsible records**
+- [ ] **Step 7: Map active payment and optional responsible records through the tested helpers**
 
 Replace the current `pagamentoStatus` calculation and extend the return object:
 
 ```ts
-const pagamentoRegistrado = pagamentos.find(
-  (pagamento) => pagamento.pedidoId === order.id && pagamento.status === 'registrado'
+const pagamentoRegistrado = findRegisteredPayment(pagamentos, order.id)
+const criadoPor = resolveTenantResponsible(
+  responsibleUsers,
+  input.tenantId,
+  order.createdByUserId
 )
-const criadoPor = order.createdByUserId
-  ? responsibleById.get(order.createdByUserId) ?? null
-  : null
 const registradoPor = pagamentoRegistrado
-  ? responsibleById.get(pagamentoRegistrado.registradoPorUsuarioId) ?? null
+  ? resolveTenantResponsible(
+      responsibleUsers,
+      input.tenantId,
+      pagamentoRegistrado.registradoPorUsuarioId
+    )
   : null
 
 return {
@@ -515,20 +660,20 @@ return {
 }
 ```
 
-- [ ] **Step 7: Run cashier query coverage to verify GREEN**
+- [ ] **Step 8: Run behavioral and contract coverage to verify GREEN**
 
 Run:
 
 ```bash
-npm test -- tests/unit/business/cashier-orders.test.ts
+npm test -- tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-orders-query.test.ts
 ```
 
-Expected: PASS, including explicit checks that the user lookup joins from `tenantUser` and constrains `tenantUser.tenantId`.
+Expected: PASS. Mixed-tenant creator/registrar fixtures resolve to `null`, matching-tenant fixtures resolve to names, and an `estornado` payment is ignored.
 
-- [ ] **Step 8: Commit the query slice**
+- [ ] **Step 9: Commit the query slice**
 
 ```bash
-git add lib/orders/queries.ts tests/unit/business/cashier-orders.test.ts
+git add lib/orders/queries.ts tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-orders-query.test.ts
 git commit -m "feat(cashier): return tenant-safe responsibles"
 ```
 
@@ -608,7 +753,18 @@ npm test -- tests/unit/business/cashier-responsible-metrics.test.ts
 
 Expected: FAIL at TypeScript transform/runtime because `AdminStatCard` does not accept interactive props and still renders only a `<div>`.
 
-- [ ] **Step 3: Add optional interactive props and shared card content**
+- [ ] **Step 3: Snapshot the pre-existing unstaged admin-page patch**
+
+Before editing `components/admin/admin-page.tsx`, record its current unrelated dirty patch:
+
+```bash
+git diff -- components/admin/admin-page.tsx > .git/admin-page.before-responsible.patch
+test -s .git/admin-page.before-responsible.patch
+```
+
+Expected: `test -s` exits 0 because the approved redesign already has unstaged changes. This snapshot is the exact content that must remain unstaged after selective staging.
+
+- [ ] **Step 4: Add optional interactive props and shared card content**
 
 In `components/admin/admin-page.tsx`, retain the existing tone maps and use this public signature and return structure:
 
@@ -684,7 +840,7 @@ export function AdminStatCard({
 
 The expanded action copy is the non-color-only visual cue; `aria-expanded` is the assistive-technology cue. Do not convert static cards elsewhere into buttons.
 
-- [ ] **Step 4: Run the component test to verify GREEN**
+- [ ] **Step 5: Run the component test to verify GREEN**
 
 Run:
 
@@ -694,17 +850,42 @@ npm test -- tests/unit/business/cashier-responsible-metrics.test.ts
 
 Expected: PASS for both static and interactive rendering.
 
-- [ ] **Step 5: Commit the reusable card slice without staging unrelated redesign files**
+- [ ] **Step 6: Selectively stage and commit without absorbing the dirty redesign**
 
-Because `components/admin/admin-page.tsx` already has unrelated working-tree edits, review the staged patch before committing:
+Stage the new test normally, but stage `components/admin/admin-page.tsx` interactively. Use `s` to split hunks and `e` to edit a hunk when the pre-existing redesign and new `AdminStatCard` changes share context; accept only the optional props/button behavior shown in Step 4:
 
 ```bash
-git add components/admin/admin-page.tsx tests/unit/business/cashier-responsible-metrics.test.ts
+git add tests/unit/business/cashier-responsible-metrics.test.ts
+git add -p -- components/admin/admin-page.tsx
+git diff --cached --check
+git diff --cached --name-only
 git diff --cached -- components/admin/admin-page.tsx tests/unit/business/cashier-responsible-metrics.test.ts
-git commit -m "feat(admin): make stat cards optionally interactive"
+git diff -- components/admin/admin-page.tsx > .git/admin-page.after-responsible-staging.patch
+git diff --no-index -- .git/admin-page.before-responsible.patch .git/admin-page.after-responsible-staging.patch
+git status --short
 ```
 
-Expected staged diff: only the optional `AdminStatCard` behavior plus its new test; all pre-existing redesign content remains intact.
+Expected:
+
+- cached names are exactly `components/admin/admin-page.tsx` and `tests/unit/business/cashier-responsible-metrics.test.ts`;
+- the cached admin diff contains only `onClick`, `expanded`, `controls`, focus/expanded styling, the conditional real `<button>`, and expanded-state copy;
+- `git diff --no-index` exits 0, proving the remaining unstaged admin patch is byte-for-byte the pre-feature dirty patch;
+- `git status --short` still reports ` M components/admin/admin-page.tsx` after staging because its unrelated redesign remains unstaged.
+
+If the no-index comparison differs, do not commit. Clear only this file from the index and repeat interactive staging with `e` until the comparison exits 0:
+
+```bash
+git restore --staged -- components/admin/admin-page.tsx
+git add -p -- components/admin/admin-page.tsx
+git diff -- components/admin/admin-page.tsx > .git/admin-page.after-responsible-staging.patch
+git diff --no-index -- .git/admin-page.before-responsible.patch .git/admin-page.after-responsible-staging.patch
+```
+
+Only after all checks pass, commit:
+
+```bash
+git commit -m "feat(admin): make stat cards optionally interactive"
+```
 
 ---
 
@@ -1054,7 +1235,7 @@ Expected: PASS for open/switch/close, labels, values, historical fallback, categ
 Run:
 
 ```bash
-npm test -- tests/unit/business/cashier-responsible-metrics.test.ts tests/unit/business/cashier-orders.test.ts tests/unit/actions/pedidos.test.ts tests/unit/db/schema.test.ts
+npm test -- tests/unit/business/cashier-responsible-metrics.test.ts tests/unit/business/cashier-orders.test.ts tests/unit/business/cashier-orders-query.test.ts tests/unit/actions/pedidos.test.ts tests/unit/db/schema.test.ts
 ```
 
 Expected: PASS for all targeted files.
@@ -1108,14 +1289,19 @@ Expected: both runs PASS; SSE/polling tests are deterministic.
 
 ```bash
 git diff --check
-git diff --stat HEAD~5..HEAD
+FEATURE_BASE="$(cat .git/cashier-responsible-metrics.base)"
+git cat-file -e "$FEATURE_BASE^{commit}"
+git diff --stat "$FEATURE_BASE"..HEAD
+git diff --name-only "$FEATURE_BASE"..HEAD
+git log --reverse --oneline "$FEATURE_BASE"..HEAD
 git status --short
 ```
 
 Expected:
 
 - no whitespace errors;
-- only the planned schema, migration, order action/query, cashier UI, and tests appear in the five feature commits;
+- `git cat-file` exits 0, proving the recorded base still identifies a commit;
+- only the planned schema, migration, order action/query, cashier UI, and tests appear in the complete recorded feature range, regardless of how many review/correction commits were added;
 - the pre-existing unrelated dirty files remain present and uncommitted;
 - no global `usuario.id`-only responsible-name query exists;
 - no backfill, route, access, payment-rule, status-flow, or polling-interval change exists.
@@ -1139,28 +1325,29 @@ Expected at `/admin/pedidos`:
 - an open payment form and expanded order remain open when a metric is toggled and after a refresh;
 - the selected metric stays expanded when polling or SSE changes its contents.
 
-- [ ] **Step 6: Confirm no extra commit is needed**
+- [ ] **Step 6: Confirm the recorded feature range is reviewable**
 
 ```bash
-git log -5 --oneline
+FEATURE_BASE="$(cat .git/cashier-responsible-metrics.base)"
+git log --reverse --format="%h %s" "$FEATURE_BASE"..HEAD
 ```
 
-Expected commit subjects, newest first:
+Expected: the range contains these required subjects in implementation order, with any legitimate review/correction commits visible rather than hidden by a fixed `-5` limit:
 
 ```text
-feat(cashier): show responsible metric details
-feat(admin): make stat cards optionally interactive
-feat(cashier): return tenant-safe responsibles
-feat(orders): record authenticated waiter
 feat(db): add nullable order creator
+feat(orders): record authenticated waiter
+feat(cashier): return tenant-safe responsibles
+feat(admin): make stat cards optionally interactive
+feat(cashier): show responsible metric details
 ```
 
-If verification required a legitimate code/test correction, commit only that correction with a precise conventional subject; otherwise leave verification without a commit.
+If verification required a legitimate code/test correction, commit only that correction with a precise conventional subject and confirm it appears in this same recorded range; otherwise leave verification without a commit.
 
 ## Self-Review
 
-- **Spec coverage:** Tasks 1-3 cover nullable persistence, authenticated creation, payment registrar reuse, minimal payment metadata, historical nulls, and tenant isolation. Tasks 4-5 cover static compatibility, real buttons, keyboard/ARIA/focus, explicit selection cue, open/switch/close, contextual labels, values, fallback, empty states, responsive rows, and refresh-preserved selection. Task 6 covers full regression and manual accessibility/responsiveness checks. No spec requirement is uncovered.
+- **Spec coverage:** Tasks 1-3 cover nullable persistence, authenticated creation, payment registrar reuse, minimal payment metadata, historical nulls, behavioral tenant-separated resolution, reversed-payment exclusion, and tenant isolation. Tasks 4-5 cover static compatibility, real buttons, keyboard/ARIA/focus, explicit selection cue, open/switch/close, contextual labels, values, fallback, empty states, responsive rows, and refresh-preserved selection. Task 6 covers full regression and manual accessibility/responsiveness checks. No spec requirement is uncovered.
 - **Placeholder scan:** No `TBD`, `TODO`, “implement later,” “similar to,” unspecified error handling, or empty test instruction remains. Every code-changing step includes the exact addition/replacement and every test step includes a command and expected RED/GREEN result.
 - **Type consistency:** `CashierResponsible`, `CashierPayment`, `CashierOrder.criadoPor`, and `CashierOrder.pagamento` names match between query production, fixtures, and UI. `selectedMetric` values match `metricCopy` keys. `AdminStatCard` uses the same `onClick`, `expanded`, and `controls` names at definition and call sites.
-- **Risk review:** The main risks are preserving dirty redesign hunks in `components/admin/admin-page.tsx`, avoiding an invalid `db/schema.sql` forward FK, and preventing cross-tenant global user resolution. The plan explicitly gates each. A registered payment whose user no longer has a membership safely renders the required fallback.
+- **Risk review:** Selective patch staging plus a before/after unstaged-patch comparison prevents dirty redesign hunks from entering the feature commit. The schema test enforces that the reference FK appears after `usuario`. Tenant-separated executable fixtures prove cross-tenant identities resolve to `null`, and reversed payments are ignored. The recorded base commit makes the final audit robust to any number of review/correction commits. A registered payment whose user no longer has a membership safely renders the required fallback.
 - **Scope check:** This is one vertical feature, not multiple independent subsystems: schema, write path, read path, and UI are necessary parts of the same responsibility display and each task leaves an independently testable boundary.
