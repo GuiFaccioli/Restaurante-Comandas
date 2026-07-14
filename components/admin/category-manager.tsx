@@ -218,22 +218,27 @@ export function CategoryManager({
   return (
     <AdminPanel
       title="Categorias"
-      description="Escolha uma seção para revisar produtos."
       action={
-        <Button
-          ref={addButtonRef}
-          type="button"
-          intent="positive"
-          appearance="ghost"
-          size="sm"
-          className="min-h-11"
-          aria-label="Adicionar categoria"
-          disabled={pending !== null}
-          onClick={openCreate}
-        >
-          <Plus aria-hidden="true" />
-          Adicionar
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                ref={addButtonRef}
+                type="button"
+                intent="positive"
+                appearance="soft"
+                size="icon"
+                className="size-11 min-h-11"
+                aria-label="Adicionar categoria"
+                disabled={pending !== null}
+                onClick={openCreate}
+              />
+            }
+          >
+            <Plus aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent>Adicionar categoria</TooltipContent>
+        </Tooltip>
       }
     >
       {editor.mode === 'create' ? (

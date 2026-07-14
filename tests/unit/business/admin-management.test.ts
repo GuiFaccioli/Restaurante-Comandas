@@ -31,6 +31,8 @@ describe('admin management area', () => {
     expect(menuClient).not.toContain('title="Nova categoria"')
     expect(menuClient).not.toContain('Renomear categoria</Button>')
     expect(categoryManager).toContain('aria-label="Adicionar categoria"')
+    expect(categoryManager).not.toContain('Escolha uma seção para revisar produtos.')
+    expect(categoryManager).toContain('className="size-11 min-h-11"')
     expect(categoryManager).toContain('aria-label={`Editar categoria ${category.nome}`}')
     expect(categoryManager).toContain('<TooltipContent>Editar categoria</TooltipContent>')
     expect(categoryManager).toContain('aria-busy=')
