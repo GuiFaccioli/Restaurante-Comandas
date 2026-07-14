@@ -38,10 +38,7 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
     <div className="mx-auto max-w-4xl space-y-4 p-4 pb-28 sm:p-6">
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Mesa {mesaNumero}</h1>
-          <p className="text-pretty text-sm text-muted-foreground">
-            Monte pedidos e acompanhe entregas sem sair da mesa.
-          </p>
+          <h1 className="text-pretty text-2xl font-bold">Mesa {mesaNumero}</h1>
         </div>
         <Link
           href="/garcom/mesas"

@@ -151,6 +151,7 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('mx-auto')
     expect(clientSource).toContain('max-w-4xl')
     expect(clientSource).toContain('text-pretty')
+    expect(clientSource).not.toContain('Monte pedidos e acompanhe entregas sem sair da mesa.')
     expect(clientSource).toContain('w-full sm:w-auto')
 
     expect(menuSource).toContain('grid-cols-1')
