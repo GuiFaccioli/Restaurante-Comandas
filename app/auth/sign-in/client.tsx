@@ -70,7 +70,7 @@ export function SignInClientForm({ action }: SignInClientFormProps) {
         />
         Lembrar e-mail neste aparelho
       </label>
-      <Button type="submit" className="min-h-11 w-full">
+      <Button type="submit" intent="neutral" appearance="solid" className="min-h-11 w-full">
         Entrar
       </Button>
     </form>

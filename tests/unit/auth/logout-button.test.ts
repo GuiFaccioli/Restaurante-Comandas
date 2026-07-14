@@ -20,6 +20,8 @@ describe('profile menu logout', () => {
     expect(clientComponent).toContain('Perfil')
     expect(component).toContain('action={signOut}')
     expect(component).toContain('Sair')
+    expect(component).toMatch(/intent="neutral"[\s\S]*appearance="outline"[\s\S]*Sair/)
+    expect(component).not.toMatch(/intent="destructive"[\s\S]*Sair/)
   })
 
   it('renders permitted area switching inside the profile menu', () => {

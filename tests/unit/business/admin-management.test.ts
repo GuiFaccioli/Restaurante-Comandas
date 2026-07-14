@@ -50,7 +50,11 @@ describe('admin management area', () => {
     expect(menuClient).toContain('removerCategoria')
     expect(menuClient).toContain('type="button"')
     expect(menuClient).toContain('aria-pressed')
+    expect(menuClient).toContain('toggleDisponivel')
+    expect(menuClient).toContain("intent={p.disponivel ? 'warning' : 'positive'}")
+    expect(menuClient).toContain("p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'")
     expect(menuClient).toContain('aria-label={`Editar produto ${p.nome}`}')
+    expect(menuClient).toContain('aria-label={`Excluir produto ${p.nome}`}')
     expect(menuClient).not.toContain('<Badge')
     expect(menuClient).not.toContain('onClick={async () =>')
   })
@@ -91,6 +95,10 @@ describe('admin management area', () => {
     expect(usersPage).toContain('Remover usuário')
     expect(usersPage).toContain('atualizarUsuarioAdmin')
     expect(usersPage).toContain('removerUsuarioDoRestaurante')
+    expect(usersPage).toContain("import { Button } from '@/components/ui/button'")
+    expect(usersPage).toMatch(/intent="positive"[\s\S]*Salvar acessos/)
+    expect(usersPage).toMatch(/intent="destructive"[\s\S]*Remover usuário/)
+    expect(usersPage).not.toContain('<button')
   })
 
   it('reports page is backed by existing order, item, product, and category data', () => {
@@ -129,6 +137,8 @@ describe('admin management area', () => {
     expect(mesasSource).toContain('Nenhuma mesa cadastrada')
     expect(mesasSource).toContain('aria-pressed')
     expect(mesasSource).not.toContain('<Badge')
+    expect(mesasSource).toContain("intent={m.ativa ? 'warning' : 'positive'}")
+    expect(mesasSource).toContain("m.ativa ? 'Desativar' : 'Ativar'")
 
     expect(productFormSource).toContain('htmlFor="produto-nome"')
     expect(productFormSource).toContain('id="produto-nome"')
@@ -138,6 +148,9 @@ describe('admin management area', () => {
     expect(productFormSource).toContain('id="produto-preco"')
     expect(productFormSource).toContain('htmlFor="produto-imagem-url"')
     expect(productFormSource).toContain('id="produto-imagem-url"')
+    expect(productFormSource).toMatch(/intent="neutral"[\s\S]*Cancelar/)
+    expect(productFormSource).toMatch(/intent="positive"[\s\S]*Salvar/)
+    expect(productFormSource).toContain('aria-busy={saving}')
 
     expect(buttonSource).toContain('intent:')
     expect(buttonSource).toContain('appearance:')

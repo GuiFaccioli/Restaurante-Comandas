@@ -17,12 +17,12 @@ export default function SemAcessoPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Link
             href="/selecionar-area"
-            className={buttonVariants({ variant: 'outline', className: 'w-full sm:w-auto' })}
+            className={buttonVariants({ intent: 'neutral', appearance: 'outline', className: 'min-h-11 w-full sm:w-auto' })}
           >
             Trocar área
           </Link>
           <form action={signOut}>
-            <Button type="submit" variant="destructive" className="w-full sm:w-auto">
+            <Button type="submit" intent="neutral" appearance="outline" className="min-h-11 w-full sm:w-auto">
               Sair
             </Button>
           </form>

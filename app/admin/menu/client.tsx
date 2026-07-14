@@ -240,30 +240,44 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <button
-                      type="button"
-                      aria-pressed={p.disponivel}
-                      className={`min-h-11 rounded-full px-4 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                        p.disponivel
-                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                          : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                      }`}
-                      onClick={() => handleToggleProduto(p)}
-                    >
-                      {p.disponivel ? 'Disponível' : 'Indisponível'}
-                    </button>
                     <Button
                       type="button"
-                      size="sm"
+                      intent={p.disponivel ? 'warning' : 'positive'}
+                      appearance="soft"
                       className="min-h-11"
-                      variant="outline"
-                      aria-label={`Editar produto ${p.nome}`}
-                      onClick={() => { setEditProduto(p); setFormOpen(true) }}
+                      aria-pressed={p.disponivel}
+                      aria-label={
+                        p.disponivel
+                          ? `Tornar ${p.nome} indisponível`
+                          : `Disponibilizar ${p.nome}`
+                      }
+                      onClick={() => handleToggleProduto(p)}
                     >
-                      <Pencil className="h-4 w-4" />
+                      {p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}
                     </Button>
-                    <Button type="button" size="sm" className="min-h-11" variant="destructive" onClick={() => handleRemoveProduto(p)}>
-                      Excluir produto
+                    <Button
+                      type="button"
+                      intent="informational"
+                      appearance="ghost"
+                      size="icon"
+                      className="size-11"
+                      aria-label={`Editar produto ${p.nome}`}
+                      onClick={() => {
+                        setEditProduto(p)
+                        setFormOpen(true)
+                      }}
+                    >
+                      <Pencil aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      intent="destructive"
+                      appearance="soft"
+                      className="min-h-11"
+                      aria-label={`Excluir produto ${p.nome}`}
+                      onClick={() => handleRemoveProduto(p)}
+                    >
+                      Excluir
                     </Button>
                   </div>
                 </div>

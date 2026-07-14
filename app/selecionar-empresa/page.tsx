@@ -31,8 +31,9 @@ export default async function SelecionarEmpresaPage() {
               <input type="hidden" name="tenantId" value={membership.tenantId} />
               <Button
                 type="submit"
-                variant="outline"
-                className="h-auto min-h-11 w-full justify-start p-4 text-left focus-visible:ring-2"
+                intent="neutral"
+                appearance="outline"
+                className="h-auto min-h-11 w-full justify-start p-4 text-left"
               >
                 {membership.nome}
               </Button>

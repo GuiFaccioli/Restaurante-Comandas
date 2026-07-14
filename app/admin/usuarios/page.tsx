@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm'
 
 import { atualizarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/actions/usuarios'
 import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
+import { Button } from '@/components/ui/button'
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
 import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
@@ -126,24 +127,28 @@ export default async function UsuariosAdminPage() {
                     </fieldset>
 
                     <div className="grid gap-2 lg:pt-7">
-                      <button
+                      <Button
                         type="submit"
-                        className="min-h-11 w-full rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        intent="positive"
+                        appearance="solid"
+                        className="min-h-11 w-full"
                       >
                         Salvar acessos
-                      </button>
+                      </Button>
                     </div>
                   </form>
 
                   <form action={removerUsuarioDoRestaurante} className="lg:col-start-3">
                     <input type="hidden" name="usuarioId" value={user.id} />
-                    <button
+                    <Button
                       type="submit"
-                      className="min-h-11 w-full rounded-full bg-destructive/10 px-4 text-sm font-medium text-destructive hover:bg-destructive/20 focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                      intent="destructive"
+                      appearance="soft"
+                      className="min-h-11 w-full"
                       disabled={user.isCurrentUser}
                     >
                       Remover usuário
-                    </button>
+                    </Button>
                   </form>
                 </article>
               ))}

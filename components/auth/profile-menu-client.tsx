@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type ProfileMenuClientProps = {
@@ -30,15 +31,17 @@ export function ProfileMenuClient({ className, children }: ProfileMenuClientProp
 
   return (
     <div ref={menuRef} className={cn('relative w-fit', className)}>
-      <button
+      <Button
         type="button"
+        intent="neutral"
+        appearance="outline"
         aria-expanded={open}
         aria-haspopup="menu"
-        className="cursor-pointer rounded-full border px-4 py-2 text-sm font-medium hover:bg-muted"
+        className="min-h-11 cursor-pointer"
         onClick={() => setOpen((current) => !current)}
       >
         Perfil
-      </button>
+      </Button>
 
       {open && (
         <div

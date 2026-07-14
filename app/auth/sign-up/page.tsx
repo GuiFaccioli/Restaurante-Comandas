@@ -30,7 +30,7 @@ export default function SignUpPage() {
             <Label htmlFor="password">Senha</Label>
             <Input id="password" name="password" type="password" required minLength={8} />
           </div>
-          <Button type="submit" className="min-h-11 w-full">
+          <Button type="submit" intent="positive" appearance="solid" className="min-h-11 w-full">
             Criar conta
           </Button>
         </form>

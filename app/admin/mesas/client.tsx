@@ -66,7 +66,7 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
             onChange={(e) => setNovoNumero(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleNovaMesa()}
           />
-          <Button size="sm" className="min-h-11" onClick={handleNovaMesa}>
+          <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11" onClick={handleNovaMesa}>
             <Plus className="h-4 w-4 mr-1" /> Adicionar Mesa
           </Button>
         </div>
@@ -84,18 +84,16 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
           mesas.map((m) => (
             <div key={m.id} className="flex items-center justify-between rounded-[var(--radius)] border bg-card px-4 py-3">
               <span className="font-medium">Mesa {m.numero}</span>
-              <button
+              <Button
                 type="button"
+                intent={m.ativa ? 'warning' : 'positive'}
+                appearance="soft"
+                className="min-h-11"
                 aria-pressed={m.ativa}
-                className={`min-h-11 rounded-full px-4 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                  m.ativa
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                }`}
                 onClick={() => handleToggleMesa(m.id)}
               >
-                {m.ativa ? 'Ativa' : 'Inativa'}
-              </button>
+                {m.ativa ? 'Desativar' : 'Ativar'}
+              </Button>
             </div>
           ))
         )}

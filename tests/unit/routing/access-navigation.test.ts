@@ -18,6 +18,19 @@ describe('access navigation controls', () => {
     expect(page).toContain('href="/selecionar-area"')
     expect(page).toContain('Trocar área')
     expect(page).not.toContain('<Button asChild')
+    expect(page).toMatch(/intent="neutral"[\s\S]*Sair/)
+    expect(page).not.toMatch(/(?:variant="destructive"|intent="destructive")[\s\S]*Sair/)
+    expect(page).toContain("intent: 'neutral'")
+  })
+
+  it('keeps overlay close actions named and at least 44px', () => {
+    const dialogSource = source('components/ui/dialog.tsx')
+    const sheetSource = source('components/ui/sheet.tsx')
+
+    expect(dialogSource).toContain('aria-label="Fechar diálogo"')
+    expect(dialogSource).toContain('className="absolute right-2 top-2 size-11"')
+    expect(sheetSource).toContain('aria-label="Fechar painel"')
+    expect(sheetSource).toContain('className="absolute right-3 top-3 size-11"')
   })
 
   it('keeps protected operational area switching inside the profile menu', () => {

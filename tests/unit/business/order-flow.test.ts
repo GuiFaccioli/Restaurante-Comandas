@@ -247,8 +247,8 @@ describe('pedido business flow', () => {
 
     expect(menuSource).toContain('lg:grid-cols-[220px_minmax(0,1fr)]')
     expect(menuSource).toContain('Produtos nesta categoria')
-    expect(menuSource).toContain('Disponível')
-    expect(menuSource).toContain('Indisponível')
+    expect(menuSource).toContain('Disponibilizar')
+    expect(menuSource).toContain('Tornar indisponível')
     expect(menuSource).toContain('min-h-11')
 
     expect(productFormSource).toContain('Descrição')
@@ -282,7 +282,7 @@ describe('pedido business flow', () => {
     expect(companySource).toContain('Selecionar empresa')
     expect(companySource).toContain('você')
     expect(companySource).toContain('text-pretty')
-    expect(companySource).toContain('focus-visible:ring-2')
+    expect(companySource).toContain('appearance="outline"')
 
     expect(deniedSource).toContain('Seu usuário não tem permissão')
     expect(deniedSource).toContain('Trocar área')

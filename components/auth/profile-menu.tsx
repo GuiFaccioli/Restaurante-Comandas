@@ -58,7 +58,7 @@ export async function ProfileMenu({ className, currentAccess }: ProfileMenuProps
       )}
 
       <form action={signOut} className="mt-4">
-        <Button type="submit" variant="destructive" size="sm" className="w-full">
+        <Button type="submit" intent="neutral" appearance="outline" size="sm" className="min-h-11 w-full">
           Sair
         </Button>
       </form>

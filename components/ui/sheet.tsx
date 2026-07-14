@@ -64,9 +64,11 @@ function SheetContent({
             data-slot="sheet-close"
             render={
               <Button
-                variant="ghost"
-                className="absolute top-3 right-3"
-                size="icon-sm"
+                intent="neutral"
+                appearance="ghost"
+                className="absolute right-3 top-3 size-11"
+                size="icon"
+                aria-label="Fechar painel"
               />
             }
           >
