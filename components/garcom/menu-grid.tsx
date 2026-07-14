@@ -18,7 +18,11 @@ export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
     <Tabs defaultValue={categorias[0]?.id}>
       <TabsList className="mb-4 flex w-full justify-start gap-1 overflow-x-auto">
         {categorias.map((c) => (
-          <TabsTrigger key={c.id} value={c.id} className="min-h-11 min-w-24 px-4 shrink-0">
+          <TabsTrigger
+            key={c.id}
+            value={c.id}
+            className="min-h-11 min-w-24 px-4 shrink-0 data-active:border-[var(--success)] data-active:text-[var(--success)]"
+          >
             {c.nome}
           </TabsTrigger>
         ))}
