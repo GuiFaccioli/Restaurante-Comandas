@@ -20,7 +20,7 @@ export function CartFab({ onClick }: { onClick: () => void }) {
       onClick={onClick}
     >
       <ShoppingCart className="h-6 w-6" aria-hidden="true" />
-      <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-white">
+      <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-muted text-xs text-foreground">
         {total > 9 ? '9+' : total}
       </span>
     </Button>

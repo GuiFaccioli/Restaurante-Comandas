@@ -61,6 +61,15 @@ describe('operational button semantics', () => {
     expect(panel).toMatch(/intent="destructive"[\s\S]*Cancelar/)
   })
 
+  it('keeps the cart count badge neutral inside the neutral cart action', () => {
+    const cartFab = readProjectFile('components/garcom/cart-fab.tsx')
+    const block = findJsxBlock(cartFab, 'Button', ['Abrir carrinho'])
+
+    expect(block).toContain('bg-muted')
+    expect(block).toContain('text-foreground')
+    expect(block).not.toContain('bg-destructive')
+  })
+
   it('gives icon-only waiter actions accessible names and touch targets', () => {
     const itemCard = readProjectFile('components/garcom/item-card.tsx')
     const cart = readProjectFile('components/garcom/cart-drawer.tsx')
