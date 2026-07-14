@@ -46,7 +46,12 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
         <Link
           href="/garcom/mesas"
           className={cn(
-            buttonVariants({ variant: 'destructive', size: 'sm' }),
+            buttonVariants({
+              intent: 'neutral',
+              appearance: 'outline',
+              size: 'sm',
+              className: 'min-h-11',
+            }),
             'w-full sm:w-auto justify-center'
           )}
         >

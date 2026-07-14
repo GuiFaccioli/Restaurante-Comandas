@@ -140,8 +140,11 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                   <div className="flex min-w-0 flex-wrap gap-2">
                     <Button
                       type="button"
-                      variant="destructive"
+                      intent="destructive"
+                      appearance="soft"
                       size="sm"
+                      className="min-h-11"
+                      aria-busy={canceling}
                       disabled={actionDisabled}
                       onClick={() => handleCancelarPedido(pedido.id)}
                     >
@@ -149,8 +152,10 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      intent="neutral"
+                      appearance="outline"
                       size="sm"
+                      className="min-h-11"
                       onClick={() => toggleExpanded(pedido.id)}
                     >
                       Itens
@@ -158,9 +163,11 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                   </div>
                   <Button
                     type="button"
-                    className="ml-auto"
-                    variant="success"
+                    className="ml-auto min-h-11"
+                    intent="positive"
+                    appearance="solid"
                     size="sm"
+                    aria-busy={confirming}
                     disabled={actionDisabled}
                     onClick={() => handleConfirmarEntrega(pedido.id)}
                   >

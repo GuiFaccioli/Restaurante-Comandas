@@ -47,9 +47,11 @@ describe('table order monitoring', () => {
     expect(panel).not.toContain('statusLabel')
     expect(panel).not.toContain('pedido.id.slice')
     expect(panel).toMatch(/order-header[\s\S]*order-items[\s\S]*order-actions/)
-    expect(panel).toMatch(/variant="destructive"[\s\S]*Cancelar/)
-    expect(panel).toMatch(/variant="outline"[\s\S]*Itens/)
-    expect(panel).toMatch(/ml-auto[\s\S]*variant="success"[\s\S]*Entregue/)
+    expect(panel).toMatch(/intent="destructive"[\s\S]*Cancelar/)
+    expect(panel).toMatch(/intent="neutral"[\s\S]*Itens/)
+    expect(panel).toMatch(/ml-auto[\s\S]*intent="positive"[\s\S]*Entregue/)
+    expect(panel).toContain('aria-busy={canceling}')
+    expect(panel).toContain('aria-busy={confirming}')
   })
 
   it('preserves the user choice to keep table order items collapsed during polling', () => {

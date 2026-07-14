@@ -46,10 +46,12 @@ function PendingDeliveryCard({
           </p>
         </div>
         <Button
-          variant="success"
+          intent="positive"
+          appearance="solid"
+          aria-busy={pending}
           onClick={handleConfirm}
           disabled={pending}
-          className="w-full sm:w-auto"
+          className="min-h-11 w-full sm:w-auto"
         >
           {pending ? 'Confirmando...' : 'Confirmar entrega'}
         </Button>
@@ -118,7 +120,14 @@ export function PendingDeliveriesClient({ initialPedidos }: { initialPedidos: Pe
           </p>
           <Link
             href="/garcom/mesas"
-            className={cn(buttonVariants({ variant: 'success' }), 'w-full sm:w-auto')}
+            className={cn(
+              buttonVariants({
+                intent: 'neutral',
+                appearance: 'solid',
+                className: 'min-h-11',
+              }),
+              'w-full sm:w-auto'
+            )}
           >
             Abrir mesas
           </Link>

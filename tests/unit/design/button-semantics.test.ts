@@ -23,8 +23,10 @@ describe('operational button semantics', () => {
     expect(cartDrawer).toMatch(/intent="positive"[\s\S]*Confirmar pedido/)
     expect(cartDrawer).toMatch(/intent="positive"[\s\S]*<Plus/)
     expect(cartFab).toContain('intent="neutral"')
-    expect(deliveries).toMatch(/variant="success"[\s\S]*Confirmar entrega/)
-    expect(deliveries).toMatch(/buttonVariants\(\{ variant: 'success' \}\)/)
+    expect(deliveries).toMatch(/intent="positive"[\s\S]*Confirmar entrega/)
+    expect(deliveries).toMatch(
+      /buttonVariants\(\{[\s\S]*intent: 'neutral'[\s\S]*appearance: 'solid'[\s\S]*Abrir mesas/
+    )
   })
 
   it('keeps the unpersisted cart dismissal neutral', () => {
