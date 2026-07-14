@@ -3921,7 +3921,8 @@ Use Playwright or the in-app browser at the printed localhost URL. Sign in with 
 
 1. The editor remains open.
 2. `Remova os produtos antes de excluir a categoria` appears inline with `role="alert"`.
-3. The category draft is preserved and the action is no longer busy after rejection.
+3. The category draft is preserved and the action is no longer busy after the Server Action resolves its discriminated `{ ok: false, error }` result.
+4. This transport-sensitive path must also pass against a production build served by `npm run start` (`next start`); development-mode evidence alone cannot close it.
 
 Stop the dev server before changing fixture state. In the first terminal, convert only the disposable database to the empty fixture:
 
@@ -4021,13 +4022,13 @@ Expected:
 - No `test-results/`, screenshots, local database changes, logs, or `.env` files appear.
 - Every remaining legacy alias call is either removed or listed as an intentional compatibility consumer; every remaining native `<button>` is a justified tab, disclosure, row selector, or accessible primitive and uses the shared semantic utility rather than a duplicated action palette.
 - `DESIGNTESTE.MD` and `revisao_geral.md` remain untracked and untouched.
-- The range contains the 12 conventional work-unit SHAs mapped in the delivery table, without AI attribution; merge commits are expected during reverse accumulation, so do not assert an exact final commit count. Slice 12 still measures at most `400` changed lines against slice 11.
+- The original pushed range through slice 12 contains the 12 conventional work-unit SHAs mapped in the delivery table, without AI attribution. The post-review addendum below expands final closure to 14 immutable work units; merge commits are expected during reverse accumulation, so do not assert an exact final commit count. Slice 12 still measures at most `400` changed lines against slice 11.
 
 If verification finds a defect before a slice is pushed, fix it, rerun that slice's gates, and amend that slice's single work-unit commit. Do not add a thirteenth work unit or rewrite an already reviewed/pushed slice; stop and re-plan the affected boundary instead. The merge commits below are integration history, not extra work units.
 
-- [ ] **Step 6: Record the 12 immutable work-unit SHAs before any reverse merge**
+- [ ] **Step 6: Record the 14 immutable work-unit SHAs before any reverse merge**
 
-Run after all 12 child PRs exist and their slice gates are green:
+Run after all 14 child PRs exist and their slice gates are green:
 
 ```powershell
 $workUnits = @(
@@ -4043,6 +4044,8 @@ $workUnits = @(
   [pscustomobject]@{ Slice = 10; Base = 'semantic-actions/09-category-create'; Branch = 'semantic-actions/10-category-edit'; Subject = 'feat(admin): add inline category editing' }
   [pscustomobject]@{ Slice = 11; Base = 'semantic-actions/10-category-edit'; Branch = 'semantic-actions/11-category-delete'; Subject = 'feat(admin): add guarded category deletion' }
   [pscustomobject]@{ Slice = 12; Base = 'semantic-actions/11-category-delete'; Branch = 'semantic-actions/12-menu-integration'; Subject = 'feat(admin): integrate progressive category management' }
+  [pscustomobject]@{ Slice = 13; Base = 'semantic-actions/12-menu-integration'; Branch = 'semantic-actions/13-protected-delete-result'; Subject = 'fix(admin): preserve protected delete feedback' }
+  [pscustomobject]@{ Slice = 14; Base = 'semantic-actions/13-protected-delete-result'; Branch = 'semantic-actions/14-neutral-cart-badge'; Subject = 'fix(waiter): use neutral cart count badge' }
 )
 
 git fetch origin
@@ -4052,6 +4055,14 @@ $records = @($workUnits | ForEach-Object {
   if ($sha -notmatch '^[0-9a-f]{40}$' -or $subject -ne $_.Subject) {
     throw "Unexpected work-unit tip for slice $($_.Slice): $sha / $subject"
   }
+  $baseSha = (git rev-parse "origin/$($_.Base)").Trim()
+  $parents = @((git rev-list --parents -n 1 $sha).Trim() -split '\s+')
+  if ($parents.Count -ne 2 -or $parents[1] -ne $baseSha) {
+    throw "Slice $($_.Slice) is not a sole-parent child of $($_.Base)"
+  }
+  if ((git merge-base $baseSha $sha).Trim() -ne $baseSha) {
+    throw "Unexpected merge-base for slice $($_.Slice)"
+  }
   [pscustomobject]@{
     Slice = $_.Slice
     Base = $_.Base
@@ -4060,15 +4071,15 @@ $records = @($workUnits | ForEach-Object {
     Sha = $sha
   }
 })
-if ($records.Count -ne 12) { throw "Expected 12 work-unit SHAs, found $($records.Count)" }
+if ($records.Count -ne 14) { throw "Expected 14 work-unit SHAs, found $($records.Count)" }
 $records | ConvertTo-Json -Depth 3 | Set-Content .git/semantic-actions-work-unit-shas.json
 ```
 
-Expected: the untracked JSON contains 12 distinct 40-character SHAs with the exact subjects from the delivery table. Do not regenerate it after merges; it is the ancestry evidence.
+Expected: the untracked JSON contains 14 distinct 40-character SHAs with the exact subjects and sole-parent ancestry from the delivery table. Do not regenerate it after merges; it is the ancestry evidence.
 
 - [ ] **Step 7: Merge child PRs in reverse order with merge commits only**
 
-Use the recorded objects from Step 6. This loop processes slice 12→11 first and slice 1→tracker last. It waits for required checks and requires an approved review at every newly accumulated parent diff:
+Use the recorded objects from Step 6. This loop processes slice 14→13 first, then 13→12 through slice 1→tracker. It waits for required checks and requires an approved review at every newly accumulated parent diff:
 
 ```powershell
 function Get-UniqueChainPr([string]$Base, [string]$Head) {
@@ -4108,7 +4119,7 @@ foreach ($unit in $records) {
 }
 ```
 
-Expected: all 12 PRs are merged with `--merge`, every recorded work-unit SHA is an ancestor of `origin/semantic-actions-admin-menu`, and the history also contains merge commits. Never use squash or rebase for these PRs because either would invalidate the recorded-SHA ancestry contract.
+Expected: all 14 PRs are merged with `--merge`, every recorded work-unit SHA is an ancestor of `origin/semantic-actions-admin-menu`, and the history also contains merge commits. Never use squash or rebase for these PRs because either would invalidate the recorded-SHA ancestry contract.
 
 - [ ] **Step 8: Gate, approve, and merge the final tracker PR to `main`**
 
@@ -4125,7 +4136,7 @@ npm test
 npm run build
 npx.cmd tsc --noEmit
 
-$finalPrUrl = gh pr create --base main --head semantic-actions-admin-menu --title "feat(admin): add semantic actions and progressive categories" --body "Integrates the 12 reviewed work-unit SHAs through the approved feature-branch chain. Includes full test, build, TypeScript, browser, accessibility, and Git evidence from this plan."
+$finalPrUrl = gh pr create --base main --head semantic-actions-admin-menu --title "feat(admin): add semantic actions and progressive categories" --body "Integrates the 14 reviewed work-unit SHAs through the approved feature-branch chain. Includes full test, build, TypeScript, focused production next-start protected-delete, browser, accessibility, and Git evidence from this plan."
 $finalPr = gh pr view $finalPrUrl --json number | ConvertFrom-Json
 gh pr checks $finalPr.number --required --watch
 if ($LASTEXITCODE -ne 0) { throw "Required checks failed for final PR #$($finalPr.number)" }
@@ -4145,7 +4156,7 @@ foreach ($unit in $records) {
 }
 ```
 
-Expected: full tests, build, TypeScript, required final-PR checks, and approval are green before the `--merge` command; all 12 recorded work-unit SHAs are ancestors of `origin/main`. Merge commits make the final commit count greater than 12 by design, while the number of feature work units remains exactly 12.
+Expected: full tests, build, TypeScript, required final-PR checks, focused production protected-delete proof, and approval are green before the `--merge` command; all 14 recorded work-unit SHAs are ancestors of `origin/main`. Merge commits make the final commit count greater than 14 by design, while the number of feature work units remains exactly 14.
 
 ## Completion Evidence
 
@@ -4157,7 +4168,51 @@ Before executing any `gh pr merge` in Steps 7–8, attach a concise evidence tab
 | Full Vitest | command plus passing file/test counts |
 | Next build | successful command exit |
 | TypeScript | clean `npx.cmd tsc --noEmit` after the explicit Task 0 fixture correction |
-| Browser | desktop/mobile routes, keyboard/focus flows, error path, and contrast observations |
-| Git | `diff --check`, range stat, 12 recorded work-unit SHAs, reverse-merge PR numbers, tracker/main ancestry proof, and clean feature paths |
+| Browser | desktop/mobile routes, keyboard/focus flows, production `next start` protected-delete result, and contrast observations |
+| Git | `diff --check`, range stat, 14 recorded work-unit SHAs, reverse-merge PR numbers, tracker/main ancestry proof, and clean feature paths |
 
 Do not claim completion while a new feature test, build error, accessibility regression, or unreviewed file remains.
+
+## Post-review correction addendum — 2026-07-14
+
+All original 12 slices had already been pushed through immutable slice-12 tip `f6fb796f101ad844432504d22304c698650aa5ff` before the production review and before any PR existed. The stop-and-re-plan condition at line 4026 therefore fired: slices 1–12 stay immutable, and this addendum explicitly authorizes append-only slices 13 and 14. Do not amend, rebase, force-push, or cherry-pick either correction into the reviewed slices.
+
+| Slice | Base | Branch | Exact subject | Changed-line budget |
+| --- | --- | --- | --- | ---: |
+| 13 | `semantic-actions/12-menu-integration` at `f6fb796f101ad844432504d22304c698650aa5ff` | `semantic-actions/13-protected-delete-result` | `fix(admin): preserve protected delete feedback` | 300 |
+| 14 | immutable one-commit tip of `semantic-actions/13-protected-delete-result` | `semantic-actions/14-neutral-cart-badge` | `fix(waiter): use neutral cart count badge` | 60 |
+
+Slice 13 is limited to:
+
+```text
+docs/superpowers/plans/2026-07-13-semantic-actions-admin-menu.md
+lib/actions/produtos.ts
+components/admin/category-manager.tsx
+tests/unit/actions/produtos.test.ts
+tests/unit/business/category-manager-delete.test.ts
+```
+
+Its deliverable is a serializable protected-delete result (`{ ok: true } | { ok: false; error: string }`). Product presence is checked with category and tenant predicates, resolves the exact recovery instruction without deleting, and leaves authentication, authorization, and unexpected database failures as thrown errors. `CategoryManager` handles the resolved failure before success callbacks, preserves editor/draft, clears busy state, re-enables controls, and retains its catch path for unexpected rejection.
+
+Slice 14 is limited to:
+
+```text
+components/garcom/cart-fab.tsx
+tests/unit/design/button-semantics.test.ts
+```
+
+Its deliverable replaces the cart count badge's destructive decoration with `border border-border bg-muted text-foreground` while preserving geometry, count cap, accessible name, handler, and neutral parent semantics. Tests stay in the same work unit as each behavior; `tests/unit/business/order-flow.test.ts` is a GREEN regression gate only for slice 14.
+
+### Scope correction and immutable history
+
+The already-pushed feature range also contains necessary assertion maintenance in `tests/unit/business/order-flow.test.ts` that the original inventory omitted: 4 additions and 4 deletions total—3/3 in `a055fcc` for availability wording and company outline semantics, plus 1/1 in `3b5f06c` for edit-observation wording. This is the explicit scope exception; keep those commits and assertions unchanged.
+
+Task 9 Steps 6–8 are superseded to 14 SHA records and 14 child PRs. Do not prefill historical SHAs for uncommitted slices 13–14: the `$workUnits` ledger above resolves their tips from `origin/<branch>`, verifies exact subjects plus sole-parent/merge-base ancestry, and records all 14 tips before merging. Reverse accumulation is exactly `14 → 13 → 12 → … → 1`; final tracker and `main` ancestry proofs cover every record. The final topology is 14 one-commit child work units / 14 child PRs plus one tracker-to-`main` PR.
+
+### Mandatory production protected-delete proof
+
+Before completion and before the final tracker PR, create a fresh disposable database under the OS temp directory, run `npm run build`, and serve it with `npm run start -- --hostname 127.0.0.1 --port 57353`. Re-run the focused protected-delete flow against that production server. PASS requires exactly one category-delete Next-Action POST with a non-500 response; the exact visible `role="alert"` text `Remova os produtos antes de excluir a categoria`; preserved `Cozinha rascunho` editor/draft; `aria-busy="false"`; enabled input/delete controls; unchanged category/products; no success refresh/deletion; and no production RSC redaction text. Preserve the original failure JSON/PNG and prove `dev.db` stayed byte-for-byte unchanged (or absent).
+
+The copied browser script, disposable databases, logs, screenshots, traces, and JSON evidence stay under the approved temp evidence root and are never committed. `DESIGNTESTE.MD` and `revisao_geral.md` remain untracked and untouched; never create or stage `debug.log` or browser artifacts.
+
+GitHub child/tracker PR creation remains blocked until repository authorization is restored. Local gates and immutable branch tips are not PR completion; once authorization returns, create immediate-parent child PRs and use merge commits only in the reverse order above.

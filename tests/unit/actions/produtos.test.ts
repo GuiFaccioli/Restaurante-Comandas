@@ -14,6 +14,7 @@ vi.mock('@/lib/db/index', () => ({
     returning: vi.fn(),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -26,9 +27,14 @@ vi.mock('@/lib/auth/access', () => ({
 
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
-import { categoria } from '@/lib/db/schema'
+import { categoria, produto } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
-import { criarProduto, toggleDisponivel, criarCategoria } from '@/lib/actions/produtos'
+import {
+  criarProduto,
+  toggleDisponivel,
+  criarCategoria,
+  removerCategoria,
+} from '@/lib/actions/produtos'
 import { criarMesa } from '@/lib/actions/mesas'
 
 beforeEach(() => vi.clearAllMocks())
@@ -96,6 +102,23 @@ describe('criarCategoria', () => {
   })
 })
 
+describe('removerCategoria', () => {
+  it('resolves the protected result and skips delete for tenant products', async () => {
+    const where = vi.fn().mockResolvedValue([{ id: 'prod-1' }])
+    const from = vi.fn().mockReturnValue({ where })
+    ;(db.select as any).mockReturnValue({ from })
+
+    await expect(removerCategoria('cat-1')).resolves.toEqual({
+      ok: false,
+      error: 'Remova os produtos antes de excluir a categoria',
+    })
+
+    expect(eq).toHaveBeenCalledWith(produto.categoriaId, 'cat-1')
+    expect(eq).toHaveBeenCalledWith(produto.tenantId, 'tenant-1')
+    expect(db.delete).not.toHaveBeenCalled()
+  })
+})
+
 describe('criarProduto', () => {
   it('inserts produto and returns id', async () => {
     const values = vi.fn().mockReturnValue({
@@ -154,4 +177,3 @@ describe('criarMesa', () => {
     })
   })
 })
-

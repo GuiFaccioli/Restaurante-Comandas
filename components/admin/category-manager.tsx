@@ -195,7 +195,12 @@ export function CategoryManager({
     if (!beginMutation('delete')) return
     setError('')
     try {
-      await removerCategoria(category.id)
+      const result = await removerCategoria(category.id)
+      if (!result.ok) {
+        finishMutation()
+        setError(result.error)
+        return
+      }
       onDeleted(category.id)
       onRefresh()
       toast.success('Categoria excluída')

@@ -20,6 +20,10 @@ export type CreatedCategory = {
   nome: string
 }
 
+export type RemoveCategoryResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
 export async function criarCategoria(nome: string): Promise<CreatedCategory> {
   const { tenantId } = await requireAccess('admin')
   const normalizedName = nome.trim()
@@ -63,7 +67,7 @@ export async function editarCategoria(id: string, nome: string): Promise<void> {
     .where(and(eq(categoria.id, id), eq(categoria.tenantId, tenantId)))
 }
 
-export async function removerCategoria(id: string): Promise<void> {
+export async function removerCategoria(id: string): Promise<RemoveCategoryResult> {
   const { tenantId } = await requireAccess('admin')
   const produtosDaCategoria = await db
     .select({ id: produto.id })
@@ -71,12 +75,17 @@ export async function removerCategoria(id: string): Promise<void> {
     .where(and(eq(produto.categoriaId, id), eq(produto.tenantId, tenantId)))
 
   if (produtosDaCategoria.length > 0) {
-    throw new Error('Remova os produtos antes de excluir a categoria')
+    return {
+      ok: false,
+      error: 'Remova os produtos antes de excluir a categoria',
+    }
   }
 
   await db
     .delete(categoria)
     .where(and(eq(categoria.id, id), eq(categoria.tenantId, tenantId)))
+
+  return { ok: true }
 }
 
 export async function reordenarCategorias(ids: string[]): Promise<void> {

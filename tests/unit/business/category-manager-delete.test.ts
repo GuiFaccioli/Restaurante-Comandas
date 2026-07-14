@@ -47,7 +47,7 @@ describe('CategoryManager delete', () => {
     expectedFocus,
   }) => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    actions.removerCategoria.mockResolvedValueOnce(undefined)
+    actions.removerCategoria.mockResolvedValueOnce({ ok: true })
     const props = renderManager({ categorias, selectedId: target.id })
 
     fireEvent.click(
@@ -67,7 +67,7 @@ describe('CategoryManager delete', () => {
 
   it('preserves a different selection and restores its pencil after deletion', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    actions.removerCategoria.mockResolvedValueOnce(undefined)
+    actions.removerCategoria.mockResolvedValueOnce({ ok: true })
     const props = renderManager({
       categorias: [pizzas, bebidas, doces],
       selectedId: doces.id,
@@ -89,29 +89,38 @@ describe('CategoryManager delete', () => {
     })
   })
 
-  it('retains delete editor, draft, and server error when products block deletion', async () => {
+  it('retains the enabled delete editor and draft when products block deletion', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    actions.removerCategoria.mockRejectedValueOnce(
-      new Error('Remova os produtos antes de excluir a categoria')
-    )
-    renderManager()
+    actions.removerCategoria.mockResolvedValueOnce({
+      ok: false,
+      error: 'Remova os produtos antes de excluir a categoria',
+    })
+    const props = renderManager()
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar categoria Pizzas' }))
     const input = await screen.findByRole('textbox', { name: 'Nome da categoria Pizzas' })
     fireEvent.change(input, { target: { value: 'Pizzas especiais' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Excluir categoria Pizzas' }))
+    const remove = screen.getByRole('button', { name: 'Excluir categoria Pizzas' })
+    const form = remove.closest('form')!
+    fireEvent.click(remove)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Remova os produtos antes de excluir a categoria'
     )
     expect(input).toHaveValue('Pizzas especiais')
+    expect(form).toHaveAttribute('aria-busy', 'false')
+    expect(input).toBeEnabled()
+    expect(remove).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Salvar categoria Pizzas' })).toBeEnabled()
+    expect(props.onDeleted).not.toHaveBeenCalled()
+    expect(props.onRefresh).not.toHaveBeenCalled()
   })
 
   it('marks delete busy and ignores a second delete attempt', async () => {
-    let resolveDelete!: () => void
+    let resolveDelete!: (result: { ok: true }) => void
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     actions.removerCategoria.mockImplementationOnce(
-      () => new Promise<void>((resolve) => { resolveDelete = resolve })
+      () => new Promise<{ ok: true }>((resolve) => { resolveDelete = resolve })
     )
     renderManager()
 
@@ -126,6 +135,6 @@ describe('CategoryManager delete', () => {
     expect(remove).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Salvar categoria Pizzas' })).toBeDisabled()
 
-    await act(async () => resolveDelete())
+    await act(async () => resolveDelete({ ok: true }))
   })
 })
