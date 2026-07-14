@@ -81,6 +81,25 @@ describe('AdminStatCard', () => {
     expect(button).toHaveAttribute('type', 'button')
     expect(button).toHaveAttribute('aria-expanded', 'true')
     expect(button).toHaveAttribute('aria-controls', 'cashier-responsibility-panel')
+    expect(button).toHaveClass(
+      'flex',
+      'w-full',
+      'flex-col',
+      'gap-0',
+      'rounded-[var(--radius)]',
+      'whitespace-normal',
+      'focus-visible:ring-2',
+      'focus-visible:ring-ring'
+    )
+    for (const buttonOnlyClass of [
+      'inline-flex',
+      'flex-row',
+      'gap-1.5',
+      'whitespace-nowrap',
+      'rounded-full',
+    ]) {
+      expect(button).not.toHaveClass(buttonOnlyClass)
+    }
     expect(screen.getByText('Ocultar responsáveis')).toBeInTheDocument()
 
     fireEvent.click(button)

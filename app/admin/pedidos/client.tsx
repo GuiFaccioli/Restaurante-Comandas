@@ -253,8 +253,10 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                     </span>
                     <Button
                       type="button"
-                      variant="outline"
+                      intent="neutral"
+                      appearance="outline"
                       size="sm"
+                      className="min-h-11"
                       onClick={() => setExpandedId(expanded ? null : pedido.id)}
                     >
                       {expanded ? 'Fechar itens' : 'Abrir pedido'}
@@ -292,7 +294,8 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                     {canPay && !paymentFormOpen && (
                       <Button
                         type="button"
-                        variant="success"
+                        intent="positive"
+                        appearance="solid"
                         className="min-h-11 w-full sm:w-auto"
                         onClick={() => openPaymentForm(pedido)}
                       >
@@ -302,6 +305,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
 
                     {paymentFormOpen && (
                       <form
+                        aria-busy={isPending}
                         className="grid gap-3 rounded-md border bg-muted/30 p-3"
                         onSubmit={(event) => handlePaymentSubmit(event, pedido)}
                       >
@@ -332,7 +336,9 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                           <Button
                             type="submit"
-                            variant="success"
+                            intent="positive"
+                            appearance="solid"
+                            aria-busy={isPending}
                             className="min-h-11"
                             disabled={isPending}
                           >
@@ -340,7 +346,8 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                           </Button>
                           <Button
                             type="button"
-                            variant="destructive"
+                            intent="neutral"
+                            appearance="outline"
                             className="min-h-11"
                             onClick={() => setPaymentFormPedidoId(null)}
                             disabled={isPending}

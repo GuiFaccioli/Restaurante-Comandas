@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { actionSemantics } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 export function AdminPage({ children, className }: { children: ReactNode; className?: string }) {
@@ -66,12 +67,15 @@ export function AdminStatCard({
     warning: 'bg-[var(--status-em-preparo)]',
     danger: 'bg-destructive',
   }[tone]
-  const cardClassName = cn(
-    'min-h-11 w-full rounded-[var(--radius)] border p-4 text-left',
+  const baseCardClassName =
+    'flex w-full flex-col gap-0 h-auto min-h-11 rounded-[var(--radius)] border p-4 text-left'
+  const staticCardClassName = cn(baseCardClassName, toneClass)
+  const interactiveCardClassName = cn(
+    baseCardClassName,
+    actionSemantics({ intent: 'neutral', appearance: 'ghost' }),
+    'items-stretch justify-start whitespace-normal text-foreground transition-shadow hover:shadow-sm',
     toneClass,
-    onClick &&
-      'transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-    onClick && expanded && 'ring-2 ring-foreground ring-offset-2'
+    expanded && 'ring-2 ring-foreground ring-offset-2'
   )
   const content = (
     <>
@@ -93,7 +97,7 @@ export function AdminStatCard({
     return (
       <button
         type="button"
-        className={cardClassName}
+        className={interactiveCardClassName}
         onClick={onClick}
         aria-expanded={expanded}
         aria-controls={controls}
@@ -103,7 +107,7 @@ export function AdminStatCard({
     )
   }
 
-  return <div className={cardClassName}>{content}</div>
+  return <div className={staticCardClassName}>{content}</div>
 }
 
 export function AdminPanel({
