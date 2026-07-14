@@ -29,11 +29,19 @@ const paymentMethods: Array<{ value: FormaPagamento; label: string }> = [
 ]
 
 type CashierMetric = 'queue' | 'pending' | 'paid'
+type QueueFilter = 'todos' | 'cobrar' | 'andamento' | 'pagos'
 
 const metricCopy: Record<CashierMetric, { title: string; empty: string }> = {
   queue: { title: 'Pedidos na fila', empty: 'Nenhum pedido na fila.' },
   pending: { title: 'Pagamentos pendentes', empty: 'Nenhum pagamento pendente.' },
   paid: { title: 'Pagos', empty: 'Nenhum pedido pago.' },
+}
+
+const queueFilterCopy: Record<QueueFilter, { label: string; description: string }> = {
+  todos: { label: 'Todos', description: 'Todos os pedidos' },
+  cobrar: { label: 'Para cobrar', description: 'Entregues e ainda pendentes' },
+  andamento: { label: 'Em andamento', description: 'Ainda não entregues' },
+  pagos: { label: 'Concluídos', description: 'Histórico já baixado' },
 }
 
 export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOrder[] }) {
@@ -43,6 +51,8 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
   const [paymentFormPedidoId, setPaymentFormPedidoId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<FormaPagamento>('pix')
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>('cobrar')
+  const [searchTerm, setSearchTerm] = useState('')
   const [lastEvent, setLastEvent] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const pedidosPagos = pedidos.filter((pedido) => pedido.pagamentoStatus === 'pago').length
@@ -57,6 +67,19 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
       : selectedMetric === 'queue'
         ? pedidos
         : []
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR')
+  const visiblePedidos = pedidos.filter((pedido) => {
+    const matchesFilter = queueFilter === 'todos'
+      || (queueFilter === 'cobrar' && pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente')
+      || (queueFilter === 'andamento' && pedido.status !== 'entregue' && pedido.pagamentoStatus === 'pendente')
+      || (queueFilter === 'pagos' && pedido.pagamentoStatus === 'pago')
+    if (!matchesFilter || !normalizedSearch) return matchesFilter
+    return [
+      `mesa ${pedido.mesaNumero}`,
+      pedido.id,
+      ...pedido.itens.map((item) => item.nome),
+    ].some((value) => value.toLocaleLowerCase('pt-BR').includes(normalizedSearch))
+  })
 
   const refreshPedidos = useCallback(async () => {
     const response = await fetch('/api/caixa/pedidos', { cache: 'no-store' })
@@ -220,6 +243,53 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
         </div>
       )}
 
+      <AdminPanel
+        title="Triagem rápida"
+        description="Comece por Para cobrar: são os pedidos entregues que precisam da próxima ação do caixa."
+      >
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-end">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pedidos">
+            {(Object.keys(queueFilterCopy) as QueueFilter[]).map((filter) => {
+              const count = filter === 'todos'
+                ? pedidos.length
+                : filter === 'cobrar'
+                  ? pedidos.filter((pedido) => pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente').length
+                  : filter === 'andamento'
+                    ? pedidos.filter((pedido) => pedido.status !== 'entregue' && pedido.pagamentoStatus === 'pendente').length
+                    : pedidosPagos
+              const selected = queueFilter === filter
+
+              return (
+                <Button
+                  key={filter}
+                  type="button"
+                  intent={selected ? 'informational' : 'neutral'}
+                  appearance={selected ? 'solid' : 'outline'}
+                  size="sm"
+                  aria-pressed={selected}
+                  className="min-h-11"
+                  onClick={() => setQueueFilter(filter)}
+                >
+                  {queueFilterCopy[filter].label} <span className="opacity-75">({count})</span>
+                </Button>
+              )
+            })}
+          </div>
+          <label className="grid gap-1 text-sm font-medium">
+            Buscar mesa ou pedido
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Ex.: Mesa 4 ou 0e09"
+              className="min-h-11 rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          {visiblePedidos.length} {visiblePedidos.length === 1 ? 'pedido exibido' : 'pedidos exibidos'} · {queueFilterCopy[queueFilter].description}
+        </p>
+      </AdminPanel>
+
       {pedidos.length === 0 ? (
         <AdminEmptyState
           title="Nenhum pedido encontrado"
@@ -227,14 +297,25 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
         />
       ) : (
         <AdminPanel
-          title="Fila do caixa"
+          title={`Fila do caixa · ${queueFilterCopy[queueFilter].label}`}
           description="Pedidos entregues aparecem com ação de pagamento; pedidos em preparo permanecem como referência."
         >
+        {visiblePedidos.length === 0 ? (
+          <AdminEmptyState
+            title="Nenhum pedido corresponde aos filtros."
+            description="Tente Todos, limpe a busca ou aguarde uma nova atualização do caixa."
+          />
+        ) : (
         <div className="grid gap-3">
-          {pedidos.map((pedido) => {
+          {visiblePedidos.map((pedido) => {
             const expanded = expandedId === pedido.id
             const paymentFormOpen = paymentFormPedidoId === pedido.id
             const canPay = pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente'
+            const level = canPay
+              ? { label: 'Ação agora', className: 'bg-[var(--action-positive-soft)] text-[var(--action-positive-foreground)]' }
+              : pedido.pagamentoStatus === 'pago'
+                ? { label: 'Concluído', className: 'bg-muted text-muted-foreground' }
+                : { label: 'Acompanhar', className: 'bg-[var(--action-informational-soft)] text-[var(--action-informational-foreground)]' }
 
             return (
               <article key={pedido.id} className="space-y-3 rounded-[var(--radius)] border bg-background p-4">
@@ -248,6 +329,9 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <StatusBadge status={pedido.status} />
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${level.className}`}>
+                      {level.label}
+                    </span>
                     <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
                       {pedido.pagamentoStatus === 'pago' ? 'Pago' : 'Pagamento pendente'}
                     </span>
@@ -363,6 +447,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
             )
           })}
         </div>
+        )}
         </AdminPanel>
       )}
     </div>

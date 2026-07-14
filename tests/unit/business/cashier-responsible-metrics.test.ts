@@ -211,4 +211,21 @@ describe('AdminPedidosLive responsible metrics', () => {
     expect(queueButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Nenhum pedido na fila.')).toBeInTheDocument()
   })
+
+  it('triages the queue with a payment filter and search field', () => {
+    const preparing = makeOrder({
+      id: 'pedido-00000004',
+      mesaNumero: 12,
+      status: 'em_preparo',
+    })
+    render(createElement(AdminPedidosLive, { initialPedidos: [pending, paid, preparing] }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Para cobrar/ }))
+    expect(screen.getByText('Mesa 4')).toBeInTheDocument()
+    expect(screen.queryByText('Mesa 9')).not.toBeInTheDocument()
+    expect(screen.queryByText('Mesa 12')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Buscar mesa ou pedido'), { target: { value: '12' } })
+    expect(screen.getByText('Nenhum pedido corresponde aos filtros.')).toBeInTheDocument()
+  })
 })
