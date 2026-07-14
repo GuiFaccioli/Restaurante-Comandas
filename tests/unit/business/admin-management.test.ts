@@ -23,40 +23,34 @@ describe('admin management area', () => {
     expect(layout).toContain('/admin/configuracoes')
   })
 
-  it('menu category creation is explicit instead of looking like search', () => {
+  it('uses one progressive category manager without the old category cards', () => {
     const menuClient = source('app/admin/menu/client.tsx')
+    const categoryManager = source('components/admin/category-manager.tsx')
 
-    expect(menuClient).toContain('Cardápio')
-    expect(menuClient).toContain('Produtos nesta categoria')
-    expect(menuClient).toContain('produtoCount')
-    expect(menuClient).toContain('Nome da nova categoria')
-    expect(menuClient).toContain('Adicionar Categoria')
-    expect(menuClient).toContain('Nenhum produto nesta categoria')
+    expect(menuClient).toContain('<CategoryManager')
+    expect(menuClient).not.toContain('title="Nova categoria"')
+    expect(menuClient).not.toContain('Renomear categoria</Button>')
+    expect(categoryManager).toContain('aria-label="Adicionar categoria"')
+    expect(categoryManager).toContain('aria-label={`Editar categoria ${category.nome}`}')
+    expect(categoryManager).toContain('<TooltipContent>Editar categoria</TooltipContent>')
+    expect(categoryManager).toContain('aria-busy=')
+    expect(categoryManager).toContain('role="alert"')
   })
 
-  it('menu admin can edit and remove products and categories intentionally', () => {
+  it('uses real semantic product actions and the existing server names', () => {
     const menuClient = source('app/admin/menu/client.tsx')
     const productActions = source('lib/actions/produtos.ts')
 
+    expect(menuClient).toContain('toggleDisponivel')
     expect(productActions).toContain('editarCategoria')
     expect(productActions).toContain('removerCategoria')
     expect(productActions).toContain('removerProduto')
-    expect(productActions).toContain('requireAccess(\'admin\')')
-
-    expect(menuClient).toContain('Renomear categoria')
-    expect(menuClient).toContain('Excluir categoria')
-    expect(menuClient).toContain('Excluir produto')
-    expect(menuClient).toContain('removerProduto')
-    expect(menuClient).toContain('removerCategoria')
-    expect(menuClient).toContain('type="button"')
-    expect(menuClient).toContain('aria-pressed')
-    expect(menuClient).toContain('toggleDisponivel')
-    expect(menuClient).toContain("intent={p.disponivel ? 'warning' : 'positive'}")
-    expect(menuClient).toContain("p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'")
+    expect(productActions).toContain("requireAccess('admin')")
+    expect(menuClient).toContain('Tornar indisponível')
+    expect(menuClient).toContain('Disponibilizar')
     expect(menuClient).toContain('aria-label={`Editar produto ${p.nome}`}')
     expect(menuClient).toContain('aria-label={`Excluir produto ${p.nome}`}')
     expect(menuClient).not.toContain('<Badge')
-    expect(menuClient).not.toContain('onClick={async () =>')
   })
 
   it('has admin reports, users, and settings pages', () => {

@@ -1,17 +1,16 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
+import { AdminEmptyState, AdminPage, AdminPageHeader, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { Plus, Pencil } from 'lucide-react'
+import { CategoryManager } from '@/components/admin/category-manager'
 import { ProdutoForm } from '@/components/admin/produto-form'
 import {
-  criarCategoria,
-  editarCategoria,
-  removerCategoria,
   removerProduto,
   toggleDisponivel,
+  type CreatedCategory,
 } from '@/lib/actions/produtos'
+import { nextCategoryIdAfterDeletion } from '@/lib/admin/category-selection'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -20,61 +19,67 @@ type Categoria = { id: string; nome: string; ordem: number; produtos: Produto[] 
 
 export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
   const router = useRouter()
-  const [selected, setSelected] = useState(categorias[0]?.id ?? '')
+  const [selectedCategoryId, setSelectedCategoryId] = useState(categorias[0]?.id ?? '')
   const [formOpen, setFormOpen] = useState(false)
   const [editProduto, setEditProduto] = useState<Produto | undefined>()
-  const [newCat, setNewCat] = useState('')
-  const [categoryName, setCategoryName] = useState(categorias[0]?.nome ?? '')
+  const [pendingCategory, setPendingCategory] = useState<CreatedCategory | null>(null)
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({})
 
-  const catAtual = categorias.find((c) => c.id === selected)
-  const produtoCount = catAtual?.produtos.length ?? 0
+  const displayedCategories =
+    pendingCategory &&
+    !categorias.some((category) => category.id === pendingCategory.id)
+      ? [
+          ...categorias,
+          {
+            ...pendingCategory,
+            ordem: Number.MAX_SAFE_INTEGER,
+            produtos: [],
+          },
+        ]
+      : categorias
+
+  const selectedCategory = displayedCategories.find(
+    (category) => category.id === selectedCategoryId
+  )
+  const produtoCount = selectedCategory?.produtos.length ?? 0
   const totalProdutos = categorias.reduce((total, categoria) => total + categoria.produtos.length, 0)
   const totalDisponiveis = categorias.reduce(
     (total, categoria) => total + categoria.produtos.filter((produto) => produto.disponivel).length,
     0
   )
 
-  async function handleNewCategoria() {
-    if (!newCat.trim()) return
-    try {
-      await criarCategoria(newCat.trim())
-      setNewCat('')
-      router.refresh()
-      toast.success('Categoria criada com sucesso.')
-    } catch (error) {
-      console.error('Failed to create category', error)
-      toast.error('Não foi possível criar a categoria.')
+  useEffect(() => {
+    if (
+      pendingCategory &&
+      categorias.some((category) => category.id === pendingCategory.id)
+    ) {
+      setPendingCategory(null)
     }
+
+    setSelectedCategoryId((current) => {
+      const currentStillExists = categorias.some(
+        (category) => category.id === current
+      )
+      const currentIsPending = pendingCategory?.id === current
+      return currentStillExists || currentIsPending
+        ? current
+        : (categorias[0]?.id ?? '')
+    })
+  }, [categorias, pendingCategory])
+
+  function handleCreated(created: CreatedCategory) {
+    setPendingCategory(created)
+    setSelectedCategoryId(created.id)
   }
 
-  async function handleRenameCategoria() {
-    if (!catAtual || !categoryName.trim()) return
-    try {
-      await editarCategoria(catAtual.id, categoryName.trim())
-      router.refresh()
-      toast.success('Categoria atualizada com sucesso.')
-    } catch (error) {
-      console.error('Failed to update category', error)
-      toast.error('Não foi possível renomear a categoria.')
-    }
-  }
-
-  async function handleRemoveCategoria() {
-    if (!catAtual) return
-    if (!window.confirm(`Excluir a categoria "${catAtual.nome}"?`)) return
-    try {
-      await removerCategoria(catAtual.id)
-      const nextCategory = categorias.find((categoria) => categoria.id !== catAtual.id)
-      setSelected(nextCategory?.id ?? '')
-      setCategoryName(nextCategory?.nome ?? '')
-      router.refresh()
-      toast.success('Categoria excluída com sucesso.')
-    } catch (error) {
-      console.error('Failed to remove category', error)
-      toast.error('Remova os produtos antes de excluir a categoria.')
-    }
+  function handleDeleted(deletedId: string) {
+    setPendingCategory((current) =>
+      current?.id === deletedId ? null : current
+    )
+    setSelectedCategoryId((current) =>
+      nextCategoryIdAfterDeletion(displayedCategories, deletedId, current)
+    )
   }
 
   async function handleRemoveProduto(produto: Produto) {
@@ -105,14 +110,28 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
         title="Cardápio"
         description="Organize categorias, produtos, preços e disponibilidade para a operação."
         action={
-        <Button
-          type="button"
-          className="min-h-11 w-full sm:w-auto"
-          disabled={!catAtual}
-          onClick={() => { setEditProduto(undefined); setFormOpen(true) }}
-        >
-          <Plus className="h-4 w-4 mr-1" /> Novo Produto
-        </Button>
+          <>
+            <Button
+              type="button"
+              intent="positive"
+              appearance="solid"
+              className="min-h-11 w-full sm:w-auto"
+              aria-describedby={
+                selectedCategory ? undefined : 'novo-produto-disabled-reason'
+              }
+              disabled={!selectedCategory}
+              onClick={() => {
+                setEditProduto(undefined)
+                setFormOpen(true)
+              }}
+            >
+              <Plus aria-hidden="true" />
+              Novo produto
+            </Button>
+            <span id="novo-produto-disabled-reason" className="sr-only">
+              Selecione ou crie uma categoria para habilitar Novo produto.
+            </span>
+          </>
         }
       />
 
@@ -124,93 +143,60 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
 
       <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <AdminPanel title="Categorias" description="Escolha uma seção para revisar produtos.">
-            <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Categorias</p>
-            <div className="grid gap-1">
-              {categorias.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  aria-pressed={selected === c.id}
-                  className={`min-h-11 w-full rounded-[var(--radius)] px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                    selected === c.id ? 'bg-muted font-semibold' : 'hover:bg-muted/50'
-                  }`}
-                  onClick={() => {
-                    setSelected(c.id)
-                    setCategoryName(c.nome)
-                  }}
-                >
-                  {c.nome}
-                </button>
-              ))}
-              {categorias.length === 0 ? (
-                <p className="rounded-[var(--radius)] border border-dashed p-3 text-sm text-muted-foreground">
-                  Nenhuma categoria criada.
-                </p>
-              ) : null}
-            </div>
-          </AdminPanel>
-
-          <AdminPanel title="Nova categoria">
-          <div className="space-y-2">
-          <label htmlFor="nova-categoria" className="text-xs font-medium">
-            Nome da nova categoria
-          </label>
-          <Input
-            id="nova-categoria"
-            className="min-h-11"
-            placeholder="Ex.: Sobremesas"
-            value={newCat}
-            onChange={(e) => setNewCat(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleNewCategoria()}
+          <CategoryManager
+            categorias={displayedCategories.map(({ id, nome, ordem }) => ({
+              id,
+              nome,
+              ordem,
+            }))}
+            selectedId={selectedCategoryId}
+            onSelect={setSelectedCategoryId}
+            onCreated={handleCreated}
+            onDeleted={handleDeleted}
+            onRefresh={router.refresh}
           />
-          <Button type="button" size="sm" className="min-h-11 w-full" onClick={handleNewCategoria}>
-            <Plus className="mr-1 h-4 w-4" /> Adicionar Categoria
-          </Button>
-          </div>
-          </AdminPanel>
         </aside>
 
         <section className="min-w-0 space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">{catAtual?.nome ?? 'Categorias'}</h2>
+              <h2 className="text-lg font-semibold">
+                {selectedCategory?.nome ?? 'Categorias'}
+              </h2>
               <p className="text-sm text-muted-foreground">
                 Produtos nesta categoria: {produtoCount}
               </p>
             </div>
           </div>
 
-          {catAtual && (
-            <AdminPanel>
-              <label htmlFor="renomear-categoria" className="text-xs font-medium">
-                Renomear categoria
-              </label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Input
-                  id="renomear-categoria"
-                  className="min-h-11 min-w-0 flex-1"
-                  value={categoryName}
-                  onChange={(event) => setCategoryName(event.target.value)}
-                />
-                <Button type="button" size="sm" className="min-h-11" variant="outline" onClick={handleRenameCategoria}>
-                  Salvar categoria
+          {!selectedCategory ? (
+            <AdminEmptyState
+              title="Crie sua primeira categoria"
+              description="Crie uma categoria para começar a cadastrar produtos."
+            />
+          ) : produtoCount === 0 ? (
+            <AdminEmptyState
+              title="Nenhum produto nesta categoria"
+              description="Use Novo produto para cadastrar o primeiro item desta categoria."
+              action={
+                <Button
+                  type="button"
+                  intent="positive"
+                  appearance="soft"
+                  className="min-h-11"
+                  onClick={() => {
+                    setEditProduto(undefined)
+                    setFormOpen(true)
+                  }}
+                >
+                  <Plus aria-hidden="true" />
+                  Adicionar primeiro produto
                 </Button>
-                <Button type="button" size="sm" className="min-h-11" variant="destructive" onClick={handleRemoveCategoria}>
-                  Excluir categoria
-                </Button>
-              </div>
-            </AdminPanel>
-          )}
-
-          <div className="space-y-2">
-            {catAtual && produtoCount === 0 ? (
-              <AdminEmptyState
-                title="Nenhum produto nesta categoria"
-                description="Use “Novo Produto” para montar o cardápio desta seção."
-              />
-            ) : (
-              catAtual?.produtos.map((p) => (
+              }
+            />
+          ) : (
+            <div className="space-y-2">
+              {selectedCategory.produtos.map((p) => (
                 <div
                   key={p.id}
                   className="grid gap-3 rounded-[var(--radius)] border bg-card px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
@@ -281,21 +267,21 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                     </Button>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
 
-      {selected && (
+      {selectedCategory ? (
         <ProdutoForm
           key={editProduto?.id ?? 'new'}
           open={formOpen}
           onClose={() => setFormOpen(false)}
-          categoriaId={selected}
+          categoriaId={selectedCategory.id}
           produto={editProduto}
         />
-      )}
+      ) : null}
     </AdminPage>
   )
 }
