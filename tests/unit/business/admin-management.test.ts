@@ -53,6 +53,17 @@ describe('admin management area', () => {
     expect(menuClient).not.toContain('<Badge')
   })
 
+  it('keeps product actions ordered and availability visible inside each card', () => {
+    const menuClient = source('app/admin/menu/client.tsx')
+
+    expect(menuClient).toContain('role="switch"')
+    expect(menuClient).toContain('aria-checked={p.disponivel}')
+    expect(menuClient).toContain("p.disponivel ? 'Disponível' : 'Indisponível'")
+    expect(menuClient.indexOf('aria-label={`Excluir produto ${p.nome}`}')).toBeLessThan(
+      menuClient.indexOf('aria-label={`Editar produto ${p.nome}`}')
+    )
+  })
+
   it('has admin reports, users, and settings pages', () => {
     expect(existsSync(join(root, 'app/admin/relatorios/page.tsx'))).toBe(true)
     expect(existsSync(join(root, 'app/admin/usuarios/page.tsx'))).toBe(true)

@@ -222,24 +222,38 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                     <div className="min-w-0">
                       <p className="break-words text-sm font-medium">{p.nome}</p>
                       <p className="text-sm text-muted-foreground">R$ {parseFloat(p.preco).toFixed(2)}</p>
+                      <Button
+                        type="button"
+                        role="switch"
+                        intent={p.disponivel ? 'positive' : 'warning'}
+                        appearance="soft"
+                        size="sm"
+                        className="mt-2 min-h-9"
+                        aria-checked={p.disponivel}
+                        aria-label={
+                          p.disponivel
+                            ? `Tornar ${p.nome} indisponível`
+                            : `Disponibilizar ${p.nome}`
+                        }
+                        onClick={() => handleToggleProduto(p)}
+                      >
+                        <span className={`size-2 rounded-full ${p.disponivel ? 'bg-[var(--action-positive)]' : 'bg-[var(--action-warning-outline)]'}`} aria-hidden="true" />
+                        {p.disponivel ? 'Disponível' : 'Indisponível'}
+                        <span className="sr-only">{p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}</span>
+                      </Button>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     <Button
                       type="button"
-                      intent={p.disponivel ? 'warning' : 'positive'}
+                      intent="destructive"
                       appearance="soft"
                       className="min-h-11"
-                      aria-pressed={p.disponivel}
-                      aria-label={
-                        p.disponivel
-                          ? `Tornar ${p.nome} indisponível`
-                          : `Disponibilizar ${p.nome}`
-                      }
-                      onClick={() => handleToggleProduto(p)}
+                      aria-label={`Excluir produto ${p.nome}`}
+                      onClick={() => handleRemoveProduto(p)}
                     >
-                      {p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}
+                      Excluir
                     </Button>
                     <Button
                       type="button"
@@ -254,16 +268,6 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                       }}
                     >
                       <Pencil aria-hidden="true" />
-                    </Button>
-                    <Button
-                      type="button"
-                      intent="destructive"
-                      appearance="soft"
-                      className="min-h-11"
-                      aria-label={`Excluir produto ${p.nome}`}
-                      onClick={() => handleRemoveProduto(p)}
-                    >
-                      Excluir
                     </Button>
                   </div>
                 </div>
