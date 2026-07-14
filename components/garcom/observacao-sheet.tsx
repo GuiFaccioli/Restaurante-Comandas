@@ -32,7 +32,13 @@ export function ObservacaoSheet({ open, produtoId, onClose }: Props) {
           rows={4}
         />
         <SheetFooter className="mt-4">
-          <Button className="h-12 w-full" onClick={handleSave}>
+          <Button
+            type="button"
+            intent="positive"
+            appearance="solid"
+            className="min-h-11 w-full"
+            onClick={handleSave}
+          >
             Salvar
           </Button>
         </SheetFooter>

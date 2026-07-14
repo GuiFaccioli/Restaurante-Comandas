@@ -68,40 +68,52 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
                       Obs: {item.observacao}
                     </p>
                   )}
-                  <button
-                    className="text-xs text-ring underline underline-offset-2"
+                  <Button
+                    type="button"
+                    intent="informational"
+                    appearance="link"
+                    className="min-h-11 justify-start px-0 text-xs"
                     onClick={() => setObsItem(item.produtoId)}
                   >
-                    {item.observacao ? 'Editar observação' : '+ Observação'}
-                  </button>
+                    Editar observação
+                  </Button>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
-                    size="sm"
-                    variant="outline"
-                    className="min-h-11 w-11 p-0"
+                    type="button"
+                    intent="neutral"
+                    appearance="outline"
+                    size="icon"
+                    className="size-11"
+                    aria-label={`Diminuir ${item.nome}`}
                     onClick={() => decrementItem(item.produtoId)}
                   >
-                    <Minus className="h-4 w-4" />
+                    <Minus aria-hidden="true" />
                   </Button>
                   <span className="w-8 text-center text-sm font-medium">{item.quantidade}</span>
                   <Button
-                    size="sm"
-                    variant="success"
-                    className="min-h-11 w-11 p-0"
+                    type="button"
+                    intent="positive"
+                    appearance="soft"
+                    size="icon"
+                    className="size-11"
+                    aria-label={`Adicionar mais ${item.nome}`}
                     onClick={() =>
                       addItem({ produtoId: item.produtoId, nome: item.nome, preco: item.preco })
                     }
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus aria-hidden="true" />
                   </Button>
                   <Button
-                    size="sm"
-                    variant="ghost"
-                    className="min-h-11 w-11 p-0 text-destructive"
+                    type="button"
+                    intent="destructive"
+                    appearance="ghost"
+                    size="icon"
+                    className="size-11"
+                    aria-label={`Remover ${item.nome} do carrinho`}
                     onClick={() => removeItem(item.produtoId)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 aria-hidden="true" />
                   </Button>
                 </div>
               </div>
@@ -115,18 +127,23 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
           {error && <p className="px-4 text-sm text-destructive">{error}</p>}
           <DrawerFooter className="gap-2">
             <Button
+              type="button"
+              intent="positive"
+              appearance="solid"
               size="lg"
-              variant="success"
-              className="h-12 w-full"
+              className="min-h-11 w-full"
               onClick={handleConfirmar}
+              aria-busy={sending}
               disabled={sending || items.length === 0}
             >
               {sending ? 'Confirmando...' : 'Confirmar pedido'}
             </Button>
             <Button
+              type="button"
+              intent="neutral"
+              appearance="outline"
               size="lg"
-              variant="destructive"
-              className="h-12 w-full"
+              className="min-h-11 w-full"
               onClick={onClose}
               disabled={sending}
             >

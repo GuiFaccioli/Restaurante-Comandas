@@ -11,13 +11,15 @@ export function CartFab({ onClick }: { onClick: () => void }) {
 
   return (
     <Button
+      type="button"
+      intent="neutral"
+      appearance="solid"
       size="lg"
-      variant="success"
       aria-label="Abrir carrinho"
-      className="fixed right-4 bottom-4 z-50 h-14 w-14 rounded-full p-0 shadow-lg sm:right-6 sm:bottom-6"
+      className="fixed right-4 bottom-4 z-50 min-h-11 h-14 w-14 rounded-full p-0 shadow-lg sm:right-6 sm:bottom-6"
       onClick={onClick}
     >
-      <ShoppingCart className="h-6 w-6" />
+      <ShoppingCart className="h-6 w-6" aria-hidden="true" />
       <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-white">
         {total > 9 ? '9+' : total}
       </span>

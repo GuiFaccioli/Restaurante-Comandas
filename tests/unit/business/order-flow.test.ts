@@ -164,7 +164,7 @@ describe('pedido business flow', () => {
 
     expect(drawerSource).toContain('min-h-11')
     expect(drawerSource).toContain('break-words')
-    expect(drawerSource).toContain('Observação')
+    expect(drawerSource).toContain('Editar observação')
 
     expect(sheetSource).toContain('Observação')
     expect(sheetSource).toContain('sem cebola, bem passado')
