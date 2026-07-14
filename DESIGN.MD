@@ -10,10 +10,17 @@ colors:
   border: "#e5e5e5"
   primary: "#0a0a0a"
   primary-foreground: "#ffffff"
-  success: "#16a34a"
-  success-hover: "#15803d"
-  destructive: "#d45656"
-  ring: "#00d4a4"
+  action-positive: "#15803d"
+  action-positive-hover: "#166534"
+  action-informational: "#175cd3"
+  action-informational-hover: "#1849a9"
+  action-warning: "#fde68a"
+  action-warning-solid-foreground: "#713f12"
+  action-warning-soft: "#fffbeb"
+  action-warning-soft-foreground: "#92400e"
+  action-warning-outline: "#b45309"
+  action-destructive: "#b42318"
+  focus-ring: "#007f62"
   status-new: "#171717"
   status-preparing: "#ffa600"
   status-ready: "#28a948"
@@ -62,15 +69,27 @@ components:
     rounded: "9999px"
     padding: "0.625rem 1.25rem"
     height: "2.5rem"
-  button-success:
-    backgroundColor: "{colors.success}"
+  button-positive:
+    backgroundColor: "{colors.action-positive}"
     textColor: "#ffffff"
     rounded: "9999px"
     padding: "0.625rem 1.25rem"
     height: "2.5rem"
+  button-informational:
+    backgroundColor: "{colors.action-informational}"
+    textColor: "#ffffff"
+    rounded: "9999px"
+    padding: "0.625rem 1.25rem"
+    height: "2.5rem"
+  button-warning:
+    backgroundColor: "{colors.action-warning}"
+    textColor: "{colors.action-warning-solid-foreground}"
+    rounded: "9999px"
+    padding: "0.625rem 1.25rem"
+    height: "2.5rem"
   button-destructive:
-    backgroundColor: "#d456561a"
-    textColor: "{colors.destructive}"
+    backgroundColor: "{colors.action-destructive}"
+    textColor: "#ffffff"
     rounded: "9999px"
     padding: "0.625rem 1.25rem"
     height: "2.5rem"
@@ -95,24 +114,24 @@ components:
 
 Restaurante Comandas is a product UI for real restaurant work. The design should feel like a clean service rail: every item has a place, every action is reachable, and nothing decorative competes with the next operational decision.
 
-The system is intentionally restrained: white surfaces, dark text, thin borders, green success actions, red destructive actions, and compact rounded controls. It must not behave like a marketing page. It serves garçom, cozinha, caixa, and administração screens where speed and confidence matter more than visual novelty.
+The system is intentionally restrained: white surfaces, dark text, thin borders, semantic action colors, an accessible focus treatment, and compact rounded controls. It must not behave like a marketing page. It serves garçom, cozinha, caixa, and administração screens where speed and confidence matter more than visual novelty.
 
 **Key Characteristics:**
 
 - Mobile-first operational density without visual clutter.
-- Clear primary/secondary/destructive action vocabulary.
+- Clear intent and appearance vocabulary for actions.
 - Cards used as command units, not decoration.
 - Live-update surfaces that preserve local user state.
 - Profile-contained area switching for users with multiple permissions.
 
 ## 2. Colors
 
-The palette is restrained and task-oriented: neutral surfaces carry most of the UI, green is reserved for successful operational actions, and red is reserved for destructive or cancellation actions.
+The palette is restrained and task-oriented: neutral surfaces carry most of the UI, semantic action tokens communicate intent, and status tokens remain reserved for operational data.
 
 ### Primary
 
 - **Operational Ink** (`#0a0a0a`): primary text, top-priority neutral buttons, and high-confidence labels.
-- **Service Green** (`#16a34a`): successful actions such as confirming delivery, opening table flow from an empty state, and registering payment.
+- **Action Positive** (`#15803d`): create, save, confirm, register, or complete an operation.
 
 ### Secondary
 
@@ -121,7 +140,7 @@ The palette is restrained and task-oriented: neutral surfaces carry most of the 
 
 ### Tertiary
 
-- **Focus Mint** (`#00d4a4`): focus ring and interaction affordance. Use sparingly; it is not a decorative accent.
+- **Accessible Focus Ring** (`#007f62`): shared interaction affordance tested against the white (`#ffffff`) and near-black (`#0a0a0a`) adjacent surfaces.
 - **Kitchen Amber** (`#ffa600`): preparation/status signal only.
 
 ### Neutral
@@ -132,9 +151,32 @@ The palette is restrained and task-oriented: neutral surfaces carry most of the 
 
 ### Named Rules
 
-**The Operational Color Rule.** Green means a positive operational action; red means destructive, cancel, or danger; neutral means navigation or inspection. Do not use these colors decoratively.
+**The Semantic Action Rule.** Intent communicates business meaning and appearance communicates emphasis. Never use action colors decoratively or as the only cue.
 
 **The No-Fog Rule.** Muted text must stay readable. If a label matters to the task, it cannot be pale gray for elegance.
+
+## Semantic actions
+
+Buttons combine an intent (`neutral, positive, informational, warning, destructive`)
+with an appearance (`solid, soft, outline, ghost, link`). Intent describes the
+business meaning; appearance describes visual emphasis. Color is never the only cue:
+pair it with explicit wording, an icon, accessible state, or confirmation.
+
+| Intent | Use | Approved palette |
+| --- | --- | --- |
+| neutral | navigation, inspect, close, logout, or discard an unpersisted draft | existing foreground/secondary tokens |
+| positive | create, add, save, confirm, register, or complete | `#15803d`; hover `#166534` |
+| informational | edit or configure | `#175cd3`; hover `#1849a9` |
+| warning | reversible operational disruption | warning solid `#fde68a` with `#713f12`; warning soft `#fffbeb` with `#92400e`; outline `#b45309` |
+| destructive | delete, remove, or cancel persisted work | `#b42318` |
+
+Use focus ring `#007f62`; it is verified at 3:1 or better against `#ffffff` and
+`#0a0a0a`. Body text must meet 4.5:1 contrast.
+Outline text, border, and icon contrast is guaranteed only on the approved light `background`, `card`, and `popover` surfaces (`#ffffff`).
+On any other surface, choose an intent and appearance combination with valid contrast.
+This contract does not introduce a dark action palette. Dismissive “Cancelar” is
+neutral, while “Cancelar pedido” is destructive. Icon-only controls have an
+accessible name and at least a 44 × 44px target.
 
 ## 3. Typography
 
@@ -173,10 +215,9 @@ The system is mostly flat. Depth is conveyed through borders, muted surface fill
 ### Buttons
 
 - **Shape:** pill-shaped for primary operational buttons (`9999px`) with compact height (`2.5rem`).
-- **Primary:** black background and white text for neutral high-priority actions.
-- **Success:** green background and white text for positive actions like `Confirmar entrega`.
-- **Destructive:** soft red background and red text for cancellation/destructive actions.
-- **Hover / Focus:** hover darkens or tints the existing state; focus uses visible ring treatment. Disabled state reduces opacity and blocks pointer interaction.
+- **Intent:** choose neutral, positive, informational, warning, or destructive from the semantic action contract.
+- **Appearance:** use solid, soft, outline, ghost, or link to express emphasis without changing business meaning.
+- **Hover / Focus:** use the matching hover token and the shared `#007f62` focus ring. Disabled state uses explicit disabled tokens and blocks pointer interaction.
 
 ### Chips
 
@@ -211,7 +252,7 @@ Order cards must keep table identity, elapsed time, grouped items, and the next 
 
 - **Do** preserve existing routes, components, business rules, authentication, analytics/dataLayer, and tenant-aware access checks.
 - **Do** keep garçom, cozinha, caixa, and admin flows visually consistent while respecting each role's primary task.
-- **Do** use green only for positive operational actions and red only for destructive/cancel actions.
+- **Do** choose semantic intent from the action contract and pair color with explicit wording, an icon, accessible state, or confirmation.
 - **Do** keep touch targets comfortable on mobile and make focus states visible.
 - **Do** preserve local UI state during SSE and polling refreshes.
 

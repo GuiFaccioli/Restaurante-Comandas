@@ -23,7 +23,12 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
+  --color-action-neutral: var(--action-neutral);
+  --color-action-positive: var(--action-positive);
+  --color-action-informational: var(--action-informational);
+  --color-action-warning: var(--action-warning);
+  --color-action-destructive: var(--action-destructive);
+  --color-ring: var(--focus-ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -70,13 +75,60 @@
   --admin-canvas: #f7f7f7;
   --accent: #f7f7f7;
   --accent-foreground: #0a0a0a;
-  --success: #15803d;
-  --success-hover: #166534;
-  --destructive: #b42318;
-  --destructive-foreground: #ffffff;
+  --action-neutral: #0a0a0a;
+  --action-neutral-hover: #262626;
+  --action-neutral-solid-foreground: #ffffff;
+  --action-neutral-soft: #f7f7f7;
+  --action-neutral-soft-hover: #ededed;
+  --action-neutral-foreground: #262626;
+  --action-neutral-outline: #767676;
+
+  --action-positive: #15803d;
+  --action-positive-hover: #166534;
+  --action-positive-solid-foreground: #ffffff;
+  --action-positive-soft: #ecfdf3;
+  --action-positive-soft-hover: #d1fadf;
+  --action-positive-foreground: #166534;
+  --action-positive-outline: #15803d;
+
+  --action-informational: #175cd3;
+  --action-informational-hover: #1849a9;
+  --action-informational-solid-foreground: #ffffff;
+  --action-informational-soft: #eff8ff;
+  --action-informational-soft-hover: #d1e9ff;
+  --action-informational-foreground: #175cd3;
+  --action-informational-outline: #175cd3;
+
+  --action-warning: #fde68a;
+  --action-warning-hover: #fcd34d;
+  --action-warning-solid-foreground: #713f12;
+  --action-warning-soft: #fffbeb;
+  --action-warning-soft-hover: #fef3c7;
+  --action-warning-soft-foreground: #92400e;
+  --action-warning-outline: #b45309;
+
+  --action-destructive: #b42318;
+  --action-destructive-hover: #912018;
+  --action-destructive-solid-foreground: #ffffff;
+  --action-destructive-soft: #fff1f0;
+  --action-destructive-soft-hover: #fee4e2;
+  --action-destructive-foreground: #b42318;
+  --action-destructive-outline: #b42318;
+
+  --action-disabled: #f2f4f7;
+  --action-disabled-border: #d0d5dd;
+  --action-disabled-foreground: #667085;
+  --focus-ring: #007f62;
+
+  /* Temporary non-action aliases for existing status/data consumers. */
+  --success: var(--action-positive);
+  --success-hover: var(--action-positive-hover);
+  --destructive: var(--action-destructive);
+  --destructive-foreground: var(--action-destructive-solid-foreground);
+  --ring: var(--focus-ring);
+  --sidebar-ring: var(--focus-ring);
   --border: #e5e5e5;
   --input: #e5e5e5;
-  --ring: #00d4a4;
   --radius: 0.75rem;
 
   /* Semantic status colors */
@@ -93,7 +145,6 @@
   --sidebar-accent: #f7f7f7;
   --sidebar-accent-foreground: #0a0a0a;
   --sidebar-border: #e5e5e5;
-  --sidebar-ring: #00d4a4;
 }
 
 .dark {
@@ -114,7 +165,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: var(--focus-ring);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -127,7 +178,7 @@
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: var(--focus-ring);
 }
 
 @layer base {
