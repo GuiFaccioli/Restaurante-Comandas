@@ -142,6 +142,7 @@ describe('pedido business flow', () => {
   test('waiter table ordering flow keeps touch-first visual structure', () => {
     const clientSource = source('app/garcom/mesa/[id]/client.tsx')
     const menuSource = source('components/garcom/menu-grid.tsx')
+    const scrollSource = source('components/garcom/scroll-to-top.tsx')
     const itemSource = source('components/garcom/item-card.tsx')
     const drawerSource = source('components/garcom/cart-drawer.tsx')
     const sheetSource = source('components/garcom/observacao-sheet.tsx')
@@ -159,6 +160,11 @@ describe('pedido business flow', () => {
     expect(menuSource).toContain('lg:grid-cols-3')
     expect(menuSource).toContain('min-h-11 min-w-24 px-4')
     expect(menuSource).toContain('data-active:border-[var(--success)]')
+    expect(menuSource).toContain('sticky')
+    expect(menuSource).toContain('scrollbar-width:none')
+    expect(clientSource).toContain('<ScrollToTopButton />')
+    expect(scrollSource).toContain('setTimeout')
+    expect(scrollSource).toContain('500')
 
     expect(itemSource).toContain('bg-card')
     expect(itemSource).toContain('min-w-0')

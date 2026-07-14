@@ -16,7 +16,7 @@ type Categoria = { id: string; nome: string; produtos: Produto[] }
 export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
   return (
     <Tabs defaultValue={categorias[0]?.id}>
-      <TabsList className="mb-4 flex w-full justify-start gap-1 overflow-x-auto">
+      <TabsList className="sticky top-0 z-20 mb-4 flex w-full justify-start gap-1 overflow-x-auto bg-background/95 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {categorias.map((c) => (
           <TabsTrigger
             key={c.id}
