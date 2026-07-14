@@ -9,11 +9,10 @@ function readProjectFile(path: string) {
 }
 
 describe('operational button semantics', () => {
-  it('provides a green success variant for positive actions', () => {
+  it('maps the legacy success alias to a positive solid action', () => {
     const button = readProjectFile('components/ui/button.tsx')
 
-    expect(button).toContain('success:')
-    expect(button).toMatch(/success:\s*"[^"]*(bg-green|emerald|text-white)/)
+    expect(button).toContain("success: { intent: 'positive', appearance: 'solid' }")
   })
 
   it('uses success styling for add, confirm, and continue operational actions', () => {

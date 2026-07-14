@@ -139,7 +139,7 @@ describe('admin management area', () => {
     expect(productFormSource).toContain('htmlFor="produto-imagem-url"')
     expect(productFormSource).toContain('id="produto-imagem-url"')
 
-    expect(buttonSource).toContain('bg-[var(--success)]')
-    expect(buttonSource).toContain('hover:bg-[var(--success-hover)]')
+    expect(buttonSource).toContain('intent:')
+    expect(buttonSource).toContain('appearance:')
   })
 })
