@@ -1,5 +1,12 @@
 ﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('drizzle-orm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('drizzle-orm')>()
+  return {
+    ...actual,
+    eq: vi.fn(actual.eq),
+  }
+})
 vi.mock('@/lib/db/index', () => ({
   db: {
     insert: vi.fn().mockReturnThis(),
@@ -17,7 +24,9 @@ vi.mock('@/lib/auth/access', () => ({
   requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', tenantId: 'tenant-1', access: 'admin' })),
 }))
 
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
+import { categoria } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
 import { criarProduto, toggleDisponivel, criarCategoria } from '@/lib/actions/produtos'
 import { criarMesa } from '@/lib/actions/mesas'
@@ -25,20 +34,65 @@ import { criarMesa } from '@/lib/actions/mesas'
 beforeEach(() => vi.clearAllMocks())
 
 describe('criarCategoria', () => {
-  it('inserts and returns id', async () => {
-    const values = vi.fn().mockReturnValue({
-      returning: vi.fn().mockResolvedValue([{ id: 'cat-1' }]),
+  it('trims the name, appends after the tenant max order, and returns id plus name', async () => {
+    const where = vi.fn().mockResolvedValue([{ ordem: 2 }, { ordem: 7 }])
+    const from = vi.fn().mockReturnValue({ where })
+    ;(db.select as any).mockReturnValue({ from })
+
+    const returning = vi.fn().mockResolvedValue([
+      { id: 'cat-1', nome: 'Pizzas' },
+    ])
+    const values = vi.fn().mockReturnValue({ returning })
+    ;(db.insert as any).mockReturnValue({ values })
+
+    await expect(criarCategoria('  Pizzas  ')).resolves.toEqual({
+      id: 'cat-1',
+      nome: 'Pizzas',
     })
-    ;(db.insert as any).mockReturnValue({
-      values,
-    })
-    expect(await criarCategoria('Pizzas')).toEqual({ id: 'cat-1' })
+
+    expect(db.select).toHaveBeenCalledTimes(1)
+    expect(from).toHaveBeenCalledTimes(1)
+    expect(where).toHaveBeenCalledTimes(1)
+    expect(eq).toHaveBeenCalledWith(categoria.tenantId, 'tenant-1')
     expect(values).toHaveBeenCalledWith({
       id: expect.any(String),
       tenantId: 'tenant-1',
       nome: 'Pizzas',
-      ordem: 0,
+      ordem: 8,
     })
+    expect(returning).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses order zero only for the tenant first category', async () => {
+    const where = vi.fn().mockResolvedValue([])
+    const from = vi.fn().mockReturnValue({ where })
+    ;(db.select as any).mockReturnValue({ from })
+
+    const returning = vi.fn().mockResolvedValue([
+      { id: 'cat-1', nome: 'Pizzas' },
+    ])
+    const values = vi.fn().mockReturnValue({ returning })
+    ;(db.insert as any).mockReturnValue({ values })
+
+    await criarCategoria('Pizzas')
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expect.any(String),
+        tenantId: 'tenant-1',
+        nome: 'Pizzas',
+        ordem: 0,
+      })
+    )
+  })
+
+  it('rejects a blank normalized name before querying or inserting', async () => {
+    await expect(criarCategoria('   ')).rejects.toThrow(
+      'Informe o nome da categoria'
+    )
+
+    expect(db.select).not.toHaveBeenCalled()
+    expect(db.insert).not.toHaveBeenCalled()
   })
 })
 

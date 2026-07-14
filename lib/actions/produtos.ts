@@ -15,18 +15,41 @@ type NovoProduto = {
   imagemUrl?: string
 }
 
-export async function criarCategoria(nome: string): Promise<{ id: string }> {
+export type CreatedCategory = {
+  id: string
+  nome: string
+}
+
+export async function criarCategoria(nome: string): Promise<CreatedCategory> {
   const { tenantId } = await requireAccess('admin')
-  const max = await db
+  const normalizedName = nome.trim()
+
+  if (!normalizedName) {
+    throw new Error('Informe o nome da categoria')
+  }
+
+  const categories = await db
     .select({ ordem: categoria.ordem })
     .from(categoria)
     .where(eq(categoria.tenantId, tenantId))
-  const ordem = max.length ? Math.max(...max.map((c) => c.ordem)) + 1 : 0
-  const [cat] = await db
+  const ordem = categories.length
+    ? Math.max(...categories.map((category) => category.ordem)) + 1
+    : 0
+
+  const [created] = await db
     .insert(categoria)
-    .values({ id: crypto.randomUUID(), tenantId, nome, ordem })
-    .returning({ id: categoria.id })
-  return { id: cat.id }
+    .values({
+      id: crypto.randomUUID(),
+      tenantId,
+      nome: normalizedName,
+      ordem,
+    })
+    .returning({
+      id: categoria.id,
+      nome: categoria.nome,
+    })
+
+  return created
 }
 
 export async function editarCategoria(id: string, nome: string): Promise<void> {
