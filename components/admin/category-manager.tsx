@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
-import { Check, Pencil, Plus, X } from 'lucide-react'
+import { Check, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AdminPanel } from '@/components/admin/admin-page'
@@ -21,6 +21,7 @@ import {
 import {
   criarCategoria,
   editarCategoria,
+  removerCategoria,
   type CreatedCategory,
 } from '@/lib/actions/produtos'
 import { cn } from '@/lib/utils'
@@ -45,7 +46,7 @@ type EditorState =
   | { mode: 'create' }
   | { mode: 'edit'; categoryId: string }
 
-type PendingMutation = null | 'create' | 'rename'
+type PendingMutation = null | 'create' | 'rename' | 'delete'
 type FocusTarget = 'add' | string
 
 function errorMessage(error: unknown) {
@@ -59,6 +60,7 @@ export function CategoryManager({
   selectedId,
   onSelect,
   onCreated,
+  onDeleted,
   onRefresh,
 }: CategoryManagerProps) {
   const [editor, setEditor] = useState<EditorState>({ mode: 'idle' })
@@ -175,6 +177,34 @@ export function CategoryManager({
       finishMutation()
       setError(errorMessage(caught))
       toast.error('Não foi possível renomear a categoria')
+    }
+  }
+
+  async function deleteCategory(category: CategoryListItem) {
+    if (pendingRef.current) return
+    if (!window.confirm(`Excluir a categoria "${category.nome}"?`)) return
+
+    const index = ordered.findIndex((item) => item.id === category.id)
+    const selectedCategorySurvives =
+      selectedId !== category.id &&
+      ordered.some((item) => item.id === selectedId)
+    const focusFallback = selectedCategorySurvives
+      ? ordered.find((item) => item.id === selectedId)
+      : (ordered[index + 1] ?? ordered[index - 1])
+
+    if (!beginMutation('delete')) return
+    setError('')
+    try {
+      await removerCategoria(category.id)
+      onDeleted(category.id)
+      onRefresh()
+      toast.success('Categoria excluída')
+      finishMutation()
+      closeEditor(focusFallback?.id ?? 'add')
+    } catch (caught) {
+      finishMutation()
+      setError(errorMessage(caught))
+      toast.error('Não foi possível excluir a categoria')
     }
   }
 
@@ -348,6 +378,18 @@ export function CategoryManager({
                     >
                       <X aria-hidden="true" />
                       Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      intent="destructive"
+                      appearance="ghost"
+                      className="min-h-11"
+                      aria-label={`Excluir categoria ${category.nome}`}
+                      disabled={pending !== null}
+                      onClick={() => void deleteCategory(category)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      Excluir
                     </Button>
                     <Button
                       type="submit"
