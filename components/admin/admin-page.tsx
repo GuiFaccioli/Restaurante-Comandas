@@ -113,20 +113,27 @@ export function AdminStatCard({
 export function AdminPanel({
   title,
   description,
+  action,
   children,
   className,
 }: {
   title?: string
   description?: string
+  action?: ReactNode
   children: ReactNode
   className?: string
 }) {
   return (
     <section className={cn('overflow-hidden rounded-[var(--radius)] border bg-card', className)}>
-      {title || description ? (
-        <div className="border-b bg-muted/35 px-4 py-3">
-          {title ? <h2 className="font-semibold">{title}</h2> : null}
-          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+      {title || description || action ? (
+        <div className="flex min-h-16 items-start justify-between gap-3 border-b bg-muted/35 px-4 py-3">
+          <div className="min-w-0">
+            {title ? <h2 className="font-semibold">{title}</h2> : null}
+            {description ? (
+              <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            ) : null}
+          </div>
+          {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : null}
       <div className="p-4">{children}</div>
