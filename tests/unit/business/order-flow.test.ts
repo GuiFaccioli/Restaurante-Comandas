@@ -156,6 +156,7 @@ describe('pedido business flow', () => {
     expect(menuSource).toContain('grid-cols-1')
     expect(menuSource).toContain('sm:grid-cols-2')
     expect(menuSource).toContain('lg:grid-cols-3')
+    expect(menuSource).toContain('min-h-11 min-w-24 px-4')
 
     expect(itemSource).toContain('bg-card')
     expect(itemSource).toContain('min-w-0')
