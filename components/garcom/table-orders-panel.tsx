@@ -98,11 +98,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   }
 
   return (
-    <section className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
-      <div>
-        <h2 className="text-lg font-semibold">Pedidos desta mesa</h2>
-      </div>
-
+    <div className="space-y-3">
       {pedidos.length === 0 ? (
         <p className="text-pretty text-sm text-muted-foreground">
           Nenhum pedido confirmado nesta mesa. Adicione itens do cardápio para montar o pedido.
@@ -179,6 +175,6 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
           })}
         </div>
       )}
-    </section>
+    </div>
   )
 }
