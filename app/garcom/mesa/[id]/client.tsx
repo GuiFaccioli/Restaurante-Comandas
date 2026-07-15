@@ -36,8 +36,8 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 p-4 pb-28 sm:p-6">
-      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto flex h-[100dvh] max-w-4xl flex-col overflow-hidden p-4 pb-28 sm:p-6">
+      <div className="flex shrink-0 flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-pretty text-2xl font-bold">Mesa {mesaNumero}</h1>
         </div>
@@ -56,7 +56,9 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
           Voltar
         </Link>
       </div>
-      <TableOrdersPanel mesaId={mesaId} initialPedidos={initialPedidos} />
+      <div className="shrink-0">
+        <TableOrdersPanel mesaId={mesaId} initialPedidos={initialPedidos} />
+      </div>
       <MenuGrid categorias={categorias} />
       <CartFab onClick={() => setDrawerOpen(true)} />
       <CartDrawer
