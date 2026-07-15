@@ -161,7 +161,7 @@ describe('pedido business flow', () => {
     expect(menuSource).toContain('sm:grid-cols-2')
     expect(menuSource).toContain('lg:grid-cols-3')
     expect(menuSource).toContain('grid-cols-2')
-    expect(menuSource).toContain('grid h-auto w-full')
+    expect(menuSource).toContain('grid !h-auto min-h-0 w-full')
     expect(menuSource).toContain('min-h-11 w-full px-3')
     expect(menuSource).toContain('data-active:border-[var(--success)]')
     expect(menuSource).toContain('sticky')
