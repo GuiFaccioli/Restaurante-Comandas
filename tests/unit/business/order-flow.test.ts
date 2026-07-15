@@ -167,8 +167,8 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('<ScrollToTopButton />')
     expect(deliveriesPageSource).toContain('<ScrollToTopButton />')
     expect(kitchenPageSource).toContain('<ScrollToTopButton />')
-    expect(scrollSource).toContain('setTimeout')
-    expect(scrollSource).toContain('500')
+    expect(scrollSource).toContain("window.scrollTo({ top: 0, behavior: 'smooth' })")
+    expect(scrollSource).not.toContain('setTimeout')
 
     expect(itemSource).toContain('bg-card')
     expect(itemSource).toContain('min-w-0')
