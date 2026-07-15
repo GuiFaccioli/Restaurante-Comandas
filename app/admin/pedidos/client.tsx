@@ -31,6 +31,10 @@ const paymentMethods: Array<{ value: FormaPagamento; label: string }> = [
 type CashierMetric = 'queue' | 'pending' | 'paid'
 type QueueFilter = 'todos' | 'cobrar' | 'andamento' | 'pagos'
 
+function isAwaitingPayment(pedido: CashierOrder) {
+  return pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente'
+}
+
 const metricCopy: Record<CashierMetric, { title: string; empty: string }> = {
   queue: { title: 'Pedidos na fila', empty: 'Nenhum pedido na fila.' },
   pending: { title: 'Pagamentos pendentes', empty: 'Nenhum pagamento pendente.' },
@@ -47,10 +51,11 @@ const queueFilterCopy: Record<QueueFilter, { label: string; description: string 
 export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOrder[] }) {
   const [pedidos, setPedidos] = useState(initialPedidos)
   const [selectedMetric, setSelectedMetric] = useState<CashierMetric | null>(null)
-  const [expandedId, setExpandedId] = useState<string | null>(initialPedidos[0]?.id ?? null)
-  const [paymentFormPedidoId, setPaymentFormPedidoId] = useState<string | null>(null)
+  const firstPaymentPedido = initialPedidos.find(isAwaitingPayment)
+  const [expandedId, setExpandedId] = useState<string | null>(firstPaymentPedido?.id ?? initialPedidos[0]?.id ?? null)
+  const [paymentFormPedidoId, setPaymentFormPedidoId] = useState<string | null>(firstPaymentPedido?.id ?? null)
   const [paymentMethod, setPaymentMethod] = useState<FormaPagamento>('pix')
-  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentAmount, setPaymentAmount] = useState(firstPaymentPedido?.total.toFixed(2).replace('.', ',') ?? '')
   const [queueFilter, setQueueFilter] = useState<QueueFilter>('cobrar')
   const [searchTerm, setSearchTerm] = useState('')
   const [lastEvent, setLastEvent] = useState<string | null>(null)
@@ -79,7 +84,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
       pedido.id,
       ...pedido.itens.map((item) => item.nome),
     ].some((value) => value.toLocaleLowerCase('pt-BR').includes(normalizedSearch))
-  })
+  }).sort((a, b) => Number(isAwaitingPayment(b)) - Number(isAwaitingPayment(a)))
 
   const refreshPedidos = useCallback(async () => {
     const response = await fetch('/api/caixa/pedidos', { cache: 'no-store' })
@@ -90,11 +95,11 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
     setExpandedId((current) => {
       if (current === null) return null
       if (current && data.pedidos.some((pedido) => pedido.id === current)) return current
-      return data.pedidos[0]?.id ?? null
+      return data.pedidos.find(isAwaitingPayment)?.id ?? data.pedidos[0]?.id ?? null
     })
     setPaymentFormPedidoId((current) => {
-      if (current && data.pedidos.some((pedido) => pedido.id === current)) return current
-      return null
+      if (current && data.pedidos.some((pedido) => pedido.id === current && isAwaitingPayment(pedido))) return current
+      return data.pedidos.find(isAwaitingPayment)?.id ?? null
     })
   }, [])
 
@@ -151,10 +156,10 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <SseListener onEvent={handleEvent} />
 
-      <AdminStatsGrid className="xl:grid-cols-3">
+      <AdminStatsGrid className="order-4 xl:grid-cols-3">
         <AdminStatCard
           label="Pedidos na fila"
           value={pedidos.length}
@@ -186,6 +191,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
         <div
           id="cashier-responsibility-panel"
           data-testid="cashier-responsibility-panel"
+          className="order-5"
         >
           <AdminPanel title={`Responsáveis · ${metricCopy[selectedMetric].title}`}>
             {selectedPedidos.length === 0 ? (
@@ -238,13 +244,14 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
       ) : null}
 
       {lastEvent && (
-        <div className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-pretty text-sm">
+        <div className="order-2 rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-pretty text-sm">
           {lastEvent}
         </div>
       )}
 
       <AdminPanel
-        title="Triagem rápida"
+        className="order-1"
+        title="Pagamentos aguardando baixa"
         description="Comece por Para cobrar: são os pedidos entregues que precisam da próxima ação do caixa."
       >
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-end">
@@ -297,6 +304,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
         />
       ) : (
         <AdminPanel
+          className="order-3"
           title={`Fila do caixa · ${queueFilterCopy[queueFilter].label}`}
           description="Pedidos entregues aparecem com ação de pagamento; pedidos em preparo permanecem como referência."
         >
@@ -335,16 +343,18 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                     <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
                       {pedido.pagamentoStatus === 'pago' ? 'Pago' : 'Pagamento pendente'}
                     </span>
-                    <Button
-                      type="button"
-                      intent="neutral"
-                      appearance="outline"
-                      size="sm"
-                      className="min-h-11"
-                      onClick={() => setExpandedId(expanded ? null : pedido.id)}
-                    >
-                      {expanded ? 'Fechar itens' : 'Abrir pedido'}
-                    </Button>
+                    {!canPay && (
+                      <Button
+                        type="button"
+                        intent="neutral"
+                        appearance="outline"
+                        size="sm"
+                        className="min-h-11"
+                        onClick={() => setExpandedId(expanded ? null : pedido.id)}
+                      >
+                        {expanded ? 'Fechar itens' : 'Ver detalhes'}
+                      </Button>
+                    )}
                   </div>
                 </div>
 

@@ -223,6 +223,9 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('break-words')
     expect(clientSource).toContain('min-h-11')
     expect(clientSource).toContain(' · ')
+    expect(clientSource).toContain('const firstPaymentPedido = initialPedidos.find(isAwaitingPayment)')
+    expect(clientSource).toContain('title="Pagamentos aguardando baixa"')
+    expect(clientSource).not.toContain("'Abrir pedido'")
   })
 
   test('admin management screens keep readable responsive UI', () => {
