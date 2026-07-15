@@ -19,19 +19,19 @@ export function ItemCard({ produto }: { produto: Produto }) {
   const preco = parseFloat(produto.preco)
 
   return (
-    <div className="flex h-full min-w-0 flex-col gap-3 rounded-[var(--radius)] border bg-card p-4">
+    <div className="flex h-full min-w-0 flex-col gap-4 rounded-3xl border bg-card p-4 shadow-sm sm:p-5">
       {produto.imagemUrl ? (
         <img
           src={produto.imagemUrl}
           alt={produto.nome}
-          className="h-36 w-full rounded-[var(--radius)] object-cover sm:h-32"
+          className="h-44 w-full rounded-2xl object-cover sm:h-48"
           loading="lazy"
           onError={(e) => {
             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
           }}
         />
       ) : (
-        <div className="flex h-36 w-full select-none items-center justify-center rounded-[var(--radius)] bg-muted text-4xl sm:h-32">
+        <div className="flex h-44 w-full select-none items-center justify-center rounded-2xl bg-muted text-4xl sm:h-48">
           🍕
         </div>
       )}
@@ -78,7 +78,7 @@ export function ItemCard({ produto }: { produto: Produto }) {
           intent="positive"
           appearance="solid"
           size="sm"
-          className="min-h-11 w-full"
+          className="min-h-12 w-full rounded-full"
           onClick={() => addItem({ produtoId: produto.id, nome: produto.nome, preco })}
         >
           <Plus className="mr-1 h-4 w-4" aria-hidden="true" /> Adicionar

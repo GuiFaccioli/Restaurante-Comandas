@@ -270,11 +270,11 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                 <Button
                   key={filter}
                   type="button"
-                  intent={selected ? 'positive' : 'neutral'}
+                  intent={selected ? 'informational' : 'neutral'}
                   appearance={selected ? 'solid' : 'outline'}
                   size="sm"
                   aria-pressed={selected}
-                  className="min-h-11 rounded-full"
+                  className="min-h-11"
                   onClick={() => setQueueFilter(filter)}
                 >
                   {queueFilterCopy[filter].label} <span className="opacity-75">({count})</span>
@@ -326,7 +326,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                 : { label: 'Acompanhar', className: 'bg-[var(--action-informational-soft)] text-[var(--action-informational-foreground)]' }
 
             return (
-              <article key={pedido.id} className="space-y-4 rounded-3xl border bg-background p-4 shadow-sm sm:p-5">
+              <article key={pedido.id} className="space-y-3 rounded-[var(--radius)] border bg-background p-4">
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                   <div className="min-w-0">
                     <p className="text-lg font-semibold">Mesa {pedido.mesaNumero}</p>
@@ -433,7 +433,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                             intent="positive"
                             appearance="solid"
                             aria-busy={isPending}
-                            className="min-h-12 w-full rounded-full sm:w-auto"
+                            className="min-h-11"
                             disabled={isPending}
                           >
                             {isPending ? 'Registrando...' : 'Registrar pagamento'}

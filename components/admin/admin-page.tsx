@@ -12,16 +12,14 @@ export function AdminPageHeader({
   description,
   eyebrow,
   action,
-  className,
 }: {
   title: string
   description: string
   eyebrow?: string
   action?: ReactNode
-  className?: string
 }) {
   return (
-    <div className={cn('flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between', className)}>
+    <div className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
         {eyebrow ? (
           <p className="mb-1 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
