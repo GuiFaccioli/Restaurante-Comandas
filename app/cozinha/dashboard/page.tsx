@@ -4,6 +4,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { categoria, pedido, itemPedido, produto, mesa } from '@/lib/db/schema'
 import { KanbanBoard } from '@/components/cozinha/kanban-board'
 import { requireAccess } from '@/lib/auth/access'
+import { ScrollToTopButton } from '@/components/operational/scroll-to-top'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +56,7 @@ export default async function DashboardPage() {
       <div className="flex-1 overflow-hidden">
         <KanbanBoard initialPedidos={initialPedidos} />
       </div>
+      <ScrollToTopButton />
     </div>
   )
 }

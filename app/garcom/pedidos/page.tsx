@@ -3,6 +3,7 @@ import { db } from '@/lib/db/index'
 import { requireAccess } from '@/lib/auth/access'
 import { categoria, itemPedido, mesa, pedido, produto } from '@/lib/db/schema'
 import { PendingDeliveriesClient } from '@/components/garcom/pending-deliveries-client'
+import { ScrollToTopButton } from '@/components/operational/scroll-to-top'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +56,7 @@ export default async function PedidosPage() {
         </div>
       </div>
       <PendingDeliveriesClient initialPedidos={initialPedidos} />
+      <ScrollToTopButton />
     </div>
   )
 }
