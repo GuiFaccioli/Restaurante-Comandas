@@ -16,7 +16,7 @@ type Categoria = { id: string; nome: string; produtos: Produto[] }
 export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
   return (
     <Tabs defaultValue={categorias[0]?.id}>
-      <TabsList className="sticky top-0 z-20 mb-4 grid w-full grid-cols-2 gap-2 bg-background/95 py-1 sm:grid-cols-3 lg:grid-cols-4">
+      <TabsList className="sticky top-0 z-20 mb-4 grid h-auto w-full grid-cols-2 gap-2 bg-background py-1 sm:grid-cols-3 lg:grid-cols-4">
         {categorias.map((c) => (
           <TabsTrigger
             key={c.id}
