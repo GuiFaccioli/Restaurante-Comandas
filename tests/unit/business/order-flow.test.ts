@@ -164,7 +164,7 @@ describe('pedido business flow', () => {
     expect(menuSource).toContain('data-active:border-[var(--success)]')
     expect(menuSource).toContain('overflow-y-auto')
     expect(clientSource).toContain('h-[100dvh]')
-    expect(clientSource).toContain('bg-[var(--success)]')
+    expect(clientSource).toContain('bg-black')
     expect(clientSource).toContain('Mesa {mesaNumero}')
     const garcomLayoutSource = source('app/garcom/layout.tsx')
     const profileSlotSource = source('components/garcom/garcom-profile-slot.tsx')

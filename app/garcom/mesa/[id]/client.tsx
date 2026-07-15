@@ -36,7 +36,7 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
 
   return (
     <div className="mx-auto flex h-[100dvh] max-w-4xl flex-col overflow-hidden p-4 pb-28 sm:p-6">
-      <div className="-mx-4 -mt-4 mb-3 flex shrink-0 items-center justify-between bg-[var(--success)] px-4 py-4 text-white sm:-mx-6 sm:-mt-6 sm:px-6">
+      <div className="-mx-4 -mt-4 mb-3 flex shrink-0 items-center justify-between border-b border-white/10 bg-black px-4 py-4 text-white shadow-lg sm:-mx-6 sm:-mt-6 sm:px-6">
         <Link
           href="/garcom/mesas"
           aria-label="Voltar para mesas"
