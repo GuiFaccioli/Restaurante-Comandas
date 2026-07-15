@@ -3,6 +3,7 @@ import { and, asc, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { mesa } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
+import { ProfileMenu } from '@/components/auth/profile-menu'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,10 @@ export default async function MesasGarcomPage() {
             </p>
           </Link>
         ))}
+      </div>
+
+      <div className="flex justify-center pt-2">
+        <ProfileMenu currentAccess="garcom" />
       </div>
     </section>
   )
