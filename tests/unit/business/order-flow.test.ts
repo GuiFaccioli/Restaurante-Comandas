@@ -184,8 +184,7 @@ describe('pedido business flow', () => {
     expect(sheetSource).toContain('Observação')
     expect(sheetSource).toContain('sem cebola, bem passado')
 
-    expect(tableOrdersSource).toContain('Nenhum pedido confirmado nesta mesa')
-    expect(tableOrdersSource).toContain('text-pretty')
+    expect(tableOrdersSource).not.toContain('Nenhum pedido confirmado nesta mesa')
     expect(tableOrdersSource).not.toContain('rounded-[var(--radius)] border bg-card p-4')
     expect(tableOrdersSource).toContain('expandedIds.includes(pedido.id)')
     expect(tableOrdersSource).toContain('toggleExpanded')

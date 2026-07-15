@@ -99,12 +99,8 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
 
   return (
     <div className="space-y-3">
-      {pedidos.length === 0 ? (
-        <p className="text-pretty text-sm text-muted-foreground">
-          Nenhum pedido confirmado nesta mesa. Adicione itens do cardápio para montar o pedido.
-        </p>
-      ) : (
-        <div className="space-y-3">
+      {pedidos.length === 0 ? null : (
+         <div className="space-y-3">
           {pedidos.map((pedido) => {
             const expanded = expandedIds.includes(pedido.id)
             const canceling = isPending && pendingId === pedido.id && pendingAction === 'cancelar'
