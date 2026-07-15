@@ -166,6 +166,7 @@ describe('pedido business flow', () => {
     expect(menuSource).toContain('data-active:border-[var(--success)]')
     expect(menuSource).toContain('overflow-y-auto')
     expect(clientSource).toContain('h-[100dvh]')
+    expect(clientSource).toContain('flex-1 text-center')
     expect(menuSource).not.toContain('overflow-x-auto')
     expect(clientSource).toContain('<ScrollToTopButton />')
     expect(deliveriesPageSource).toContain('<ScrollToTopButton />')

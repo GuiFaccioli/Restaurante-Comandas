@@ -38,7 +38,7 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
   return (
     <div className="mx-auto flex h-[100dvh] max-w-4xl flex-col overflow-hidden p-4 pb-28 sm:p-6">
       <div className="flex shrink-0 flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="flex-1 text-center">
           <h1 className="text-pretty text-2xl font-bold">Mesa {mesaNumero}</h1>
         </div>
         <Link
