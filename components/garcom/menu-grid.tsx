@@ -16,12 +16,12 @@ type Categoria = { id: string; nome: string; produtos: Produto[] }
 export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
   return (
     <Tabs defaultValue={categorias[0]?.id}>
-      <TabsList className="sticky top-0 z-20 mb-4 flex w-full justify-start gap-1 overflow-x-auto bg-background/95 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <TabsList className="sticky top-0 z-20 mb-4 grid w-full grid-cols-2 gap-2 bg-background/95 py-1 sm:grid-cols-3 lg:grid-cols-4">
         {categorias.map((c) => (
           <TabsTrigger
             key={c.id}
             value={c.id}
-            className="min-h-11 min-w-24 px-4 shrink-0 data-active:border-[var(--success)] data-active:text-[var(--success)]"
+            className="min-h-11 w-full px-3 text-center data-active:border-[var(--success)] data-active:text-[var(--success)]"
           >
             {c.nome}
           </TabsTrigger>
