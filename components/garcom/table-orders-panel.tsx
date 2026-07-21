@@ -98,7 +98,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" aria-label="Pedidos desta mesa">
       {pedidos.length === 0 ? null : (
          <div className="space-y-3">
           {pedidos.map((pedido) => {

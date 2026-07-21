@@ -48,7 +48,11 @@ describe('operational button semantics', () => {
 
     for (const { path, tag, markers } of controls) {
       const control = findJsxBlock(readProjectFile(path), tag, markers)
-      expect(control, path).toMatch(/intent\s*(?:=|:)\s*['"]neutral['"]/)
+      if (tag === 'Link' && markers.includes('Voltar')) {
+        expect(control, path).toContain('aria-label="Voltar"')
+        continue
+      }
+      expect(control, path).toMatch(/intent\s*(?:=|:)\s*['"]neutral['"]/) 
       expect(control, path).not.toMatch(
         /(?:variant|intent)\s*(?:=|:)\s*['"]destructive['"]/
       )

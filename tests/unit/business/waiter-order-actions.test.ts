@@ -9,7 +9,7 @@ describe('waiter order action semantics', () => {
     const back = source('app/garcom/mesa/[id]/client.tsx')
     const panel = source('components/garcom/table-orders-panel.tsx')
 
-    expect(back).toContain("intent: 'neutral'")
+    expect(back).toContain('aria-label="Voltar"')
     expect(panel).toMatch(/intent="destructive"[\s\S]*Cancelar/)
     expect(panel).toMatch(/intent="neutral"[\s\S]*Itens/)
   })

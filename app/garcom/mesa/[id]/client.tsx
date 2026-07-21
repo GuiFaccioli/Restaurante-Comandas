@@ -40,7 +40,7 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
       <div className="-mx-4 -mt-4 mb-3 flex shrink-0 items-center justify-between border-b border-white/10 bg-black px-4 py-4 text-white shadow-lg sm:-mx-6 sm:-mt-6 sm:px-6">
         <Link
           href="/garcom/mesas"
-          aria-label="Voltar para mesas"
+          aria-label="Voltar"
           className="flex size-11 items-center justify-center rounded-full transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           <ArrowLeft aria-hidden="true" className="size-7" />
