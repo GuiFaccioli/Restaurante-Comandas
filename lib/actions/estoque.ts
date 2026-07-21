@@ -187,6 +187,18 @@ export async function listarInsumos() {
     .where(eq(insumo.tenantId, tenantId))
 }
 
+export async function registrarEntradaEstoque(id: string, quantidadeCompra: string, chaveIdempotencia?: string): Promise<void> {
+  const { tenantId } = await requireAccess('admin')
+  const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId)))
+  if (!item) throw new Error('Insumo não encontrado')
+  const quantidade = normalizarQuantidadeBase(quantidadeCompra, item.unidadeCompra, item.unidadeBase)
+  const key = chaveIdempotencia?.trim() || `entrada:${crypto.randomUUID()}`
+  const [existing] = await db.select({ id: movimentoEstoque.id }).from(movimentoEstoque).where(and(eq(movimentoEstoque.tenantId, tenantId), eq(movimentoEstoque.chaveIdempotencia, key)))
+  if (existing) return
+  await db.update(insumo).set({ estoqueAtual: (Number(item.estoqueAtual) + Number(quantidade)).toFixed(3) }).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId)))
+  await db.insert(movimentoEstoque).values({ id: crypto.randomUUID(), tenantId, insumoId: id, tipo: 'entrada', quantidade, pedidoId: null, chaveIdempotencia: key, observacao: 'Entrada manual de estoque', criadoEm: new Date() })
+}
+
 export async function editarInsumo(id: string, input: EditarInsumoInput): Promise<void> {
   const { tenantId } = await requireAccess('admin')
   const nome = input.nome.trim()

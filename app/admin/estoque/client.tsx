@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import {
   criarInsumo,
+  registrarEntradaEstoque,
   salvarFichaTecnica,
 } from '@/lib/actions/estoque'
 import { UNIDADES_BASE, UNIDADES_COMPRA, type UnidadeBase } from '@/lib/stock/units'
@@ -51,6 +52,8 @@ export function EstoqueAdminClient({
   })
   const [savingRecipe, setSavingRecipe] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [entryValues, setEntryValues] = useState<Record<string, string>>({})
+  const [entryId, setEntryId] = useState<string | null>(null)
   const [newIngredient, setNewIngredient] = useState({ nome: '', unidadeBase: 'g' as UnidadeBase, unidadeCompra: 'kg', estoqueAtual: '', estoqueIdeal: '', estoqueMinimo: '' })
 
   const lowStock = insumos.filter((item) => Number(item.estoqueAtual) <= Number(item.estoqueMinimo)).length
@@ -92,6 +95,20 @@ export function EstoqueAdminClient({
       toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a ficha técnica.')
     } finally {
       setSavingRecipe(false)
+    }
+  }
+
+  async function handleEntry(item: Insumo) {
+    setEntryId(item.id)
+    try {
+      await registrarEntradaEstoque(item.id, entryValues[item.id] ?? '')
+      setEntryValues((current) => ({ ...current, [item.id]: '' }))
+      router.refresh()
+      toast.success(`Entrada registrada para ${item.nome}.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a entrada.')
+    } finally {
+      setEntryId(null)
     }
   }
 
@@ -170,8 +187,8 @@ export function EstoqueAdminClient({
         </AdminPanel>
       </div>
 
-      <AdminPanel title="Estoque atual" description="As quantidades são exibidas na unidade base para evitar conversões manuais.">
-        {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo cadastrado" description="Comece pelo cadastro de um ingrediente usado nas suas receitas." /> : <div className="divide-y rounded-[var(--radius)] border">{insumos.map((item) => <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" key={item.id}><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">Compra em {item.unidadeCompra} · base em {item.unidadeBase}</p></div><div className="text-left sm:text-right"><p className="font-semibold">{formatQuantity(item.estoqueAtual, item.unidadeBase)}</p><p className={`text-xs ${Number(item.estoqueAtual) <= Number(item.estoqueMinimo) ? 'text-[var(--action-warning-outline)]' : 'text-muted-foreground'}`}>{Number(item.estoqueAtual) <= Number(item.estoqueMinimo) ? 'Atenção: abaixo do mínimo' : `Ideal: ${formatQuantity(item.estoqueIdeal, item.unidadeBase)}`}</p></div></div>)}</div>}
+      <AdminPanel title="Estoque atual" description="As quantidades são exibidas na unidade base; entradas usam a unidade de compra do insumo.">
+        {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo cadastrado" description="Comece pelo cadastro de um ingrediente usado nas suas receitas." /> : <div className="divide-y rounded-[var(--radius)] border">{insumos.map((item) => <div className="flex flex-col gap-3 px-4 py-3" key={item.id}><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">Compra em {item.unidadeCompra} · base em {item.unidadeBase}</p></div><div className="text-left sm:text-right"><p className="font-semibold">{formatQuantity(item.estoqueAtual, item.unidadeBase)}</p><p className={`text-xs ${Number(item.estoqueAtual) <= Number(item.estoqueMinimo) ? 'text-[var(--action-warning-outline)]' : 'text-muted-foreground'}`}>{Number(item.estoqueAtual) <= Number(item.estoqueMinimo) ? 'Atenção: abaixo do mínimo' : `Ideal: ${formatQuantity(item.estoqueIdeal, item.unidadeBase)}`}</p></div></div><div className="flex flex-wrap items-end gap-2"><div className="space-y-1"><Label htmlFor={`entrada-${item.id}`}>Nova entrada ({item.unidadeCompra})</Label><Input id={`entrada-${item.id}`} className="w-40" inputMode="decimal" value={entryValues[item.id] ?? ''} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /></div><Button type="button" intent="neutral" appearance="outline" className="min-h-11" aria-busy={entryId === item.id} disabled={entryId === item.id || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar entrada</Button></div></div>)}</div>}
       </AdminPanel>
     </AdminPage>
   )
