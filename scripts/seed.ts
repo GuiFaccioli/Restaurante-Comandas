@@ -8,6 +8,7 @@ import * as schema from '../lib/db/schema-sqlite'
 import { hashPassword } from '../lib/auth/password'
 import { DEV_TEST_PASSWORD, DEV_TEST_USERS } from '../lib/dev/test-users'
 import { DEFAULT_MENU_CATEGORIES } from '../lib/menu/default-menu'
+import { migrateSqliteDatabase } from '../lib/db/sqlite-migrations'
 
 const url = process.env.DATABASE_URL ?? 'file:./dev.db'
 const dbPath = url.startsWith('file:') ? url.replace('file:', '') : './dev.db'
@@ -15,6 +16,7 @@ const dbPath = url.startsWith('file:') ? url.replace('file:', '') : './dev.db'
 const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
+migrateSqliteDatabase(sqlite)
 
 const db = drizzle(sqlite, { schema })
 const DEV_TENANT_ID = '00000000-0000-4000-8000-000000000001'

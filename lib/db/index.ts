@@ -2,6 +2,7 @@
 import * as pgSchema from './schema'
 import { drizzle as drizzleNeon } from 'drizzle-orm/neon-http'
 import { neon } from '@neondatabase/serverless'
+import { migrateSqliteDatabase } from './sqlite-migrations'
 
 // Determine backend at module load time (server-side only)
 const DATABASE_URL = process.env.DATABASE_URL ?? ''
@@ -27,6 +28,7 @@ function createDb(): DbType {
       sqlite.pragma('journal_mode = WAL')
       sqlite.pragma('foreign_keys = ON')
     }
+    migrateSqliteDatabase(sqlite)
     return drizzle(sqlite, { schema: sqliteSchema }) as unknown as DbType
   }
 
