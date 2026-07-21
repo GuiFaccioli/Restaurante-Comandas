@@ -16,6 +16,9 @@ import {
   tenant,
   tenantUser,
   pagamentoPedido,
+  insumo,
+  fichaTecnicaItem,
+  movimentoEstoque,
 } from '@/lib/db/schema'
 
 describe('Drizzle schema', () => {
@@ -45,11 +48,33 @@ describe('Drizzle schema', () => {
       expect(Object.keys(produto)).toContain('nome')
       expect(Object.keys(produto)).toContain('preco')
       expect(Object.keys(produto)).toContain('disponivel')
+      expect(Object.keys(produto)).toContain('controleEstoque')
     })
 
     it('references categoria', () => {
       const categoriaIdCol = (produto as any).categoriaId
       expect(categoriaIdCol).toBeDefined()
+    })
+  })
+
+  describe('stock tables', () => {
+    it('stores tenant-scoped stock items with normalized units and thresholds', () => {
+      expect(Object.keys(insumo)).toEqual(expect.arrayContaining([
+        'id', 'tenantId', 'nome', 'unidadeBase', 'unidadeCompra',
+        'fatorCompraParaBase', 'estoqueAtual', 'estoqueIdeal', 'estoqueMinimo',
+      ]))
+    })
+
+    it('connects products to stock items through technical sheets', () => {
+      expect(Object.keys(fichaTecnicaItem)).toEqual(expect.arrayContaining([
+        'id', 'tenantId', 'produtoId', 'insumoId', 'quantidade',
+      ]))
+    })
+
+    it('keeps an idempotent movement ledger for stock changes', () => {
+      expect(Object.keys(movimentoEstoque)).toEqual(expect.arrayContaining([
+        'id', 'tenantId', 'insumoId', 'tipo', 'quantidade', 'pedidoId', 'chaveIdempotencia',
+      ]))
     })
   })
 
@@ -146,6 +171,9 @@ describe('Drizzle schema', () => {
       expect(sqlSchema).toContain('CREATE TABLE pagamento_pedido')
       expect(sqlSchema).toContain('forma_pagamento')
       expect(sqlSchema).toContain('status_pagamento')
+      expect(sqlSchema).toContain('CREATE TABLE insumo')
+      expect(sqlSchema).toContain('CREATE TABLE ficha_tecnica_item')
+      expect(sqlSchema).toContain('CREATE TABLE movimento_estoque')
     })
 
     it('uses Drizzle and SQL references as schema sources of truth after Prisma removal', () => {

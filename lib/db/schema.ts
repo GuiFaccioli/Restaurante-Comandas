@@ -50,6 +50,7 @@ export type TenantStatus = 'active' | 'inactive'
 export type TenantUserStatus = 'active' | 'inactive'
 export type FormaPagamento = 'dinheiro' | 'pix' | 'credito' | 'debito' | 'outro'
 export type StatusPagamento = 'registrado' | 'estornado'
+export type TipoMovimentoEstoque = 'entrada' | 'saida' | 'ajuste' | 'estorno'
 
 // ============================================================
 // Tables
@@ -95,6 +96,53 @@ export const produto = pgTable('produto', {
   preco: numeric('preco', { precision: 10, scale: 2 }).notNull(),
   disponivel: boolean('disponivel').notNull().default(true),
   imagemUrl: text('imagem_url'),
+  controleEstoque: boolean('controle_estoque').notNull().default(false),
+})
+
+export const insumo = pgTable('insumo', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id, { onDelete: 'cascade' }),
+  nome: text('nome').notNull(),
+  unidadeBase: text('unidade_base').notNull(),
+  unidadeCompra: text('unidade_compra').notNull(),
+  fatorCompraParaBase: numeric('fator_compra_para_base', { precision: 12, scale: 3 }).notNull().default('1'),
+  estoqueAtual: numeric('estoque_atual', { precision: 12, scale: 3 }).notNull().default('0'),
+  estoqueIdeal: numeric('estoque_ideal', { precision: 12, scale: 3 }).notNull().default('0'),
+  estoqueMinimo: numeric('estoque_minimo', { precision: 12, scale: 3 }).notNull().default('0'),
+  custoUnitario: numeric('custo_unitario', { precision: 12, scale: 4 }),
+  ativo: boolean('ativo').notNull().default(true),
+})
+
+export const fichaTecnicaItem = pgTable('ficha_tecnica_item', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id, { onDelete: 'cascade' }),
+  produtoId: uuid('produto_id')
+    .notNull()
+    .references(() => produto.id, { onDelete: 'cascade' }),
+  insumoId: uuid('insumo_id')
+    .notNull()
+    .references(() => insumo.id),
+  quantidade: numeric('quantidade', { precision: 12, scale: 3 }).notNull(),
+})
+
+export const movimentoEstoque = pgTable('movimento_estoque', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenant.id, { onDelete: 'cascade' }),
+  insumoId: uuid('insumo_id')
+    .notNull()
+    .references(() => insumo.id),
+  tipo: text('tipo').notNull(),
+  quantidade: numeric('quantidade', { precision: 12, scale: 3 }).notNull(),
+  pedidoId: uuid('pedido_id').references(() => pedido.id, { onDelete: 'set null' }),
+  chaveIdempotencia: text('chave_idempotencia').notNull().unique(),
+  observacao: text('observacao'),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const pedido = pgTable('pedido', {

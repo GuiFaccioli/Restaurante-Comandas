@@ -7,6 +7,7 @@ export type TenantStatus = 'active' | 'inactive'
 export type TenantUserStatus = 'active' | 'inactive'
 export type FormaPagamento = 'dinheiro' | 'pix' | 'credito' | 'debito' | 'outro'
 export type StatusPagamento = 'registrado' | 'estornado'
+export type TipoMovimentoEstoque = 'entrada' | 'saida' | 'ajuste' | 'estorno'
 
 export const tenant = sqliteTable('tenant', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -44,6 +45,41 @@ export const produto = sqliteTable('produto', {
   preco: text('preco').notNull(),
   disponivel: integer('disponivel', { mode: 'boolean' }).notNull().default(true),
   imagemUrl: text('imagem_url'),
+  controleEstoque: integer('controle_estoque', { mode: 'boolean' }).notNull().default(false),
+})
+
+export const insumo = sqliteTable('insumo', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId: text('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+  nome: text('nome').notNull(),
+  unidadeBase: text('unidade_base').notNull(),
+  unidadeCompra: text('unidade_compra').notNull(),
+  fatorCompraParaBase: text('fator_compra_para_base').notNull().default('1'),
+  estoqueAtual: text('estoque_atual').notNull().default('0'),
+  estoqueIdeal: text('estoque_ideal').notNull().default('0'),
+  estoqueMinimo: text('estoque_minimo').notNull().default('0'),
+  custoUnitario: text('custo_unitario'),
+  ativo: integer('ativo', { mode: 'boolean' }).notNull().default(true),
+})
+
+export const fichaTecnicaItem = sqliteTable('ficha_tecnica_item', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId: text('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+  produtoId: text('produto_id').notNull().references(() => produto.id, { onDelete: 'cascade' }),
+  insumoId: text('insumo_id').notNull().references(() => insumo.id),
+  quantidade: text('quantidade').notNull(),
+})
+
+export const movimentoEstoque = sqliteTable('movimento_estoque', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId: text('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+  insumoId: text('insumo_id').notNull().references(() => insumo.id),
+  tipo: text('tipo').notNull(),
+  quantidade: text('quantidade').notNull(),
+  pedidoId: text('pedido_id').references(() => pedido.id, { onDelete: 'set null' }),
+  chaveIdempotencia: text('chave_idempotencia').notNull().unique(),
+  observacao: text('observacao'),
+  criadoEm: integer('criado_em', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
 export const pedido = sqliteTable('pedido', {
