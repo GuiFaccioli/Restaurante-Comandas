@@ -1,4 +1,5 @@
 'use server'
+import { put } from '@vercel/blob'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, produto } from '@/lib/db/schema'
@@ -18,6 +19,33 @@ type NovoProduto = {
 export type CreatedCategory = {
   id: string
   nome: string
+}
+
+const PRODUCT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const MAX_PRODUCT_IMAGE_SIZE = 4 * 1024 * 1024
+
+export async function uploadProdutoImagem(formData: FormData): Promise<{ url: string }> {
+  const { tenantId } = await requireAccess('admin')
+  const file = formData.get('file')
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error('Selecione uma imagem')
+  }
+  if (!PRODUCT_IMAGE_TYPES.has(file.type)) {
+    throw new Error('Use uma imagem JPG, PNG ou WebP')
+  }
+  if (file.size > MAX_PRODUCT_IMAGE_SIZE) {
+    throw new Error('A imagem deve ter no máximo 4 MB')
+  }
+
+  const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
+  const blob = await put(`products/${tenantId}/${crypto.randomUUID()}.${extension}`, file, {
+    access: 'public',
+    addRandomSuffix: false,
+    contentType: file.type,
+  })
+
+  return { url: blob.url }
 }
 
 export type RemoveCategoryResult =

@@ -24,16 +24,21 @@ vi.mock('@/lib/sse', () => ({ notifyKitchen: vi.fn() }))
 vi.mock('@/lib/auth/access', () => ({
   requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', tenantId: 'tenant-1', access: 'admin' })),
 }))
+vi.mock('@vercel/blob', () => ({
+  put: vi.fn(),
+}))
 
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, produto } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
+import { put } from '@vercel/blob'
 import {
   criarProduto,
   toggleDisponivel,
   criarCategoria,
   removerCategoria,
+  uploadProdutoImagem,
 } from '@/lib/actions/produtos'
 import { criarMesa } from '@/lib/actions/mesas'
 
@@ -139,6 +144,31 @@ describe('criarProduto', () => {
       disponivel: 1,
       imagemUrl: null,
     })
+  })
+})
+
+describe('uploadProdutoImagem', () => {
+  it('validates the image before uploading', async () => {
+    const formData = new FormData()
+    formData.set('file', new File(['not an image'], 'menu.txt', { type: 'text/plain' }))
+
+    await expect(uploadProdutoImagem(formData)).rejects.toThrow('Use uma imagem JPG, PNG ou WebP')
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('uploads an allowed image server-side and returns its public URL', async () => {
+    vi.mocked(put).mockResolvedValue({ url: 'https://blob.vercel-storage.com/product.webp' } as never)
+    const formData = new FormData()
+    formData.set('file', new File(['image'], 'menu.webp', { type: 'image/webp' }))
+
+    await expect(uploadProdutoImagem(formData)).resolves.toEqual({
+      url: 'https://blob.vercel-storage.com/product.webp',
+    })
+    expect(put).toHaveBeenCalledWith(
+      expect.stringMatching(/^products\/tenant-1\/.*\.webp$/),
+      expect.any(File),
+      expect.objectContaining({ access: 'public', contentType: 'image/webp' })
+    )
   })
 })
 

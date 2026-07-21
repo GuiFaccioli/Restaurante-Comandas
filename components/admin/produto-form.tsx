@@ -1,11 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { criarProduto, editarProduto } from '@/lib/actions/produtos'
+import { criarProduto, editarProduto, uploadProdutoImagem } from '@/lib/actions/produtos'
 import { formatCurrencyInput, formatDecimalAsCurrencyInput } from '@/lib/money'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -24,15 +24,30 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
   const [descricao, setDescricao] = useState(produto?.descricao ?? '')
   const [preco, setPreco] = useState(produto?.preco ? formatDecimalAsCurrencyInput(produto.preco) : '')
   const [imagemUrl, setImagemUrl] = useState(produto?.imagemUrl ?? '')
+  const [imagemArquivo, setImagemArquivo] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState(produto?.imagemUrl ?? '')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setImagemArquivo(null)
+    setImagemUrl(produto?.imagemUrl ?? '')
+    setPreviewUrl(produto?.imagemUrl ?? '')
+  }, [produto])
 
   async function handleSave() {
     setSaving(true)
     try {
+      let imagemFinal = imagemUrl
+      if (imagemArquivo) {
+        const formData = new FormData()
+        formData.set('file', imagemArquivo)
+        const uploaded = await uploadProdutoImagem(formData)
+        imagemFinal = uploaded.url
+      }
       if (produto) {
-        await editarProduto(produto.id, { nome, descricao, preco, imagemUrl })
+        await editarProduto(produto.id, { nome, descricao, preco, imagemUrl: imagemFinal })
       } else {
-        await criarProduto({ categoriaId, nome, descricao, preco, imagemUrl })
+        await criarProduto({ categoriaId, nome, descricao, preco, imagemUrl: imagemFinal })
       }
       router.refresh()
       onClose()
@@ -76,16 +91,28 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="produto-imagem-url">URL da Imagem</Label>
+            <Label htmlFor="produto-imagem-arquivo">Imagem do produto</Label>
+            <Input
+              id="produto-imagem-arquivo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null
+                setImagemArquivo(file)
+                if (file) setPreviewUrl(URL.createObjectURL(file))
+              }}
+            />
+            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, até 4 MB.</p>
+            <Label htmlFor="produto-imagem-url">URL legada (opcional)</Label>
             <Input
               id="produto-imagem-url"
               value={imagemUrl}
               onChange={(e) => setImagemUrl(e.target.value)}
               placeholder="https://..."
             />
-            {imagemUrl && (
+            {previewUrl && (
               <img
-                src={imagemUrl}
+                src={previewUrl}
                 alt="preview"
                 className="w-full h-40 object-cover rounded-[var(--radius)] border"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
