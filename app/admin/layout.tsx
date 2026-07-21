@@ -4,6 +4,7 @@ import { AdminShellNav } from '@/components/admin/admin-shell-nav'
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const primaryLinks = [
     { href: '/admin/menu', label: 'Cardápio', description: 'Categorias e produtos' },
+    { href: '/admin/estoque', label: 'Estoque', description: 'Insumos e fichas técnicas' },
     { href: '/admin/mesas', label: 'Mesas', description: 'Salão e atendimento' },
     { href: '/admin/pedidos', label: 'Pedidos', description: 'Caixa e pagamentos' },
   ]

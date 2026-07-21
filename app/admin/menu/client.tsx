@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { AdminEmptyState, AdminPage, AdminPageHeader, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { Plus, Pencil } from 'lucide-react'
+import Link from 'next/link'
 import { CategoryManager } from '@/components/admin/category-manager'
 import { ProdutoForm } from '@/components/admin/produto-form'
 import {
@@ -269,6 +270,12 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                     >
                       <Pencil aria-hidden="true" />
                     </Button>
+                    <Link
+                      href={`/admin/estoque?produtoId=${p.id}`}
+                      className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius)] border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Estoque
+                    </Link>
                   </div>
                 </div>
               ))}
