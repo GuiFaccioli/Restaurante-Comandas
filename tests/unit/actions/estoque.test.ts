@@ -21,6 +21,7 @@ import { insumo } from '@/lib/db/schema'
 import {
   criarInsumo,
   normalizarQuantidadeBase,
+  produtoTemEstoque,
   UNIDADES_BASE,
 } from '@/lib/actions/estoque'
 
@@ -87,5 +88,23 @@ describe('criarInsumo', () => {
       unidadeCompra: 'kg',
     })).rejects.toThrow('As unidades de compra e estoque precisam ser compatíveis')
     expect(db.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('produtoTemEstoque', () => {
+  it('returns false when one recipe ingredient is below the required quantity', () => {
+    expect(produtoTemEstoque('prod-1', [
+      { produtoId: 'prod-1', insumoId: 'cheese', quantidade: '180' },
+      { produtoId: 'prod-1', insumoId: 'sauce', quantidade: '80' },
+    ], [
+      { id: 'cheese', estoqueAtual: '200' },
+      { id: 'sauce', estoqueAtual: '50' },
+    ])).toBe(false)
+  })
+
+  it('ignores recipes for another product', () => {
+    expect(produtoTemEstoque('prod-1', [
+      { produtoId: 'prod-2', insumoId: 'cheese', quantidade: '999' },
+    ], [{ id: 'cheese', estoqueAtual: '0' }])).toBe(true)
   })
 })

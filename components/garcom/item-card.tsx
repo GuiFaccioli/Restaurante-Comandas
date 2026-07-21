@@ -11,6 +11,7 @@ type Produto = {
   preco: string
   imagemUrl: string | null
   disponivel: boolean
+  estoqueInsuficiente: boolean
 }
 
 export function ItemCard({ produto }: { produto: Produto }) {
@@ -46,6 +47,8 @@ export function ItemCard({ produto }: { produto: Produto }) {
       </div>
       {!produto.disponivel ? (
         <p className="text-xs text-muted-foreground">Indisponível</p>
+      ) : produto.estoqueInsuficiente ? (
+        <p className="text-xs font-medium text-[var(--action-warning-outline)]">Falta estoque</p>
       ) : cartItem ? (
         <div className="flex items-center gap-2">
           <Button

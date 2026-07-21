@@ -9,6 +9,7 @@ type Produto = {
   preco: string
   imagemUrl: string | null
   disponivel: boolean
+  estoqueInsuficiente: boolean
 }
 
 type Categoria = { id: string; nome: string; produtos: Produto[] }

@@ -7,6 +7,7 @@ import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
 import { isSQLiteDatabase } from '@/lib/db/compat'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
+import { deduzirEstoqueNaEntrega, validarEstoqueParaPedido } from '@/lib/actions/estoque'
 
 export type ConfirmarPedidoItem = {
   produtoId: string
@@ -27,12 +28,12 @@ export async function confirmarPedido(
 
   const itensPreparados: {
     item: ConfirmarPedidoItem
-    produto: { nome: string; preco: string; categoriaNome: string }
+    produto: { nome: string; preco: string; categoriaNome: string; controleEstoque: boolean }
   }[] = []
 
   for (const item of items) {
     const [prod] = await db
-      .select({ nome: produto.nome, preco: produto.preco, categoriaNome: categoria.nome })
+      .select({ nome: produto.nome, preco: produto.preco, categoriaNome: categoria.nome, controleEstoque: produto.controleEstoque })
       .from(produto)
       .innerJoin(categoria, eq(produto.categoriaId, categoria.id))
       .where(and(eq(produto.id, item.produtoId), eq(produto.tenantId, tenantId)))
@@ -40,6 +41,10 @@ export async function confirmarPedido(
     if (!prod) throw new Error('Produto inválido')
 
     itensPreparados.push({ item, produto: prod })
+  }
+
+  if (itensPreparados.some(({ produto: prod }) => prod.controleEstoque)) {
+    await validarEstoqueParaPedido(tenantId, items)
   }
 
   const itensNotificacao: Array<{
@@ -176,6 +181,8 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
   if (current.status !== 'novo') {
     throw new Error('Só pedidos novos podem ser confirmados como entregues')
   }
+
+  await deduzirEstoqueNaEntrega(tenantId, pedidoId)
 
   const now = new Date()
   await db

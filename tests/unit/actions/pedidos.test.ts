@@ -308,6 +308,11 @@ describe('confirmarEntrega', () => {
         where: vi.fn().mockResolvedValue([{ status: 'novo' }]),
       }),
     })
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    })
     mocks.db.update.mockReturnValueOnce({
       set: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue(undefined),
@@ -345,6 +350,11 @@ describe('confirmarEntrega', () => {
     mocks.db.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ status: 'novo' }]),
+      }),
+    })
+    mocks.db.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
       }),
     })
     mocks.db.update.mockReturnValueOnce({ set })
