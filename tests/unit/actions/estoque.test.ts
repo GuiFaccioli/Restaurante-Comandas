@@ -18,11 +18,10 @@ vi.mock('@/lib/auth/access', () => ({
 
 import { db } from '@/lib/db/index'
 import { insumo } from '@/lib/db/schema'
+import { normalizarQuantidadeBase, UNIDADES_BASE } from '@/lib/stock/units'
+import { produtoTemEstoque } from '@/lib/stock/availability'
 import {
   criarInsumo,
-  normalizarQuantidadeBase,
-  produtoTemEstoque,
-  UNIDADES_BASE,
 } from '@/lib/actions/estoque'
 
 beforeEach(() => vi.clearAllMocks())

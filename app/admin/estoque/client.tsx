@@ -10,12 +10,9 @@ import { Label } from '@/components/ui/label'
 import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import {
   criarInsumo,
-  normalizarQuantidadeBase,
   salvarFichaTecnica,
-  UNIDADES_BASE,
-  UNIDADES_COMPRA,
-  type UnidadeBase,
 } from '@/lib/actions/estoque'
+import { UNIDADES_BASE, UNIDADES_COMPRA, type UnidadeBase } from '@/lib/stock/units'
 
 type Insumo = {
   id: string

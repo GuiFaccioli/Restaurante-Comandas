@@ -1,0 +1,33 @@
+export const UNIDADES_BASE = ['g', 'ml', 'unidade'] as const
+export const UNIDADES_COMPRA = ['g', 'kg', 'ml', 'l', 'unidade'] as const
+export type UnidadeBase = (typeof UNIDADES_BASE)[number]
+export type UnidadeCompra = (typeof UNIDADES_COMPRA)[number]
+
+const UNIT_FACTORS: Record<UnidadeCompra, number> = { g: 1, kg: 1000, ml: 1, l: 1000, unidade: 1 }
+const UNIT_FAMILIES: Record<UnidadeCompra, 'peso' | 'volume' | 'contagem'> = { g: 'peso', kg: 'peso', ml: 'volume', l: 'volume', unidade: 'contagem' }
+
+function parseDecimal(value: string | undefined, label: string, allowZero = true): number {
+  const parsed = Number((value ?? '0').replace(',', '.'))
+  if (!Number.isFinite(parsed) || (allowZero ? parsed < 0 : parsed <= 0)) throw new Error(`${label} inválido`)
+  return parsed
+}
+
+function assertUnits(base: string, purchase: string): asserts base is UnidadeBase {
+  if (!UNIDADES_BASE.includes(base as UnidadeBase) || !UNIDADES_COMPRA.includes(purchase as UnidadeCompra)) throw new Error('Unidade de estoque inválida')
+  if (UNIT_FAMILIES[base as UnidadeCompra] !== UNIT_FAMILIES[purchase as UnidadeCompra]) throw new Error('As unidades de compra e estoque precisam ser compatíveis')
+}
+
+export function normalizarQuantidadeBase(quantidade: string, unidadeCompra: string, unidadeBase: string): string {
+  assertUnits(unidadeBase, unidadeCompra)
+  const amount = parseDecimal(quantidade, 'Quantidade')
+  const factor = UNIT_FACTORS[unidadeCompra as UnidadeCompra] / UNIT_FACTORS[unidadeBase as UnidadeCompra]
+  return (amount * factor).toFixed(3)
+}
+
+export function fatorCompraParaBase(unidadeCompra: UnidadeCompra, unidadeBase: UnidadeBase): string {
+  return (UNIT_FACTORS[unidadeCompra] / UNIT_FACTORS[unidadeBase]).toFixed(3)
+}
+
+export function parsePositiveDecimal(value: string, label: string): number {
+  return parseDecimal(value, label, false)
+}

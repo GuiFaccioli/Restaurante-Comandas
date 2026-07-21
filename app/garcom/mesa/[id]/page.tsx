@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation'
 import { MesaPageClient } from './client'
 import { requireAccess } from '@/lib/auth/access'
 import { getTenantMesaOrders } from '@/lib/orders/queries'
-import { produtoTemEstoque } from '@/lib/actions/estoque'
+import { produtoTemEstoque } from '@/lib/stock/availability'
 
 export default async function MesaPage({ params }: { params: Promise<{ id: string }> }) {
   const { tenantId } = await requireAccess('garcom')

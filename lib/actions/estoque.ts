@@ -5,27 +5,8 @@ import { db } from '@/lib/db/index'
 import { fichaTecnicaItem, insumo, itemPedido, movimentoEstoque, produto } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
 import { dbBoolean, isSQLiteDatabase } from '@/lib/db/compat'
-
-export const UNIDADES_BASE = ['g', 'ml', 'unidade'] as const
-export const UNIDADES_COMPRA = ['g', 'kg', 'ml', 'l', 'unidade'] as const
-export type UnidadeBase = (typeof UNIDADES_BASE)[number]
-export type UnidadeCompra = (typeof UNIDADES_COMPRA)[number]
-
-const UNIT_FACTORS: Record<UnidadeCompra, number> = {
-  g: 1,
-  kg: 1000,
-  ml: 1,
-  l: 1000,
-  unidade: 1,
-}
-
-const UNIT_FAMILIES: Record<UnidadeCompra, 'peso' | 'volume' | 'contagem'> = {
-  g: 'peso',
-  kg: 'peso',
-  ml: 'volume',
-  l: 'volume',
-  unidade: 'contagem',
-}
+import { fatorCompraParaBase, normalizarQuantidadeBase, parsePositiveDecimal, type UnidadeBase, type UnidadeCompra } from '@/lib/stock/units'
+import { produtoTemEstoque } from '@/lib/stock/availability'
 
 export type CriarInsumoInput = {
   nome: string
@@ -42,25 +23,6 @@ export type EditarInsumoInput = Omit<CriarInsumoInput, 'estoqueAtual'>
 export type FichaTecnicaInput = {
   insumoId: string
   quantidade: string
-}
-
-export type ReceitaDisponibilidade = {
-  produtoId: string
-  insumoId: string
-  quantidade: string
-}
-
-export type SaldoInsumo = { id: string; estoqueAtual: string }
-
-export function produtoTemEstoque(
-  produtoId: string,
-  receitas: ReceitaDisponibilidade[],
-  saldos: SaldoInsumo[]
-): boolean {
-  const saldoPorInsumo = new Map(saldos.map((item) => [item.id, Number(item.estoqueAtual)]))
-  return receitas
-    .filter((item) => item.produtoId === produtoId)
-    .every((item) => (saldoPorInsumo.get(item.insumoId) ?? 0) >= Number(item.quantidade))
 }
 
 export async function validarEstoqueParaPedido(
@@ -175,49 +137,17 @@ export async function deduzirEstoqueNaEntrega(tenantId: string, pedidoId: string
   }
 }
 
-function parseDecimal(value: string | undefined, label: string, allowZero = true): number {
-  const parsed = Number((value ?? '0').replace(',', '.'))
-  if (!Number.isFinite(parsed) || (allowZero ? parsed < 0 : parsed <= 0)) {
-    throw new Error(`${label} inválido`)
-  }
-  return parsed
-}
-
-function assertUnits(base: string, purchase: string): asserts base is UnidadeBase {
-  if (!UNIDADES_BASE.includes(base as UnidadeBase) || !UNIDADES_COMPRA.includes(purchase as UnidadeCompra)) {
-    throw new Error('Unidade de estoque inválida')
-  }
-
-  if (UNIT_FAMILIES[base as UnidadeCompra] !== UNIT_FAMILIES[purchase as UnidadeCompra]) {
-    throw new Error('As unidades de compra e estoque precisam ser compatíveis')
-  }
-}
-
-export function normalizarQuantidadeBase(
-  quantidade: string,
-  unidadeCompra: string,
-  unidadeBase: string
-): string {
-  assertUnits(unidadeBase, unidadeCompra)
-  const amount = parseDecimal(quantidade, 'Quantidade')
-  const factor = UNIT_FACTORS[unidadeCompra as UnidadeCompra] / UNIT_FACTORS[unidadeBase as UnidadeCompra]
-  return (amount * factor).toFixed(3)
-}
-
-function fatorCompraParaBase(unidadeCompra: UnidadeCompra, unidadeBase: UnidadeBase): string {
-  return (UNIT_FACTORS[unidadeCompra] / UNIT_FACTORS[unidadeBase]).toFixed(3)
-}
-
 export async function criarInsumo(input: CriarInsumoInput): Promise<{ id: string }> {
   const { tenantId } = await requireAccess('admin')
   const nome = input.nome.trim()
   if (!nome) throw new Error('Informe o nome do insumo')
 
-  assertUnits(input.unidadeBase, input.unidadeCompra)
+  normalizarQuantidadeBase('0', input.unidadeCompra, input.unidadeBase)
+  const unidadeBase = input.unidadeBase as UnidadeBase
   const unidadeCompra = input.unidadeCompra as UnidadeCompra
-  const estoqueAtual = normalizarQuantidadeBase(input.estoqueAtual ?? '0', unidadeCompra, input.unidadeBase)
-  const estoqueIdeal = normalizarQuantidadeBase(input.estoqueIdeal ?? '0', unidadeCompra, input.unidadeBase)
-  const estoqueMinimo = normalizarQuantidadeBase(input.estoqueMinimo ?? '0', unidadeCompra, input.unidadeBase)
+  const estoqueAtual = normalizarQuantidadeBase(input.estoqueAtual ?? '0', unidadeCompra, unidadeBase)
+  const estoqueIdeal = normalizarQuantidadeBase(input.estoqueIdeal ?? '0', unidadeCompra, unidadeBase)
+  const estoqueMinimo = normalizarQuantidadeBase(input.estoqueMinimo ?? '0', unidadeCompra, unidadeBase)
 
   if (Number(estoqueMinimo) > Number(estoqueIdeal)) {
     throw new Error('O estoque mínimo não pode ser maior que o estoque ideal')
@@ -225,8 +155,8 @@ export async function criarInsumo(input: CriarInsumoInput): Promise<{ id: string
 
   const custoCompra = input.custoCompra === undefined
     ? null
-    : Number(parseDecimal(input.custoCompra, 'Custo', false).toFixed(4))
-  const fator = Number(fatorCompraParaBase(unidadeCompra, input.unidadeBase))
+    : Number(parsePositiveDecimal(input.custoCompra, 'Custo').toFixed(4))
+  const fator = Number(fatorCompraParaBase(unidadeCompra, unidadeBase))
   const custoUnitario = custoCompra === null ? null : (custoCompra / fator).toFixed(4)
 
   const [created] = await db
@@ -235,7 +165,7 @@ export async function criarInsumo(input: CriarInsumoInput): Promise<{ id: string
       id: crypto.randomUUID(),
       tenantId,
       nome,
-      unidadeBase: input.unidadeBase,
+      unidadeBase,
       unidadeCompra,
       fatorCompraParaBase: fator.toFixed(3),
       estoqueAtual,
@@ -261,11 +191,12 @@ export async function editarInsumo(id: string, input: EditarInsumoInput): Promis
   const { tenantId } = await requireAccess('admin')
   const nome = input.nome.trim()
   if (!nome) throw new Error('Informe o nome do insumo')
-  assertUnits(input.unidadeBase, input.unidadeCompra)
+  normalizarQuantidadeBase('0', input.unidadeCompra, input.unidadeBase)
+  const unidadeBase = input.unidadeBase as UnidadeBase
 
   const unidadeCompra = input.unidadeCompra as UnidadeCompra
-  const estoqueIdeal = normalizarQuantidadeBase(input.estoqueIdeal ?? '0', unidadeCompra, input.unidadeBase)
-  const estoqueMinimo = normalizarQuantidadeBase(input.estoqueMinimo ?? '0', unidadeCompra, input.unidadeBase)
+  const estoqueIdeal = normalizarQuantidadeBase(input.estoqueIdeal ?? '0', unidadeCompra, unidadeBase)
+  const estoqueMinimo = normalizarQuantidadeBase(input.estoqueMinimo ?? '0', unidadeCompra, unidadeBase)
   if (Number(estoqueMinimo) > Number(estoqueIdeal)) {
     throw new Error('O estoque mínimo não pode ser maior que o estoque ideal')
   }
@@ -274,9 +205,9 @@ export async function editarInsumo(id: string, input: EditarInsumoInput): Promis
     .update(insumo)
     .set({
       nome,
-      unidadeBase: input.unidadeBase,
+      unidadeBase,
       unidadeCompra,
-      fatorCompraParaBase: fatorCompraParaBase(unidadeCompra, input.unidadeBase),
+      fatorCompraParaBase: fatorCompraParaBase(unidadeCompra, unidadeBase),
       estoqueIdeal,
       estoqueMinimo,
     })
@@ -285,7 +216,7 @@ export async function editarInsumo(id: string, input: EditarInsumoInput): Promis
 
 export async function salvarFichaTecnica(produtoId: string, itens: FichaTecnicaInput[]): Promise<void> {
   const { tenantId } = await requireAccess('admin')
-  if (itens.some((item) => !item.insumoId || parseDecimal(item.quantidade, 'Quantidade', false) <= 0)) {
+  if (itens.some((item) => !item.insumoId || parsePositiveDecimal(item.quantidade, 'Quantidade') <= 0)) {
     throw new Error('A ficha técnica contém uma quantidade inválida')
   }
   const ids = itens.map((item) => item.insumoId)
