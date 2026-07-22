@@ -101,8 +101,64 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
       ) : (
         <div className="mt-5 space-y-5">
           {!produtos.length ? <AdminEmptyState title="Nenhum produto" description="Cadastre um produto antes de criar a ficha técnica." /> : <>
-            <div className="flex flex-wrap items-end gap-3 border-b pb-5"><div className="min-w-[260px] flex-1 space-y-1"><Label htmlFor="ficha-produto">Produto</Label><select id="ficha-produto" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={selectedProdutoId} onChange={(e) => selectProduct(e.target.value)}>{produtos.map((product) => <option key={product.id} value={product.id}>{product.nome} · {product.categoriaNome}</option>)}</select></div><Button type="button" intent="neutral" appearance="outline" className="min-h-11" disabled={!availableIngredients.length} onClick={() => setRows([...rows, { insumoId: availableIngredients[0]?.id ?? '', quantidade: '' }])}><Plus aria-hidden="true" /> Insumo</Button><Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={savingRecipe} disabled={savingRecipe || rows.some((row) => !row.insumoId || !row.quantidade)} onClick={handleSaveRecipe}><Save aria-hidden="true" /> Salvar</Button></div>
-            {rows.length === 0 ? <AdminEmptyState title={`Ficha vazia${selectedProduct ? ` · ${selectedProduct.nome}` : ''}`} description="Adicione os insumos consumidos por unidade." /> : <div className="space-y-2">{rows.map((row, index) => { const ingredient = insumos.find((item) => item.id === row.insumoId); return <div className="grid grid-cols-[minmax(0,1fr)_120px_auto] items-end gap-2" key={`${row.insumoId}-${index}`}><div className="space-y-1"><Label htmlFor={`ficha-insumo-${index}`}>Insumo</Label><select id={`ficha-insumo-${index}`} className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={row.insumoId} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, insumoId: e.target.value } : current))}><option value="">Selecione</option>{insumos.map((item) => <option key={item.id} value={item.id} disabled={rows.some((other, otherIndex) => otherIndex !== index && other.insumoId === item.id)}>{item.nome}</option>)}</select></div><div className="space-y-1"><Label htmlFor={`ficha-quantidade-${index}`}>Qtd.</Label><Input id={`ficha-quantidade-${index}`} inputMode="decimal" value={row.quantidade} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: e.target.value } : current))} placeholder="0" /></div><Button type="button" intent="destructive" appearance="ghost" size="icon" className="size-11" aria-label={`Remover ${ingredient?.nome ?? 'insumo'}`} onClick={() => setRows(rows.filter((_, currentIndex) => currentIndex !== index))}><Trash2 aria-hidden="true" /></Button></div> })}</div>}
+            <div className="flex flex-wrap items-end gap-3 border-b pb-5"><div className="min-w-[260px] flex-1 space-y-1"><Label htmlFor="ficha-produto">Produto</Label><select id="ficha-produto" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={selectedProdutoId} onChange={(e) => selectProduct(e.target.value)}>{produtos.map((product) => <option key={product.id} value={product.id}>{product.nome} · {product.categoriaNome}</option>)}</select></div><Button type="button" intent="positive" appearance="solid" className="min-h-11" disabled={!availableIngredients.length} onClick={() => setRows([...rows, { insumoId: availableIngredients[0]?.id ?? '', quantidade: '' }])}><Plus aria-hidden="true" /> Adicionar insumo</Button><Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={savingRecipe} disabled={savingRecipe || rows.some((row) => !row.insumoId || !row.quantidade)} onClick={handleSaveRecipe}><Save aria-hidden="true" /> Salvar</Button></div>
+            {rows.length === 0 ? (
+              <AdminEmptyState
+                title={`Ficha vazia${selectedProduct ? ` · ${selectedProduct.nome}` : ''}`}
+                description="Adicione os insumos consumidos por unidade."
+              />
+            ) : (
+              <div className="space-y-2">
+                {rows.map((row, index) => {
+                  const ingredient = insumos.find((item) => item.id === row.insumoId)
+                  const unit = ingredient?.unidadeBase ?? '—'
+                  return (
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end" key={`${row.insumoId}-${index}`}>
+                      <div className="space-y-1">
+                        <Label htmlFor={`ficha-insumo-${index}`}>Insumo</Label>
+                        <select
+                          id={`ficha-insumo-${index}`}
+                          className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm"
+                          value={row.insumoId}
+                          onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, insumoId: e.target.value } : current))}
+                        >
+                          <option value="">Selecione</option>
+                          {insumos.map((item) => (
+                            <option key={item.id} value={item.id} disabled={rows.some((other, otherIndex) => otherIndex !== index && other.insumoId === item.id)}>
+                              {item.nome} · {item.unidadeBase}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`ficha-quantidade-${index}`}>Quantidade ({unit})</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id={`ficha-quantidade-${index}`}
+                            inputMode="decimal"
+                            value={row.quantidade}
+                            onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: e.target.value } : current))}
+                            placeholder="0"
+                          />
+                          <span className="min-w-9 text-sm text-muted-foreground">{unit}</span>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        intent="destructive"
+                        appearance="ghost"
+                        size="icon"
+                        className="size-11"
+                        aria-label={`Remover ${ingredient?.nome ?? 'insumo'}`}
+                        onClick={() => setRows(rows.filter((_, currentIndex) => currentIndex !== index))}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </>}
         </div>
       )}
