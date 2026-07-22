@@ -13,7 +13,7 @@ export default async function AdminPedidosPage() {
     <AdminPage>
       <AdminPageHeader
         title="Pedidos e caixa"
-        description="Acompanhe pedidos entregues, veja pendências de pagamento e registre cobranças sem perder o histórico da mesa."
+        description=""
       />
       <AdminPedidosLive initialPedidos={initialPedidos} />
     </AdminPage>

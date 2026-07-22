@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState, useTransition } from 'reac
 import { toast } from 'sonner'
 
 import { SseListener } from '@/components/cozinha/sse-listener'
-import { AdminEmptyState, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
+import { AdminEmptyState, AdminPanel } from '@/components/admin/admin-page'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { formatPedidoCriadoEm } from '@/lib/date-format'
@@ -28,17 +28,10 @@ const paymentMethods: Array<{ value: FormaPagamento; label: string }> = [
   { value: 'outro', label: 'Outro' },
 ]
 
-type CashierMetric = 'queue' | 'pending' | 'paid'
 type QueueFilter = 'todos' | 'cobrar' | 'andamento' | 'pagos'
 
 function isAwaitingPayment(pedido: CashierOrder) {
   return pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente'
-}
-
-const metricCopy: Record<CashierMetric, { title: string; empty: string }> = {
-  queue: { title: 'Pedidos na fila', empty: 'Nenhum pedido na fila.' },
-  pending: { title: 'Pagamentos pendentes', empty: 'Nenhum pagamento pendente.' },
-  paid: { title: 'Pagos', empty: 'Nenhum pedido pago.' },
 }
 
 const queueFilterCopy: Record<QueueFilter, { label: string; description: string }> = {
@@ -50,7 +43,6 @@ const queueFilterCopy: Record<QueueFilter, { label: string; description: string 
 
 export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOrder[] }) {
   const [pedidos, setPedidos] = useState(initialPedidos)
-  const [selectedMetric, setSelectedMetric] = useState<CashierMetric | null>(null)
   const firstPaymentPedido = initialPedidos.find(isAwaitingPayment)
   const [expandedId, setExpandedId] = useState<string | null>(firstPaymentPedido?.id ?? initialPedidos[0]?.id ?? null)
   const [paymentFormPedidoId, setPaymentFormPedidoId] = useState<string | null>(firstPaymentPedido?.id ?? null)
@@ -60,18 +52,6 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
   const [searchTerm, setSearchTerm] = useState('')
   const [lastEvent, setLastEvent] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const pedidosPagos = pedidos.filter((pedido) => pedido.pagamentoStatus === 'pago').length
-  const pagamentosPendentes = pedidos.filter((pedido) => pedido.pagamentoStatus === 'pendente').length
-  const valorPendente = pedidos
-    .filter((pedido) => pedido.pagamentoStatus === 'pendente')
-    .reduce((total, pedido) => total + pedido.total, 0)
-  const selectedPedidos = selectedMetric === 'paid'
-    ? pedidos.filter((pedido) => pedido.pagamentoStatus === 'pago')
-    : selectedMetric === 'pending'
-      ? pedidos.filter((pedido) => pedido.pagamentoStatus === 'pendente')
-      : selectedMetric === 'queue'
-        ? pedidos
-        : []
   const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR')
   const visiblePedidos = pedidos.filter((pedido) => {
     const matchesFilter = queueFilter === 'todos'
@@ -131,10 +111,6 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
     setPaymentAmount(pedido.total.toFixed(2).replace('.', ','))
   }
 
-  function toggleMetric(metric: CashierMetric) {
-    setSelectedMetric((current) => current === metric ? null : metric)
-  }
-
   function handlePaymentSubmit(event: FormEvent<HTMLFormElement>, pedido: CashierOrder) {
     event.preventDefault()
 
@@ -159,90 +135,6 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
     <div className="flex flex-col gap-6">
       <SseListener onEvent={handleEvent} />
 
-      <AdminStatsGrid className="order-4 xl:grid-cols-3">
-        <AdminStatCard
-          label="Pedidos na fila"
-          value={pedidos.length}
-          detail="Pedidos carregados no caixa."
-          onClick={() => toggleMetric('queue')}
-          expanded={selectedMetric === 'queue'}
-          controls="cashier-responsibility-panel"
-        />
-        <AdminStatCard
-          label="Pagamentos pendentes"
-          value={pagamentosPendentes}
-          detail={formatCurrency(valorPendente)}
-          tone={pagamentosPendentes ? 'warning' : 'success'}
-          onClick={() => toggleMetric('pending')}
-          expanded={selectedMetric === 'pending'}
-          controls="cashier-responsibility-panel"
-        />
-        <AdminStatCard
-          label="Pagos"
-          value={pedidosPagos}
-          detail="Pedidos já baixados no caixa."
-          onClick={() => toggleMetric('paid')}
-          expanded={selectedMetric === 'paid'}
-          controls="cashier-responsibility-panel"
-        />
-      </AdminStatsGrid>
-
-      {selectedMetric ? (
-        <div
-          id="cashier-responsibility-panel"
-          data-testid="cashier-responsibility-panel"
-          className="order-5"
-        >
-          <AdminPanel title={`Responsáveis · ${metricCopy[selectedMetric].title}`}>
-            {selectedPedidos.length === 0 ? (
-              <AdminEmptyState
-                title={metricCopy[selectedMetric].empty}
-                description="A lista será atualizada automaticamente quando houver mudanças no caixa."
-              />
-            ) : (
-              <ul className="grid gap-2">
-                {selectedPedidos.map((pedido) => {
-                  const paidMetric = selectedMetric === 'paid'
-                  const responsible = paidMetric
-                    ? pedido.pagamento?.registradoPor
-                    : pedido.criadoPor
-                  const value = paidMetric
-                    ? pedido.pagamento?.valor ?? pedido.total
-                    : selectedMetric === 'pending'
-                      ? pedido.total
-                      : null
-
-                  return (
-                    <li
-                      key={pedido.id}
-                      className="grid gap-3 rounded-[var(--radius)] border bg-background p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
-                    >
-                      <div>
-                        <p className="font-semibold">Mesa {pedido.mesaNumero}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Pedido {pedido.id.slice(0, 8)}
-                        </p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          {paidMetric ? 'Recebido por' : 'Lançado por'}
-                        </p>
-                        <p className="truncate font-medium">
-                          {responsible?.nome ?? 'Responsável não registrado'}
-                        </p>
-                      </div>
-                      {value !== null ? (
-                        <p className="font-semibold sm:text-right">{formatCurrency(value)}</p>
-                      ) : null}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </AdminPanel>
-        </div>
-      ) : null}
-
       {lastEvent && (
         <div className="order-2 rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-pretty text-sm">
           {lastEvent}
@@ -263,7 +155,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                   ? pedidos.filter((pedido) => pedido.status === 'entregue' && pedido.pagamentoStatus === 'pendente').length
                   : filter === 'andamento'
                     ? pedidos.filter((pedido) => pedido.status !== 'entregue' && pedido.pagamentoStatus === 'pendente').length
-                    : pedidosPagos
+                    : pedidos.filter((pedido) => pedido.pagamentoStatus === 'pago').length
               const selected = queueFilter === filter
 
               return (

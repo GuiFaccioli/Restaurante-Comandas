@@ -1,4 +1,4 @@
-﻿import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
@@ -228,7 +228,7 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('Crédito')
     expect(clientSource).toContain('Débito')
     expect(clientSource).toContain('Não foi possível registrar o pagamento.')
-    expect(clientSource).toContain('AdminStatsGrid')
+    expect(clientSource).not.toContain('AdminStatsGrid')
     expect(clientSource).toContain('Fila do caixa')
     expect(clientSource).toContain('min-w-0')
     expect(clientSource).toContain('break-words')
@@ -254,11 +254,11 @@ describe('pedido business flow', () => {
     expect(configSource).toContain('focus-visible:ring-2')
 
     expect(reportsSource).toContain('AdminPage')
-    expect(reportsSource).toContain('AdminStatsGrid')
-    expect(reportsSource).toContain('AdminBar')
-    expect(reportsSource).toContain('Relatórios')
-    expect(reportsSource).toContain('Ticket médio estimado')
-    expect(reportsSource).toContain('maxStatusCount')
+    expect(reportsSource).not.toContain('AdminStatsGrid')
+    expect(reportsSource).toContain('RelatoriosAdminClient')
+    expect(source('app/admin/relatorios/client.tsx')).toContain('Relatórios')
+    expect(reportsSource).toContain('Ticket médio')
+    expect(reportsSource).toContain('statusMap')
 
     expect(usersSource).toContain('AdminPage')
     expect(usersSource).toContain('AdminStatsGrid')

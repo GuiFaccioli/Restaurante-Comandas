@@ -7,63 +7,33 @@ import { Plus, Save, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
-import {
-  criarInsumo,
-  registrarEntradaEstoque,
-  salvarFichaTecnica,
-} from '@/lib/actions/estoque'
+import { AdminEmptyState, AdminPage } from '@/components/admin/admin-page'
+import { criarInsumo, registrarEntradaEstoque, salvarFichaTecnica } from '@/lib/actions/estoque'
 import { UNIDADES_BASE, UNIDADES_COMPRA, type UnidadeBase } from '@/lib/stock/units'
 
-type Insumo = {
-  id: string
-  nome: string
-  unidadeBase: string
-  unidadeCompra: string
-  estoqueAtual: string
-  estoqueIdeal: string
-  estoqueMinimo: string
-}
+type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string }
 type Produto = { id: string; nome: string; categoriaNome: string }
 type Ficha = { produtoId: string; insumoId: string; quantidade: string }
 type RecipeRow = { insumoId: string; quantidade: string }
+type Section = 'insumos' | 'ficha'
 
 function formatQuantity(value: string, unit: string) {
   const number = Number(value)
   return `${Number.isInteger(number) ? number : number.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')} ${unit}`
 }
 
-export function EstoqueAdminClient({
-  insumos,
-  produtos,
-  fichas,
-  initialProdutoId,
-}: {
-  insumos: Insumo[]
-  produtos: Produto[]
-  fichas: Ficha[]
-  initialProdutoId: string
-}) {
+export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId }: { insumos: Insumo[]; produtos: Produto[]; fichas: Ficha[]; initialProdutoId: string }) {
   const router = useRouter()
+  const [section, setSection] = useState<Section>('insumos')
   const [selectedProdutoId, setSelectedProdutoId] = useState(initialProdutoId || produtos[0]?.id || '')
-  const [rows, setRows] = useState<RecipeRow[]>(() => {
-    const selected = initialProdutoId || produtos[0]?.id
-    return fichas.filter((item) => item.produtoId === selected).map(({ insumoId, quantidade }) => ({ insumoId, quantidade }))
-  })
-  const [savingRecipe, setSavingRecipe] = useState(false)
+  const [rows, setRows] = useState<RecipeRow[]>(() => fichas.filter((item) => item.produtoId === (initialProdutoId || produtos[0]?.id)).map(({ insumoId, quantidade }) => ({ insumoId, quantidade })))
   const [creating, setCreating] = useState(false)
-  const [entryValues, setEntryValues] = useState<Record<string, string>>({})
+  const [savingRecipe, setSavingRecipe] = useState(false)
   const [entryId, setEntryId] = useState<string | null>(null)
+  const [entryValues, setEntryValues] = useState<Record<string, string>>({})
   const [newIngredient, setNewIngredient] = useState({ nome: '', unidadeBase: 'g' as UnidadeBase, unidadeCompra: 'kg', estoqueAtual: '', estoqueIdeal: '', estoqueMinimo: '' })
-
-  const lowStock = insumos.filter((item) => Number(item.estoqueAtual) <= Number(item.estoqueMinimo)).length
-  const configuredProducts = new Set(fichas.map((item) => item.produtoId)).size
   const selectedProduct = produtos.find((item) => item.id === selectedProdutoId)
-
-  const availableIngredients = useMemo(
-    () => insumos.filter((item) => !rows.some((row) => row.insumoId === item.id)),
-    [insumos, rows]
-  )
+  const availableIngredients = useMemo(() => insumos.filter((item) => !rows.some((row) => row.insumoId === item.id)), [insumos, rows])
 
   function selectProduct(id: string) {
     setSelectedProdutoId(id)
@@ -72,124 +42,56 @@ export function EstoqueAdminClient({
 
   async function handleCreateIngredient() {
     setCreating(true)
-    try {
-      await criarInsumo(newIngredient)
-      setNewIngredient({ nome: '', unidadeBase: 'g', unidadeCompra: 'kg', estoqueAtual: '', estoqueIdeal: '', estoqueMinimo: '' })
-      router.refresh()
-      toast.success('Insumo criado. Agora você pode adicioná-lo à ficha técnica.')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível criar o insumo.')
-    } finally {
-      setCreating(false)
-    }
+    try { await criarInsumo(newIngredient); setNewIngredient({ nome: '', unidadeBase: 'g', unidadeCompra: 'kg', estoqueAtual: '', estoqueIdeal: '', estoqueMinimo: '' }); router.refresh(); toast.success('Insumo criado.') }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível criar o insumo.') }
+    finally { setCreating(false) }
   }
 
   async function handleSaveRecipe() {
     if (!selectedProdutoId) return
     setSavingRecipe(true)
-    try {
-      await salvarFichaTecnica(selectedProdutoId, rows)
-      router.refresh()
-      toast.success('Ficha técnica salva.')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a ficha técnica.')
-    } finally {
-      setSavingRecipe(false)
-    }
+    try { await salvarFichaTecnica(selectedProdutoId, rows); router.refresh(); toast.success('Ficha técnica salva.') }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a ficha técnica.') }
+    finally { setSavingRecipe(false) }
   }
 
   async function handleEntry(item: Insumo) {
     setEntryId(item.id)
-    try {
-      await registrarEntradaEstoque(item.id, entryValues[item.id] ?? '')
-      setEntryValues((current) => ({ ...current, [item.id]: '' }))
-      router.refresh()
-      toast.success(`Entrada registrada para ${item.nome}.`)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a entrada.')
-    } finally {
-      setEntryId(null)
-    }
+    try { await registrarEntradaEstoque(item.id, entryValues[item.id] ?? ''); setEntryValues((current) => ({ ...current, [item.id]: '' })); router.refresh(); toast.success(`Entrada registrada para ${item.nome}.`) }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a entrada.') }
+    finally { setEntryId(null) }
   }
 
   return (
     <AdminPage>
-      <AdminPageHeader
-        title="Estoque"
-        description="Cadastre insumos, acompanhe alertas e configure o consumo de cada produto sem complicar o cadastro do cardápio."
-      />
-
-      <AdminStatsGrid className="xl:grid-cols-3">
-        <AdminStatCard label="Insumos" value={insumos.length} detail="Itens controlados no estoque." />
-        <AdminStatCard label="Fichas técnicas" value={configuredProducts} detail="Produtos ligados a uma receita." />
-        <AdminStatCard label="Atenção" value={lowStock} detail="Insumos no mínimo ou abaixo dele." tone={lowStock > 0 ? 'warning' : 'success'} />
-      </AdminStatsGrid>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <AdminPanel title="Novo insumo" description="Use a unidade de compra que sua equipe já conhece; o sistema converte internamente.">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="insumo-nome">Nome</Label>
-              <Input id="insumo-nome" value={newIngredient.nome} onChange={(e) => setNewIngredient({ ...newIngredient, nome: e.target.value })} placeholder="Ex.: Muçarela" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="insumo-unidade-base">Unidade de estoque</Label>
-                <select id="insumo-unidade-base" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidadeBase} onChange={(e) => setNewIngredient({ ...newIngredient, unidadeBase: e.target.value as UnidadeBase })}>
-                  {UNIDADES_BASE.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="insumo-unidade-compra">Compro em</Label>
-                <select id="insumo-unidade-compra" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidadeCompra} onChange={(e) => setNewIngredient({ ...newIngredient, unidadeCompra: e.target.value })}>
-                  {UNIDADES_COMPRA.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {([['estoqueAtual', 'Estoque atual'], ['estoqueIdeal', 'Estoque ideal'], ['estoqueMinimo', 'Estoque mínimo']] as const).map(([field, label]) => (
-                <div className="space-y-1" key={field}>
-                  <Label htmlFor={`insumo-${field}`}>{label}</Label>
-                  <Input id={`insumo-${field}`} inputMode="decimal" value={newIngredient[field]} onChange={(e) => setNewIngredient({ ...newIngredient, [field]: e.target.value })} placeholder="0" />
-                </div>
-              ))}
-            </div>
-            <Button type="button" intent="positive" appearance="solid" className="min-h-11 w-full" aria-busy={creating} disabled={creating || !newIngredient.nome.trim()} onClick={handleCreateIngredient}>
-              <Plus aria-hidden="true" /> Criar insumo
-            </Button>
-          </div>
-        </AdminPanel>
-
-        <AdminPanel title="Ficha técnica" description="Defina quanto de cada insumo é usado em uma unidade do produto.">
-          {!produtos.length ? <AdminEmptyState title="Cadastre um produto primeiro" description="A ficha técnica será ligada a um produto do cardápio." /> : (
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <Label htmlFor="ficha-produto">Produto</Label>
-                <select id="ficha-produto" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={selectedProdutoId} onChange={(e) => selectProduct(e.target.value)}>
-                  {produtos.map((product) => <option key={product.id} value={product.id}>{product.nome} · {product.categoriaNome}</option>)}
-                </select>
-              </div>
-              {selectedProduct ? <p className="rounded-[var(--radius)] border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">Cada quantidade abaixo representa o consumo para uma unidade de <strong className="text-foreground">{selectedProduct.nome}</strong>.</p> : null}
-              {rows.map((row, index) => {
-                const ingredient = insumos.find((item) => item.id === row.insumoId)
-                return <div className="grid grid-cols-[minmax(0,1fr)_110px_auto] items-end gap-2" key={`${row.insumoId}-${index}`}>
-                  <div className="space-y-1"><Label htmlFor={`ficha-insumo-${index}`}>Insumo</Label><select id={`ficha-insumo-${index}`} className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={row.insumoId} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, insumoId: e.target.value } : current))}><option value="">Selecione</option>{insumos.map((item) => <option key={item.id} value={item.id} disabled={rows.some((other, otherIndex) => otherIndex !== index && other.insumoId === item.id)}>{item.nome}</option>)}</select></div>
-                  <div className="space-y-1"><Label htmlFor={`ficha-quantidade-${index}`}>Quantidade</Label><Input id={`ficha-quantidade-${index}`} inputMode="decimal" value={row.quantidade} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: e.target.value } : current))} placeholder="0" /></div>
-                  <Button type="button" intent="destructive" appearance="ghost" size="icon" className="size-11" aria-label={`Remover ${ingredient?.nome ?? 'insumo'}`} onClick={() => setRows(rows.filter((_, currentIndex) => currentIndex !== index))}><Trash2 aria-hidden="true" /></Button>
-                </div>
-              })}
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" intent="neutral" appearance="outline" className="min-h-11" disabled={!availableIngredients.length} onClick={() => setRows([...rows, { insumoId: availableIngredients[0]?.id ?? '', quantidade: '' }])}><Plus aria-hidden="true" /> Adicionar insumo</Button>
-                <Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={savingRecipe} disabled={savingRecipe || rows.some((row) => !row.insumoId || !row.quantidade)} onClick={handleSaveRecipe}><Save aria-hidden="true" /> Salvar ficha</Button>
-              </div>
-            </div>
-          )}
-        </AdminPanel>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+        <h1 className="text-xl font-semibold tracking-tight">Estoque</h1>
+        <div className="flex gap-1" role="tablist" aria-label="Estoque">
+          {([['insumos', 'Insumos'], ['ficha', 'Ficha técnica']] as const).map(([value, label]) => (
+            <Button key={value} type="button" size="sm" intent={section === value ? 'informational' : 'neutral'} appearance={section === value ? 'solid' : 'ghost'} role="tab" aria-selected={section === value} onClick={() => setSection(value)}>{label}</Button>
+          ))}
+        </div>
       </div>
 
-      <AdminPanel title="Estoque atual" description="As quantidades são exibidas na unidade base; entradas usam a unidade de compra do insumo.">
-        {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo cadastrado" description="Comece pelo cadastro de um ingrediente usado nas suas receitas." /> : <div className="divide-y rounded-[var(--radius)] border">{insumos.map((item) => <div className="flex flex-col gap-3 px-4 py-3" key={item.id}><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">Compra em {item.unidadeCompra} · base em {item.unidadeBase}</p></div><div className="text-left sm:text-right"><p className="font-semibold">{formatQuantity(item.estoqueAtual, item.unidadeBase)}</p><p className={`text-xs ${Number(item.estoqueAtual) <= Number(item.estoqueMinimo) ? 'text-[var(--action-warning-outline)]' : 'text-muted-foreground'}`}>{Number(item.estoqueAtual) <= Number(item.estoqueMinimo) ? 'Atenção: abaixo do mínimo' : `Ideal: ${formatQuantity(item.estoqueIdeal, item.unidadeBase)}`}</p></div></div><div className="flex flex-wrap items-end gap-2"><div className="space-y-1"><Label htmlFor={`entrada-${item.id}`}>Nova entrada ({item.unidadeCompra})</Label><Input id={`entrada-${item.id}`} className="w-40" inputMode="decimal" value={entryValues[item.id] ?? ''} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /></div><Button type="button" intent="neutral" appearance="outline" className="min-h-11" aria-busy={entryId === item.id} disabled={entryId === item.id || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar entrada</Button></div></div>)}</div>}
-      </AdminPanel>
+      {section === 'insumos' ? (
+        <div className="mt-5 space-y-6">
+          <div className="grid gap-4 border-b pb-6 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] lg:items-end">
+            <div className="space-y-1"><Label htmlFor="insumo-nome">Nome</Label><Input id="insumo-nome" value={newIngredient.nome} onChange={(e) => setNewIngredient({ ...newIngredient, nome: e.target.value })} placeholder="Ex.: Muçarela" /></div>
+            <div className="space-y-1"><Label htmlFor="insumo-unidade-base">Base</Label><select id="insumo-unidade-base" className="min-h-11 rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidadeBase} onChange={(e) => setNewIngredient({ ...newIngredient, unidadeBase: e.target.value as UnidadeBase })}>{UNIDADES_BASE.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+            <div className="space-y-1"><Label htmlFor="insumo-unidade-compra">Compra</Label><select id="insumo-unidade-compra" className="min-h-11 rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidadeCompra} onChange={(e) => setNewIngredient({ ...newIngredient, unidadeCompra: e.target.value })}>{UNIDADES_COMPRA.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+            {([['estoqueAtual', 'Atual'], ['estoqueIdeal', 'Ideal'], ['estoqueMinimo', 'Mínimo']] as const).map(([field, label]) => <div className="space-y-1" key={field}><Label htmlFor={`insumo-${field}`}>{label}</Label><Input id={`insumo-${field}`} inputMode="decimal" value={newIngredient[field]} onChange={(e) => setNewIngredient({ ...newIngredient, [field]: e.target.value })} placeholder="0" /></div>)}
+            <Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={creating} disabled={creating || !newIngredient.nome.trim()} onClick={handleCreateIngredient}><Plus aria-hidden="true" /> Adicionar</Button>
+          </div>
+          {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo" description="Adicione o primeiro insumo acima." /> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground"><th className="px-2 py-3 font-medium">Insumo</th><th className="px-2 py-3 font-medium">Estoque</th><th className="px-2 py-3 font-medium">Mínimo</th><th className="px-2 py-3 font-medium">Entrada</th></tr></thead><tbody className="divide-y">{insumos.map((item) => { const low = Number(item.estoqueAtual) <= Number(item.estoqueMinimo); return <tr key={item.id}><td className="px-2 py-3"><p className="font-medium">{item.nome}</p><p className="text-xs text-muted-foreground">{item.unidadeCompra} → {item.unidadeBase}</p></td><td className={`px-2 py-3 font-medium ${low ? 'text-[var(--action-warning-outline)]' : ''}`}>{formatQuantity(item.estoqueAtual, item.unidadeBase)}</td><td className="px-2 py-3 text-muted-foreground">{formatQuantity(item.estoqueMinimo, item.unidadeBase)}</td><td className="px-2 py-3"><div className="flex items-center gap-2"><Input aria-label={`Entrada para ${item.nome}`} className="w-28" inputMode="decimal" value={entryValues[item.id] ?? ''} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /><Button type="button" size="sm" intent="neutral" appearance="outline" aria-busy={entryId === item.id} disabled={entryId === item.id || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar</Button></div></td></tr> })}</tbody></table></div>}
+        </div>
+      ) : (
+        <div className="mt-5 space-y-5">
+          {!produtos.length ? <AdminEmptyState title="Nenhum produto" description="Cadastre um produto antes de criar a ficha técnica." /> : <>
+            <div className="flex flex-wrap items-end gap-3 border-b pb-5"><div className="min-w-[260px] flex-1 space-y-1"><Label htmlFor="ficha-produto">Produto</Label><select id="ficha-produto" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={selectedProdutoId} onChange={(e) => selectProduct(e.target.value)}>{produtos.map((product) => <option key={product.id} value={product.id}>{product.nome} · {product.categoriaNome}</option>)}</select></div><Button type="button" intent="neutral" appearance="outline" className="min-h-11" disabled={!availableIngredients.length} onClick={() => setRows([...rows, { insumoId: availableIngredients[0]?.id ?? '', quantidade: '' }])}><Plus aria-hidden="true" /> Insumo</Button><Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={savingRecipe} disabled={savingRecipe || rows.some((row) => !row.insumoId || !row.quantidade)} onClick={handleSaveRecipe}><Save aria-hidden="true" /> Salvar</Button></div>
+            {rows.length === 0 ? <AdminEmptyState title={`Ficha vazia${selectedProduct ? ` · ${selectedProduct.nome}` : ''}`} description="Adicione os insumos consumidos por unidade." /> : <div className="space-y-2">{rows.map((row, index) => { const ingredient = insumos.find((item) => item.id === row.insumoId); return <div className="grid grid-cols-[minmax(0,1fr)_120px_auto] items-end gap-2" key={`${row.insumoId}-${index}`}><div className="space-y-1"><Label htmlFor={`ficha-insumo-${index}`}>Insumo</Label><select id={`ficha-insumo-${index}`} className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={row.insumoId} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, insumoId: e.target.value } : current))}><option value="">Selecione</option>{insumos.map((item) => <option key={item.id} value={item.id} disabled={rows.some((other, otherIndex) => otherIndex !== index && other.insumoId === item.id)}>{item.nome}</option>)}</select></div><div className="space-y-1"><Label htmlFor={`ficha-quantidade-${index}`}>Qtd.</Label><Input id={`ficha-quantidade-${index}`} inputMode="decimal" value={row.quantidade} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: e.target.value } : current))} placeholder="0" /></div><Button type="button" intent="destructive" appearance="ghost" size="icon" className="size-11" aria-label={`Remover ${ingredient?.nome ?? 'insumo'}`} onClick={() => setRows(rows.filter((_, currentIndex) => currentIndex !== index))}><Trash2 aria-hidden="true" /></Button></div> })}</div>}
+          </>}
+        </div>
+      )}
     </AdminPage>
   )
 }

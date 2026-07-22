@@ -7,9 +7,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/estoque', label: 'Estoque', description: 'Insumos e fichas técnicas' },
     { href: '/admin/mesas', label: 'Mesas', description: 'Salão e atendimento' },
     { href: '/admin/pedidos', label: 'Pedidos', description: 'Caixa e pagamentos' },
+    { href: '/admin/relatorios', label: 'Relatórios', description: 'Consultas e tabelas' },
   ]
   const managementLinks = [
-    { href: '/admin/relatorios', label: 'Relatórios', description: 'Indicadores e ideias de análise' },
     { href: '/admin/usuarios', label: 'Usuários cadastrados', description: 'Acessos e perfis do sistema' },
     { href: '/admin/configuracoes', label: 'Configurações', description: 'Operação e parâmetros gerais' },
   ]

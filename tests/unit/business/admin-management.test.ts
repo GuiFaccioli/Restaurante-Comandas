@@ -1,4 +1,4 @@
-﻿import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -108,32 +108,21 @@ describe('admin management area', () => {
     expect(usersPage).not.toContain('<button')
   })
 
-  it('reports page is backed by existing order, item, product, and category data', () => {
+  it('reports page exposes selectable tabular reports for operations', () => {
     const reportsPage = source('app/admin/relatorios/page.tsx')
+    const reportsClient = source('app/admin/relatorios/client.tsx')
 
     expect(reportsPage).toContain("requireAccess('admin')")
-    expect(reportsPage).toContain('from(pedido)')
     expect(reportsPage).toContain('innerJoin(itemPedido')
     expect(reportsPage).toContain('innerJoin(produto')
-    expect(reportsPage).toContain('innerJoin(categoria')
-    expect(reportsPage).toContain('Faturamento estimado')
-    expect(reportsPage).toContain('Produtos mais vendidos')
-    expect(reportsPage).toContain('Leituras operacionais')
-    expect(reportsPage).toContain('AdminBar')
-    expect(reportsPage).toContain('maxStatusCount')
+    expect(reportsPage).toContain('fichaTecnicaItem')
+    expect(reportsPage).toContain('insumo')
+    expect(reportsClient).toContain('role="tablist"')
+    expect(reportsClient).toContain('ReportTable')
+    expect(reportsClient).toContain('Produtos')
+    expect(reportsClient).toContain('Estoque')
+    expect(reportsClient).toContain('Fichas técnicas')
   })
-
-  it('reports page derives delivery timing metrics from delivered orders only', () => {
-    const reportsPage = source('app/admin/relatorios/page.tsx')
-
-    expect(reportsPage).toContain('entregueEm: pedido.entregueEm')
-    expect(reportsPage).toContain('deliveryDurations')
-    expect(reportsPage).toContain("order.status === 'entregue'")
-    expect(reportsPage).toContain('order.entregueEm')
-    expect(reportsPage).toContain('Tempo médio de entrega')
-    expect(reportsPage).toContain('Pedidos entregues medidos')
-  })
-
   it('admin table and product forms expose labels and empty states', () => {
     const mesasSource = source('app/admin/mesas/client.tsx')
     const productFormSource = source('components/admin/produto-form.tsx')
