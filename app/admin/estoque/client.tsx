@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AdminEmptyState, AdminPage } from '@/components/admin/admin-page'
-import { ajustarEstoqueAtual, criarInsumo, registrarEntradaEstoque, salvarFichaTecnica } from '@/lib/actions/estoque'
+import { ajustarEstoqueAtual, criarInsumo, realizarContagemEstoque, registrarEntradaEstoque, registrarPerdaEstoque, salvarFichaTecnica } from '@/lib/actions/estoque'
 import { UNIDADES_BASE, UNIDADES_COMPRA, type UnidadeBase } from '@/lib/stock/units'
 
 type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string }
@@ -34,7 +34,13 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
   const [entryValues, setEntryValues] = useState<Record<string, string>>({})
   const [editingStockId, setEditingStockId] = useState<string | null>(null)
   const [stockValue, setStockValue] = useState('')
-  const [newIngredient, setNewIngredient] = useState({ nome: '', unidadeBase: 'g' as UnidadeBase, unidadeCompra: 'kg', estoqueAtual: '', estoqueIdeal: '', estoqueMinimo: '' })
+  const [movementType, setMovementType] = useState<'entrada' | 'perda' | 'contagem'>('entrada')
+  const [movementIngredientId, setMovementIngredientId] = useState(insumos[0]?.id ?? '')
+  const [movementQuantity, setMovementQuantity] = useState('')
+  const [movementCost, setMovementCost] = useState('')
+  const [movementReason, setMovementReason] = useState('')
+  const [movementBusy, setMovementBusy] = useState(false)
+  const [newIngredient, setNewIngredient] = useState({ nome: '', unidadeBase: 'g' as UnidadeBase, unidadeCompra: 'kg', estoqueIdeal: '', estoqueMinimo: '' })
   const selectedProduct = produtos.find((item) => item.id === selectedProdutoId)
   const availableIngredients = useMemo(() => insumos.filter((item) => !rows.some((row) => row.insumoId === item.id)), [insumos, rows])
 
@@ -45,7 +51,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
 
   async function handleCreateIngredient() {
     setCreating(true)
-    try { await criarInsumo(newIngredient); setNewIngredient({ nome: '', unidadeBase: 'g', unidadeCompra: 'kg', estoqueAtual: '', estoqueIdeal: '', estoqueMinimo: '' }); router.refresh(); toast.success('Insumo criado.') }
+    try { await criarInsumo(newIngredient); setNewIngredient({ nome: '', unidadeBase: 'g', unidadeCompra: 'kg', estoqueIdeal: '', estoqueMinimo: '' }); router.refresh(); toast.success('Insumo cadastrado.') }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível criar o insumo.') }
     finally { setCreating(false) }
   }
@@ -77,11 +83,23 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
     finally { setEntryId(null) }
   }
 
+  async function handleMovement() {
+    if (!movementIngredientId || !movementQuantity) return
+    setMovementBusy(true)
+    try {
+      if (movementType === 'entrada') await registrarEntradaEstoque(movementIngredientId, movementQuantity, undefined, movementCost)
+      if (movementType === 'perda') await registrarPerdaEstoque(movementIngredientId, movementQuantity, movementReason)
+      if (movementType === 'contagem') await realizarContagemEstoque(movementIngredientId, movementQuantity)
+      setMovementQuantity(''); setMovementCost(''); setMovementReason(''); router.refresh(); toast.success('Movimentação registrada.')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a movimentação.') }
+    finally { setMovementBusy(false) }
+  }
+
   return (
     <AdminPage>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div><h1 className="text-xl font-semibold tracking-tight">Estoque</h1><p className="mt-1 text-sm text-muted-foreground">Insumos, saldo e fichas técnicas.</p></div>
-        <div className="flex flex-wrap items-center justify-end gap-2">{section === 'insumos' ? <Button type="button" size="sm" intent={showNewIngredient ? 'destructive' : 'positive'} appearance="solid" onClick={() => setShowNewIngredient((current) => !current)}>{showNewIngredient ? 'Fechar' : 'Novo insumo'}</Button> : null}<div className="flex gap-1" role="tablist" aria-label="Estoque">
+        <div className="flex flex-wrap items-center justify-end gap-2">{section === 'insumos' ? <Button type="button" size="sm" intent={showNewIngredient ? 'destructive' : 'positive'} appearance="solid" onClick={() => setShowNewIngredient((current) => !current)}>{showNewIngredient ? 'Fechar' : 'Novo insumo'}</Button> : null}{section === 'estoque' && insumos.length > 0 ? <details className="relative"><summary className="flex min-h-9 cursor-pointer list-none items-center rounded-[var(--radius)] bg-[var(--action-positive)] px-3 text-sm font-medium text-[var(--action-positive-foreground)]">Registrar movimentação</summary><div className="absolute right-0 z-10 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-[var(--radius)] border bg-background p-4 shadow-sm"><Label htmlFor="movimento-tipo">Tipo</Label><select id="movimento-tipo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementType} onChange={(event) => setMovementType(event.target.value as typeof movementType)}><option value="entrada">Entrada</option><option value="perda">Perda</option><option value="contagem">Contagem</option></select><Label htmlFor="movimento-insumo">Insumo</Label><select id="movimento-insumo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementIngredientId} onChange={(event) => setMovementIngredientId(event.target.value)}>{insumos.map((item) => <option key={item.id} value={item.id}>{item.nome} · {item.unidadeBase}</option>)}</select><Label htmlFor="movimento-quantidade">Quantidade</Label><Input id="movimento-quantidade" inputMode="decimal" value={movementQuantity} onChange={(event) => setMovementQuantity(event.target.value)} placeholder="0" />{movementType === 'entrada' ? <><Label htmlFor="movimento-custo">Custo total (opcional)</Label><Input id="movimento-custo" inputMode="decimal" value={movementCost} onChange={(event) => setMovementCost(event.target.value)} placeholder="R$ 0,00" /></> : null}{movementType === 'perda' ? <><Label htmlFor="movimento-motivo">Motivo da perda</Label><Input id="movimento-motivo" value={movementReason} onChange={(event) => setMovementReason(event.target.value)} placeholder="Ex.: Vencimento" /></> : null}<Button type="button" intent="positive" appearance="solid" aria-busy={movementBusy} disabled={movementBusy || !movementQuantity || (movementType === 'perda' && !movementReason.trim())} onClick={handleMovement}>Confirmar</Button></div></details> : null}<div className="flex gap-1" role="tablist" aria-label="Estoque">
           {([['insumos', 'Insumos'], ['estoque', 'Estoque'], ['ficha', 'Ficha técnica']] as const).map(([value, label]) => (
             <Button key={value} type="button" size="sm" intent={section === value ? 'informational' : 'neutral'} appearance={section === value ? 'solid' : 'ghost'} role="tab" aria-selected={section === value} onClick={() => setSection(value)}>{label}</Button>
           ))}
@@ -96,7 +114,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
             <div className="space-y-1"><Label htmlFor="insumo-nome">Nome</Label><Input id="insumo-nome" value={newIngredient.nome} onChange={(e) => setNewIngredient({ ...newIngredient, nome: e.target.value })} placeholder="Ex.: Muçarela" /></div>
             <div className="space-y-1"><Label htmlFor="insumo-unidade-base">Base</Label><select id="insumo-unidade-base" className="min-h-11 rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidadeBase} onChange={(e) => setNewIngredient({ ...newIngredient, unidadeBase: e.target.value as UnidadeBase })}>{UNIDADES_BASE.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
             <div className="space-y-1"><Label htmlFor="insumo-unidade-compra">Compra</Label><select id="insumo-unidade-compra" className="min-h-11 rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidadeCompra} onChange={(e) => setNewIngredient({ ...newIngredient, unidadeCompra: e.target.value })}>{UNIDADES_COMPRA.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-            {([['estoqueAtual', 'Atual'], ['estoqueIdeal', 'Ideal'], ['estoqueMinimo', 'Mínimo']] as const).map(([field, label]) => <div className="space-y-1" key={field}><Label htmlFor={`insumo-${field}`}>{label}</Label><Input id={`insumo-${field}`} inputMode="decimal" value={newIngredient[field]} onChange={(e) => setNewIngredient({ ...newIngredient, [field]: e.target.value })} placeholder="0" /></div>)}
+            {([['estoqueIdeal', 'Ideal'], ['estoqueMinimo', 'Mínimo']] as const).map(([field, label]) => <div className="space-y-1" key={field}><Label htmlFor={`insumo-${field}`}>{label}</Label><Input id={`insumo-${field}`} inputMode="decimal" value={newIngredient[field]} onChange={(e) => setNewIngredient({ ...newIngredient, [field]: e.target.value })} placeholder="0" /></div>)}
             <Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={creating} disabled={creating || !newIngredient.nome.trim()} onClick={handleCreateIngredient}><Plus aria-hidden="true" /> Adicionar</Button>
           </div>
           ) : null}

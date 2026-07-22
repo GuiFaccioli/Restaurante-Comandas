@@ -15,7 +15,7 @@ import { nextCategoryIdAfterDeletion } from '@/lib/admin/category-selection'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-type Produto = { id: string; nome: string; descricao: string | null; preco: string; imagemUrl: string | null; disponivel: boolean }
+type Produto = { id: string; nome: string; descricao: string | null; preco: string; imagemUrl: string | null; disponivel: boolean; custo?: { custoTotal: number | null; margemPercentual: number | null; possuiFicha: boolean; possuiIngredienteSemCusto: boolean } }
 type Categoria = { id: string; nome: string; ordem: number; produtos: Produto[] }
 
 export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
@@ -212,7 +212,10 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                     </div>
                     <div className="min-w-0">
                       <p className="break-words text-sm font-medium">{p.nome}</p>
-                      <p className="text-sm text-muted-foreground">R$ {parseFloat(p.preco).toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground">Venda R$ {parseFloat(p.preco).toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.custo?.custoTotal === null || p.custo?.custoTotal === undefined ? 'Ficha incompleta' : `Custo R$ ${p.custo.custoTotal.toFixed(2)}${p.custo.margemPercentual === null ? '' : ` · Margem ${p.custo.margemPercentual.toFixed(1)}%`}`}
+                      </p>
                       <span className={`inline-flex min-h-9 items-center gap-2 text-sm ${p.disponivel ? 'text-[var(--action-positive-foreground)]' : 'text-[var(--action-warning-outline)]'}`}><span className={`size-2 rounded-full ${p.disponivel ? 'bg-[var(--action-positive)]' : 'bg-[var(--action-warning-outline)]'}`} aria-hidden="true" />{p.disponivel ? 'Ativo' : 'Inativo'}</span>
                     </div>
                   </div>
