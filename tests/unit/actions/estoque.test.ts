@@ -13,7 +13,10 @@ vi.mock('@/lib/db/index', () => ({
   },
 }))
 vi.mock('@/lib/auth/access', () => ({
-  requireAccess: vi.fn(async () => ({ tenantId: 'tenant-1', access: 'admin' })),
+  requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', tenantId: 'tenant-1', access: 'admin' })),
+}))
+vi.mock('@/lib/stock/service', () => ({
+  applyStockMovement: vi.fn().mockResolvedValue({ applied: true }),
 }))
 
 import { db } from '@/lib/db/index'
@@ -23,6 +26,7 @@ import { produtoTemEstoque } from '@/lib/stock/availability'
 import {
   criarInsumo,
 } from '@/lib/actions/estoque'
+import { applyStockMovement } from '@/lib/stock/service'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -55,7 +59,6 @@ describe('criarInsumo', () => {
       nome: '  Muçarela  ',
       unidadeBase: 'g',
       unidadeCompra: 'kg',
-      estoqueAtual: '2',
       estoqueIdeal: '10',
       estoqueMinimo: '3',
     })).resolves.toEqual({ id: 'insumo-1' })
@@ -68,10 +71,11 @@ describe('criarInsumo', () => {
       unidadeBase: 'g',
       unidadeCompra: 'kg',
       fatorCompraParaBase: '1000.000',
-      estoqueAtual: '2000.000',
+      estoqueAtual: '0.000',
       estoqueIdeal: '10000.000',
       estoqueMinimo: '3000.000',
     }))
+    expect(applyStockMovement).not.toHaveBeenCalled()
   })
 
   it('rejects an empty name and invalid unit', async () => {
@@ -87,6 +91,26 @@ describe('criarInsumo', () => {
       unidadeCompra: 'kg',
     })).rejects.toThrow('As unidades de compra e estoque precisam ser compatíveis')
     expect(db.insert).not.toHaveBeenCalled()
+  })
+
+  it('ignores an unsupported stock value sent outside the typed contract', async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: 'insumo-2' }])
+    ;(db.insert as any).mockReturnValue({ values: vi.fn().mockReturnValue({ returning }) })
+
+    await criarInsumo({
+      nome: 'Bacon',
+      unidadeBase: 'g',
+      unidadeCompra: 'kg',
+      estoqueIdeal: '10',
+      estoqueMinimo: '2',
+      estoqueAtual: '5000',
+    } as never)
+
+    expect((db.insert as any).mock.results[0].value.values).toHaveBeenCalledWith(expect.objectContaining({
+      estoqueAtual: '0.000',
+      custoUnitario: null,
+    }))
+    expect(applyStockMovement).not.toHaveBeenCalled()
   })
 })
 

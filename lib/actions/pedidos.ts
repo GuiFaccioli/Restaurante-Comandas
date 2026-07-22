@@ -7,7 +7,7 @@ import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
 import { isSQLiteDatabase } from '@/lib/db/compat'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
-import { deduzirEstoqueNaEntrega, validarEstoqueParaPedido } from '@/lib/actions/estoque'
+import { deduzirEstoqueNoPreparo, validarEstoqueParaPedido } from '@/lib/actions/estoque'
 
 export type ConfirmarPedidoItem = {
   produtoId: string
@@ -144,7 +144,7 @@ export async function atualizarStatus(
   pedidoId: string,
   status: StatusPedido
 ): Promise<void> {
-  const { tenantId } = await requireAccess('cozinha')
+  const { tenantId, usuarioId } = await requireAccess('cozinha')
 
   const [current] = await db
     .select({ status: pedido.status })
@@ -155,6 +155,10 @@ export async function atualizarStatus(
   const expectedNext = STATUS_FLOW[current.status]
   if (expectedNext !== status) {
     throw new Error(`Transição inválida: ${current.status} → ${status}`)
+  }
+
+  if (current.status === 'novo' && status === 'em_preparo') {
+    await deduzirEstoqueNoPreparo(tenantId, pedidoId, usuarioId)
   }
 
   await db
@@ -181,8 +185,6 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
   if (current.status !== 'novo') {
     throw new Error('Só pedidos novos podem ser confirmados como entregues')
   }
-
-  await deduzirEstoqueNaEntrega(tenantId, pedidoId)
 
   const now = new Date()
   await db
