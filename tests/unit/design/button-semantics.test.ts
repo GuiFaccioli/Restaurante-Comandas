@@ -35,10 +35,21 @@ describe('operational button semantics', () => {
     }
   })
 
-  it('keeps dismiss, back, logout, and navigation out of destructive red', () => {
+  it('uses destructive red for every cancel action', () => {
     const controls = [
       { path: 'components/garcom/cart-drawer.tsx', tag: 'Button', markers: ['Cancelar'] },
       { path: 'app/admin/pedidos/client.tsx', tag: 'Button', markers: ['Cancelar'] },
+      { path: 'components/admin/produto-form.tsx', tag: 'Button', markers: ['Cancelar'] },
+    ]
+
+    for (const { path, tag, markers } of controls) {
+      const control = findJsxBlock(readProjectFile(path), tag, markers)
+      expect(control, path).toMatch(/intent\s*(?:=|:)\s*['"]destructive['"]/)
+    }
+  })
+
+  it('keeps dismiss, back, logout, and navigation neutral', () => {
+    const controls = [
       { path: 'app/admin/pedidos/client.tsx', tag: 'Button', markers: ['Fechar itens'] },
       { path: 'app/garcom/mesa/[id]/client.tsx', tag: 'Link', markers: ['Voltar'] },
       { path: 'components/auth/profile-menu.tsx', tag: 'Button', markers: ['Sair'] },
@@ -52,10 +63,7 @@ describe('operational button semantics', () => {
         expect(control, path).toContain('aria-label="Voltar"')
         continue
       }
-      expect(control, path).toMatch(/intent\s*(?:=|:)\s*['"]neutral['"]/) 
-      expect(control, path).not.toMatch(
-        /(?:variant|intent)\s*(?:=|:)\s*['"]destructive['"]/
-      )
+      expect(control, path).toMatch(/intent\s*(?:=|:)\s*['"]neutral['"]/)
     }
   })
 

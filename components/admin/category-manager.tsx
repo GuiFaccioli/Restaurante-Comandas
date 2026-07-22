@@ -266,7 +266,7 @@ export function CategoryManager({
           </div>
           <Button
             type="button"
-            intent="neutral"
+            intent="destructive"
             appearance="ghost"
             className="min-h-11"
             disabled={pending !== null}
@@ -379,7 +379,7 @@ export function CategoryManager({
                     </div>
                     <Button
                       type="button"
-                      intent="neutral"
+                      intent="destructive"
                       appearance="ghost"
                       className="min-h-11"
                       aria-label={`Cancelar edição de ${category.nome}`}

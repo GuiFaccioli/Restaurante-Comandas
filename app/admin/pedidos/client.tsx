@@ -332,7 +332,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                           </Button>
                           <Button
                             type="button"
-                            intent="neutral"
+                            intent="destructive"
                             appearance="outline"
                             className="min-h-11"
                             onClick={() => setPaymentFormPedidoId(null)}

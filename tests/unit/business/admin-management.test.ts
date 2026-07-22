@@ -144,7 +144,7 @@ describe('admin management area', () => {
     expect(productFormSource).toContain('id="produto-preco"')
     expect(productFormSource).toContain('htmlFor="produto-imagem-url"')
     expect(productFormSource).toContain('id="produto-imagem-url"')
-    expect(productFormSource).toMatch(/intent="neutral"[\s\S]*Cancelar/)
+    expect(productFormSource).toMatch(/intent="destructive"[\s\S]*Cancelar/)
     expect(productFormSource).toMatch(/intent="positive"[\s\S]*Salvar/)
     expect(productFormSource).toContain('aria-busy={saving}')
 

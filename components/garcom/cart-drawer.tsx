@@ -140,7 +140,7 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
             </Button>
             <Button
               type="button"
-              intent="neutral"
+              intent="destructive"
               appearance="outline"
               size="lg"
               className="min-h-11 w-full"

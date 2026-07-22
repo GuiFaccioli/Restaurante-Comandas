@@ -122,7 +122,7 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
           </div>
         </div>
         <DialogFooter>
-          <Button type="button" intent="neutral" appearance="outline" className="min-h-11" onClick={onClose}>Cancelar</Button>
+          <Button type="button" intent="destructive" appearance="outline" className="min-h-11" onClick={onClose}>Cancelar</Button>
           <Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={saving} disabled={saving || !nome || !preco} onClick={handleSave}>
             {saving ? 'Salvando…' : 'Salvar'}
           </Button>
