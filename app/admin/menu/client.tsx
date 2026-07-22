@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { AdminEmptyState, AdminPage, AdminPageHeader, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
+import { AdminEmptyState, AdminPage, AdminPageHeader } from '@/components/admin/admin-page'
 import { Plus, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { CategoryManager } from '@/components/admin/category-manager'
@@ -44,11 +44,6 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
     (category) => category.id === selectedCategoryId
   )
   const produtoCount = selectedCategory?.produtos.length ?? 0
-  const totalProdutos = categorias.reduce((total, categoria) => total + categoria.produtos.length, 0)
-  const totalDisponiveis = categorias.reduce(
-    (total, categoria) => total + categoria.produtos.filter((produto) => produto.disponivel).length,
-    0
-  )
 
   useEffect(() => {
     if (
@@ -109,7 +104,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
     <AdminPage>
       <AdminPageHeader
         title="Cardápio"
-        description="Organize categorias, produtos, preços e disponibilidade para a operação."
+        description="Gerencie os produtos disponíveis para venda."
         action={
           <>
             <Button
@@ -136,11 +131,6 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
         }
       />
 
-      <AdminStatsGrid className="xl:grid-cols-3">
-        <AdminStatCard label="Categorias" value={categorias.length} detail="Seções do cardápio." />
-        <AdminStatCard label="Produtos" value={totalProdutos} detail="Itens cadastrados no restaurante." />
-        <AdminStatCard label="Disponíveis" value={totalDisponiveis} detail="Aparecem para o cliente agora." />
-      </AdminStatsGrid>
 
       <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="space-y-4">
@@ -165,7 +155,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                 {selectedCategory?.nome ?? 'Categorias'}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Produtos nesta categoria: {produtoCount}
+                {produtoCount} produtos
               </p>
             </div>
           </div>
@@ -223,60 +213,19 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                     <div className="min-w-0">
                       <p className="break-words text-sm font-medium">{p.nome}</p>
                       <p className="text-sm text-muted-foreground">R$ {parseFloat(p.preco).toFixed(2)}</p>
-                      <Button
-                        type="button"
-                        role="switch"
-                        intent={p.disponivel ? 'positive' : 'warning'}
-                        appearance="soft"
-                        size="sm"
-                        className="mt-2 min-h-9"
-                        aria-checked={p.disponivel}
-                        aria-label={
-                          p.disponivel
-                            ? `Tornar ${p.nome} indisponível`
-                            : `Disponibilizar ${p.nome}`
-                        }
-                        onClick={() => handleToggleProduto(p)}
-                      >
-                        <span className={`size-2 rounded-full ${p.disponivel ? 'bg-[var(--action-positive)]' : 'bg-[var(--action-warning-outline)]'}`} aria-hidden="true" />
-                        {p.disponivel ? 'Disponível' : 'Indisponível'}
-                        <span className="sr-only">{p.disponivel ? 'Tornar indisponível' : 'Disponibilizar'}</span>
-                      </Button>
+                      <span className={`inline-flex min-h-9 items-center gap-2 text-sm ${p.disponivel ? 'text-[var(--action-positive-foreground)]' : 'text-[var(--action-warning-outline)]'}`}><span className={`size-2 rounded-full ${p.disponivel ? 'bg-[var(--action-positive)]' : 'bg-[var(--action-warning-outline)]'}`} aria-hidden="true" />{p.disponivel ? 'Ativo' : 'Inativo'}</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <Button
-                      type="button"
-                      intent="destructive"
-                      appearance="soft"
-                      className="min-h-11"
-                      aria-label={`Excluir produto ${p.nome}`}
-                      onClick={() => handleRemoveProduto(p)}
-                    >
-                      Excluir
-                    </Button>
-                    <Button
-                      type="button"
-                      intent="informational"
-                      appearance="ghost"
-                      size="icon"
-                      className="size-11"
-                      aria-label={`Editar produto ${p.nome}`}
-                      onClick={() => {
-                        setEditProduto(p)
-                        setFormOpen(true)
-                      }}
-                    >
-                      <Pencil aria-hidden="true" />
-                    </Button>
-                    <Link
-                      href={`/admin/estoque?produtoId=${p.id}`}
-                      className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius)] border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      Estoque
-                    </Link>
-                  </div>
+                  <details className="relative sm:justify-self-end">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center rounded-[var(--radius)] border border-border px-4 text-sm font-medium outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring">Ações</summary>
+                    <div className="absolute right-0 z-10 mt-2 grid min-w-44 gap-1 rounded-[var(--radius)] border bg-background p-2 shadow-sm">
+                      <Button type="button" intent="informational" appearance="ghost" className="justify-start" aria-label={`Editar produto ${p.nome}`} onClick={() => { setEditProduto(p); setFormOpen(true) }}><Pencil aria-hidden="true" /> Editar</Button>
+                      <Link href={`/admin/estoque?produtoId=${p.id}`} className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Estoque</Link>
+                      <Button type="button" intent={p.disponivel ? 'warning' : 'positive'} appearance="ghost" className="justify-start" onClick={() => handleToggleProduto(p)}>{p.disponivel ? 'Desativar' : 'Ativar'}</Button>
+                      <Button type="button" intent="destructive" appearance="ghost" className="justify-start" aria-label={`Excluir produto ${p.nome}`} onClick={() => handleRemoveProduto(p)}>Excluir</Button>
+                    </div>
+                  </details>
                 </div>
               ))}
             </div>

@@ -15,7 +15,7 @@ type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: st
 type Produto = { id: string; nome: string; categoriaNome: string }
 type Ficha = { produtoId: string; insumoId: string; quantidade: string }
 type RecipeRow = { insumoId: string; quantidade: string }
-type Section = 'insumos' | 'ficha'
+type Section = 'insumos' | 'estoque' | 'ficha'
 
 function formatQuantity(value: string, unit: string) {
   const number = Number(value)
@@ -25,6 +25,7 @@ function formatQuantity(value: string, unit: string) {
 export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId }: { insumos: Insumo[]; produtos: Produto[]; fichas: Ficha[]; initialProdutoId: string }) {
   const router = useRouter()
   const [section, setSection] = useState<Section>('insumos')
+  const [showNewIngredient, setShowNewIngredient] = useState(false)
   const [selectedProdutoId, setSelectedProdutoId] = useState(initialProdutoId || produtos[0]?.id || '')
   const [rows, setRows] = useState<RecipeRow[]>(() => fichas.filter((item) => item.produtoId === (initialProdutoId || produtos[0]?.id)).map(({ insumoId, quantidade }) => ({ insumoId, quantidade })))
   const [creating, setCreating] = useState(false)
@@ -79,16 +80,18 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
   return (
     <AdminPage>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
-        <h1 className="text-xl font-semibold tracking-tight">Estoque</h1>
-        <div className="flex gap-1" role="tablist" aria-label="Estoque">
-          {([['insumos', 'Insumos'], ['ficha', 'Ficha técnica']] as const).map(([value, label]) => (
+        <div><h1 className="text-xl font-semibold tracking-tight">Estoque</h1><p className="mt-1 text-sm text-muted-foreground">Insumos, saldo e fichas técnicas.</p></div>
+        <div className="flex flex-wrap items-center justify-end gap-2">{section === 'insumos' ? <Button type="button" size="sm" intent={showNewIngredient ? 'destructive' : 'positive'} appearance="solid" onClick={() => setShowNewIngredient((current) => !current)}>{showNewIngredient ? 'Fechar' : 'Novo insumo'}</Button> : null}<div className="flex gap-1" role="tablist" aria-label="Estoque">
+          {([['insumos', 'Insumos'], ['estoque', 'Estoque'], ['ficha', 'Ficha técnica']] as const).map(([value, label]) => (
             <Button key={value} type="button" size="sm" intent={section === value ? 'informational' : 'neutral'} appearance={section === value ? 'solid' : 'ghost'} role="tab" aria-selected={section === value} onClick={() => setSection(value)}>{label}</Button>
           ))}
         </div>
+        </div>
       </div>
 
-      {section === 'insumos' ? (
+      {section === 'insumos' || section === 'estoque' ? (
         <div className="mt-5 space-y-6">
+          {section === 'insumos' && showNewIngredient ? (
           <div className="grid gap-4 border-b pb-6 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] lg:items-end">
             <div className="space-y-1"><Label htmlFor="insumo-nome">Nome</Label><Input id="insumo-nome" value={newIngredient.nome} onChange={(e) => setNewIngredient({ ...newIngredient, nome: e.target.value })} placeholder="Ex.: Muçarela" /></div>
             <div className="space-y-1"><Label htmlFor="insumo-unidade-base">Base</Label><select id="insumo-unidade-base" className="min-h-11 rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidadeBase} onChange={(e) => setNewIngredient({ ...newIngredient, unidadeBase: e.target.value as UnidadeBase })}>{UNIDADES_BASE.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
@@ -96,6 +99,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
             {([['estoqueAtual', 'Atual'], ['estoqueIdeal', 'Ideal'], ['estoqueMinimo', 'Mínimo']] as const).map(([field, label]) => <div className="space-y-1" key={field}><Label htmlFor={`insumo-${field}`}>{label}</Label><Input id={`insumo-${field}`} inputMode="decimal" value={newIngredient[field]} onChange={(e) => setNewIngredient({ ...newIngredient, [field]: e.target.value })} placeholder="0" /></div>)}
             <Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={creating} disabled={creating || !newIngredient.nome.trim()} onClick={handleCreateIngredient}><Plus aria-hidden="true" /> Adicionar</Button>
           </div>
+          ) : null}
           {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo" description="Adicione o primeiro insumo acima." /> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground"><th className="px-2 py-3 font-medium">Insumo</th><th className="px-2 py-3 font-medium">Estoque</th><th className="px-2 py-3 font-medium">Mínimo</th><th className="px-2 py-3 font-medium">Entrada</th></tr></thead><tbody className="divide-y">{insumos.map((item) => { const low = Number(item.estoqueAtual) <= Number(item.estoqueMinimo); const editing = editingStockId === item.id; return <tr key={item.id}><td className="px-2 py-3"><p className="font-medium">{item.nome}</p><p className="text-xs text-muted-foreground">{item.unidadeCompra} → {item.unidadeBase}</p></td><td className={`px-2 py-3 font-medium ${low ? 'text-[var(--action-warning-outline)]' : ''}`}>{editing ? <div className="flex items-center gap-1"><Input aria-label={`Quantidade total de ${item.nome}`} className="w-28" inputMode="decimal" value={stockValue} onChange={(e) => setStockValue(e.target.value)} autoFocus /><Button type="button" size="sm" intent="positive" appearance="ghost" aria-busy={entryId === item.id} disabled={entryId === item.id} onClick={() => handleStockEdit(item)}>Confirmar</Button><Button type="button" size="sm" intent="destructive" appearance="ghost" disabled={entryId === item.id} onClick={() => setEditingStockId(null)}>Cancelar</Button></div> : <div className="flex items-center gap-1"><span>{formatQuantity(item.estoqueAtual, item.unidadeBase)}</span><Button type="button" size="icon-sm" intent="informational" appearance="ghost" aria-label={`Editar estoque de ${item.nome}`} onClick={() => startStockEdit(item)}><Pencil aria-hidden="true" /></Button></div>}</td><td className="px-2 py-3 text-muted-foreground">{formatQuantity(item.estoqueMinimo, item.unidadeBase)}</td><td className="px-2 py-3"><div className="flex items-center gap-2"><Input aria-label={`Entrada para ${item.nome}`} className="w-28" inputMode="decimal" value={entryValues[item.id] ?? ''} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /><Button type="button" size="sm" intent="neutral" appearance="outline" aria-busy={entryId === item.id} disabled={entryId === item.id || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar</Button></div></td></tr> })}</tbody></table></div>}
         </div>
       ) : (

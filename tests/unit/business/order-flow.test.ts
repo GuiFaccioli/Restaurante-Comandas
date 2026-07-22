@@ -273,9 +273,9 @@ describe('pedido business flow', () => {
     expect(mesasSource).toContain('min-h-11')
 
     expect(menuSource).toContain('lg:grid-cols-[220px_minmax(0,1fr)]')
-    expect(menuSource).toContain('Produtos nesta categoria')
-    expect(menuSource).toContain('Disponibilizar')
-    expect(menuSource).toContain('Tornar indisponível')
+    expect(menuSource).toContain('Ações')
+    expect(menuSource).toContain('Ativo')
+    expect(menuSource).toContain('Inativo')
     expect(menuSource).toContain('min-h-11')
 
     expect(productFormSource).toContain('Descrição')

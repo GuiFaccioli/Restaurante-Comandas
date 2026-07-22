@@ -72,54 +72,26 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
             <Input id="produto-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="produto-descricao">Descrição</Label>
-            <Textarea
-              id="produto-descricao"
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
-              rows={2}
-            />
-          </div>
-          <div className="space-y-1">
             <Label htmlFor="produto-preco">Preço (R$)</Label>
-            <Input
-              id="produto-preco"
-              inputMode="numeric"
-              placeholder="0,00"
-              value={preco}
-              onChange={(e) => setPreco(formatCurrencyInput(e.target.value))}
-            />
+            <Input id="produto-preco" inputMode="numeric" placeholder="0,00" value={preco} onChange={(e) => setPreco(formatCurrencyInput(e.target.value))} />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="produto-imagem-arquivo">Imagem do produto</Label>
-            <Input
-              id="produto-imagem-arquivo"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => {
-                const file = e.target.files?.[0] ?? null
-                setImagemArquivo(file)
-                if (file) setPreviewUrl(URL.createObjectURL(file))
-              }}
-            />
-            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, até 4 MB.</p>
-            <Label htmlFor="produto-imagem-url">URL legada (opcional)</Label>
-            <Input
-              id="produto-imagem-url"
-              value={imagemUrl}
-              onChange={(e) => setImagemUrl(e.target.value)}
-              placeholder="https://..."
-            />
-            {previewUrl && (
-              <img
-                src={previewUrl}
-                alt="preview"
-                className="w-full h-40 object-cover rounded-[var(--radius)] border"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'block' }}
-              />
-            )}
-          </div>
+          <details className="rounded-[var(--radius)] border px-3">
+            <summary className="cursor-pointer py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">Mais opções</summary>
+            <div className="space-y-4 border-t py-4">
+              <div className="space-y-1">
+                <Label htmlFor="produto-descricao">Descrição</Label>
+                <Textarea id="produto-descricao" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="produto-imagem-arquivo">Imagem do produto</Label>
+                <Input id="produto-imagem-arquivo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0] ?? null; setImagemArquivo(file); if (file) setPreviewUrl(URL.createObjectURL(file)) }} />
+                <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, até 4 MB.</p>
+                <Label htmlFor="produto-imagem-url">URL legada (opcional)</Label>
+                <Input id="produto-imagem-url" value={imagemUrl} onChange={(e) => setImagemUrl(e.target.value)} placeholder="https://..." />
+                {previewUrl && <img src={previewUrl} alt="preview" className="h-40 w-full rounded-[var(--radius)] border object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'block' }} />}
+              </div>
+            </div>
+          </details>
         </div>
         <DialogFooter>
           <Button type="button" intent="destructive" appearance="outline" className="min-h-11" onClick={onClose}>Cancelar</Button>
@@ -131,4 +103,3 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
     </Dialog>
   )
 }
-
