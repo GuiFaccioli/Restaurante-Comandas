@@ -107,9 +107,16 @@ CREATE TABLE movimento_estoque (
   insumo_id UUID NOT NULL REFERENCES insumo(id),
   tipo TEXT NOT NULL,
   quantidade NUMERIC(12,3) NOT NULL,
+  saldo_anterior NUMERIC(12,3) NOT NULL DEFAULT 0,
+  saldo_resultante NUMERIC(12,3) NOT NULL DEFAULT 0,
+  custo_unitario NUMERIC(12,4),
+  custo_total NUMERIC(12,2),
   pedido_id UUID REFERENCES pedido(id) ON DELETE SET NULL,
+  item_pedido_id UUID REFERENCES item_pedido(id) ON DELETE SET NULL,
   chave_idempotencia TEXT NOT NULL UNIQUE,
+  motivo TEXT,
   observacao TEXT,
+  criado_por_usuario_id UUID,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -132,6 +139,10 @@ CREATE TABLE usuario (
 ALTER TABLE pedido
   ADD CONSTRAINT pedido_created_by_user_id_fkey
   FOREIGN KEY (created_by_user_id) REFERENCES usuario(id) ON DELETE SET NULL;
+
+ALTER TABLE movimento_estoque
+  ADD CONSTRAINT movimento_estoque_criado_por_usuario_id_fkey
+  FOREIGN KEY (criado_por_usuario_id) REFERENCES usuario(id) ON DELETE SET NULL;
 
 CREATE TABLE pagamento_pedido (
   id                         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

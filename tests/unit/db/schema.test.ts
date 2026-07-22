@@ -73,7 +73,9 @@ describe('Drizzle schema', () => {
 
     it('keeps an idempotent movement ledger for stock changes', () => {
       expect(Object.keys(movimentoEstoque)).toEqual(expect.arrayContaining([
-        'id', 'tenantId', 'insumoId', 'tipo', 'quantidade', 'pedidoId', 'chaveIdempotencia',
+        'id', 'tenantId', 'insumoId', 'tipo', 'quantidade', 'saldoAnterior', 'saldoResultante',
+        'custoUnitario', 'custoTotal', 'pedidoId', 'itemPedidoId', 'chaveIdempotencia', 'motivo',
+        'criadoPorUsuarioId',
       ]))
     })
   })

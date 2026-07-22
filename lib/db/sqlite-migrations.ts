@@ -45,9 +45,16 @@ export function migrateSqliteDatabase(sqlite: SqliteConnection): void {
       insumo_id TEXT NOT NULL REFERENCES insumo(id),
       tipo TEXT NOT NULL,
       quantidade TEXT NOT NULL,
+      saldo_anterior TEXT NOT NULL DEFAULT '0',
+      saldo_resultante TEXT NOT NULL DEFAULT '0',
+      custo_unitario TEXT,
+      custo_total TEXT,
       pedido_id TEXT REFERENCES pedido(id) ON DELETE SET NULL,
+      item_pedido_id TEXT REFERENCES item_pedido(id) ON DELETE SET NULL,
       chave_idempotencia TEXT NOT NULL UNIQUE,
+      motivo TEXT,
       observacao TEXT,
+      criado_por_usuario_id TEXT REFERENCES usuario(id) ON DELETE SET NULL,
       criado_em INTEGER NOT NULL
     );
 
@@ -56,5 +63,22 @@ export function migrateSqliteDatabase(sqlite: SqliteConnection): void {
     CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_insumo_id ON ficha_tecnica_item(insumo_id);
     CREATE INDEX IF NOT EXISTS idx_movimento_estoque_tenant_id ON movimento_estoque(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_movimento_estoque_insumo_id ON movimento_estoque(insumo_id);
+    CREATE INDEX IF NOT EXISTS idx_movimento_estoque_insumo_criado_em ON movimento_estoque(insumo_id, criado_em DESC);
   `)
+
+  const movementColumns: Array<[string, string]> = [
+    ['saldo_anterior', "TEXT NOT NULL DEFAULT '0'"],
+    ['saldo_resultante', "TEXT NOT NULL DEFAULT '0'"],
+    ['custo_unitario', 'TEXT'],
+    ['custo_total', 'TEXT'],
+    ['item_pedido_id', 'TEXT'],
+    ['motivo', 'TEXT'],
+    ['criado_por_usuario_id', 'TEXT'],
+  ]
+  for (const [column, definition] of movementColumns) {
+    if (!hasColumn(sqlite, 'movimento_estoque', column)) {
+      sqlite.exec(`ALTER TABLE movimento_estoque ADD COLUMN ${column} ${definition}`)
+    }
+  }
+  sqlite.exec('CREATE INDEX IF NOT EXISTS idx_movimento_estoque_pedido_item ON movimento_estoque(pedido_id, item_pedido_id)')
 }

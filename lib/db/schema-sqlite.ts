@@ -7,7 +7,13 @@ export type TenantStatus = 'active' | 'inactive'
 export type TenantUserStatus = 'active' | 'inactive'
 export type FormaPagamento = 'dinheiro' | 'pix' | 'credito' | 'debito' | 'outro'
 export type StatusPagamento = 'registrado' | 'estornado'
-export type TipoMovimentoEstoque = 'entrada' | 'saida' | 'ajuste' | 'estorno'
+export type TipoMovimentoEstoque =
+  | 'entrada'
+  | 'perda'
+  | 'contagem'
+  | 'saida'
+  | 'estorno'
+  | 'ajuste'
 
 export const tenant = sqliteTable('tenant', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -76,9 +82,16 @@ export const movimentoEstoque = sqliteTable('movimento_estoque', {
   insumoId: text('insumo_id').notNull().references(() => insumo.id),
   tipo: text('tipo').notNull(),
   quantidade: text('quantidade').notNull(),
+  saldoAnterior: text('saldo_anterior').notNull().default('0'),
+  saldoResultante: text('saldo_resultante').notNull().default('0'),
+  custoUnitario: text('custo_unitario'),
+  custoTotal: text('custo_total'),
   pedidoId: text('pedido_id').references(() => pedido.id, { onDelete: 'set null' }),
+  itemPedidoId: text('item_pedido_id').references(() => itemPedido.id, { onDelete: 'set null' }),
   chaveIdempotencia: text('chave_idempotencia').notNull().unique(),
+  motivo: text('motivo'),
   observacao: text('observacao'),
+  criadoPorUsuarioId: text('criado_por_usuario_id').references(() => usuario.id, { onDelete: 'set null' }),
   criadoEm: integer('criado_em', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 

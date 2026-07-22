@@ -50,7 +50,13 @@ export type TenantStatus = 'active' | 'inactive'
 export type TenantUserStatus = 'active' | 'inactive'
 export type FormaPagamento = 'dinheiro' | 'pix' | 'credito' | 'debito' | 'outro'
 export type StatusPagamento = 'registrado' | 'estornado'
-export type TipoMovimentoEstoque = 'entrada' | 'saida' | 'ajuste' | 'estorno'
+export type TipoMovimentoEstoque =
+  | 'entrada'
+  | 'perda'
+  | 'contagem'
+  | 'saida'
+  | 'estorno'
+  | 'ajuste'
 
 // ============================================================
 // Tables
@@ -139,9 +145,16 @@ export const movimentoEstoque = pgTable('movimento_estoque', {
     .references(() => insumo.id),
   tipo: text('tipo').notNull(),
   quantidade: numeric('quantidade', { precision: 12, scale: 3 }).notNull(),
+  saldoAnterior: numeric('saldo_anterior', { precision: 12, scale: 3 }).notNull().default('0'),
+  saldoResultante: numeric('saldo_resultante', { precision: 12, scale: 3 }).notNull().default('0'),
+  custoUnitario: numeric('custo_unitario', { precision: 12, scale: 4 }),
+  custoTotal: numeric('custo_total', { precision: 12, scale: 2 }),
   pedidoId: uuid('pedido_id').references(() => pedido.id, { onDelete: 'set null' }),
+  itemPedidoId: uuid('item_pedido_id').references(() => itemPedido.id, { onDelete: 'set null' }),
   chaveIdempotencia: text('chave_idempotencia').notNull().unique(),
+  motivo: text('motivo'),
   observacao: text('observacao'),
+  criadoPorUsuarioId: uuid('criado_por_usuario_id').references(() => usuario.id, { onDelete: 'set null' }),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 })
 
