@@ -3,12 +3,12 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Save, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Save, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AdminEmptyState, AdminPage } from '@/components/admin/admin-page'
-import { criarInsumo, registrarEntradaEstoque, salvarFichaTecnica } from '@/lib/actions/estoque'
+import { ajustarEstoqueAtual, criarInsumo, registrarEntradaEstoque, salvarFichaTecnica } from '@/lib/actions/estoque'
 import { UNIDADES_BASE, UNIDADES_COMPRA, type UnidadeBase } from '@/lib/stock/units'
 
 type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string }
@@ -31,6 +31,8 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
   const [savingRecipe, setSavingRecipe] = useState(false)
   const [entryId, setEntryId] = useState<string | null>(null)
   const [entryValues, setEntryValues] = useState<Record<string, string>>({})
+  const [editingStockId, setEditingStockId] = useState<string | null>(null)
+  const [stockValue, setStockValue] = useState('')
   const [newIngredient, setNewIngredient] = useState({ nome: '', unidadeBase: 'g' as UnidadeBase, unidadeCompra: 'kg', estoqueAtual: '', estoqueIdeal: '', estoqueMinimo: '' })
   const selectedProduct = produtos.find((item) => item.id === selectedProdutoId)
   const availableIngredients = useMemo(() => insumos.filter((item) => !rows.some((row) => row.insumoId === item.id)), [insumos, rows])
@@ -62,6 +64,18 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
     finally { setEntryId(null) }
   }
 
+  function startStockEdit(item: Insumo) {
+    setEditingStockId(item.id)
+    setStockValue(item.estoqueAtual)
+  }
+
+  async function handleStockEdit(item: Insumo) {
+    setEntryId(item.id)
+    try { await ajustarEstoqueAtual(item.id, stockValue); setEditingStockId(null); router.refresh(); toast.success('Estoque atualizado.') }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o estoque.') }
+    finally { setEntryId(null) }
+  }
+
   return (
     <AdminPage>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
@@ -82,7 +96,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
             {([['estoqueAtual', 'Atual'], ['estoqueIdeal', 'Ideal'], ['estoqueMinimo', 'Mínimo']] as const).map(([field, label]) => <div className="space-y-1" key={field}><Label htmlFor={`insumo-${field}`}>{label}</Label><Input id={`insumo-${field}`} inputMode="decimal" value={newIngredient[field]} onChange={(e) => setNewIngredient({ ...newIngredient, [field]: e.target.value })} placeholder="0" /></div>)}
             <Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={creating} disabled={creating || !newIngredient.nome.trim()} onClick={handleCreateIngredient}><Plus aria-hidden="true" /> Adicionar</Button>
           </div>
-          {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo" description="Adicione o primeiro insumo acima." /> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground"><th className="px-2 py-3 font-medium">Insumo</th><th className="px-2 py-3 font-medium">Estoque</th><th className="px-2 py-3 font-medium">Mínimo</th><th className="px-2 py-3 font-medium">Entrada</th></tr></thead><tbody className="divide-y">{insumos.map((item) => { const low = Number(item.estoqueAtual) <= Number(item.estoqueMinimo); return <tr key={item.id}><td className="px-2 py-3"><p className="font-medium">{item.nome}</p><p className="text-xs text-muted-foreground">{item.unidadeCompra} → {item.unidadeBase}</p></td><td className={`px-2 py-3 font-medium ${low ? 'text-[var(--action-warning-outline)]' : ''}`}>{formatQuantity(item.estoqueAtual, item.unidadeBase)}</td><td className="px-2 py-3 text-muted-foreground">{formatQuantity(item.estoqueMinimo, item.unidadeBase)}</td><td className="px-2 py-3"><div className="flex items-center gap-2"><Input aria-label={`Entrada para ${item.nome}`} className="w-28" inputMode="decimal" value={entryValues[item.id] ?? ''} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /><Button type="button" size="sm" intent="neutral" appearance="outline" aria-busy={entryId === item.id} disabled={entryId === item.id || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar</Button></div></td></tr> })}</tbody></table></div>}
+          {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo" description="Adicione o primeiro insumo acima." /> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground"><th className="px-2 py-3 font-medium">Insumo</th><th className="px-2 py-3 font-medium">Estoque</th><th className="px-2 py-3 font-medium">Mínimo</th><th className="px-2 py-3 font-medium">Entrada</th></tr></thead><tbody className="divide-y">{insumos.map((item) => { const low = Number(item.estoqueAtual) <= Number(item.estoqueMinimo); const editing = editingStockId === item.id; return <tr key={item.id}><td className="px-2 py-3"><p className="font-medium">{item.nome}</p><p className="text-xs text-muted-foreground">{item.unidadeCompra} → {item.unidadeBase}</p></td><td className={`px-2 py-3 font-medium ${low ? 'text-[var(--action-warning-outline)]' : ''}`}>{editing ? <div className="flex items-center gap-1"><Input aria-label={`Quantidade total de ${item.nome}`} className="w-28" inputMode="decimal" value={stockValue} onChange={(e) => setStockValue(e.target.value)} autoFocus /><Button type="button" size="icon-sm" intent="positive" appearance="ghost" aria-label={`Salvar estoque de ${item.nome}`} aria-busy={entryId === item.id} disabled={entryId === item.id} onClick={() => handleStockEdit(item)}><Save aria-hidden="true" /></Button></div> : <div className="flex items-center gap-1"><span>{formatQuantity(item.estoqueAtual, item.unidadeBase)}</span><Button type="button" size="icon-sm" intent="neutral" appearance="ghost" aria-label={`Editar estoque de ${item.nome}`} onClick={() => startStockEdit(item)}><Pencil aria-hidden="true" /></Button></div>}</td><td className="px-2 py-3 text-muted-foreground">{formatQuantity(item.estoqueMinimo, item.unidadeBase)}</td><td className="px-2 py-3"><div className="flex items-center gap-2"><Input aria-label={`Entrada para ${item.nome}`} className="w-28" inputMode="decimal" value={entryValues[item.id] ?? ''} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /><Button type="button" size="sm" intent="neutral" appearance="outline" aria-busy={entryId === item.id} disabled={entryId === item.id || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar</Button></div></td></tr> })}</tbody></table></div>}
         </div>
       ) : (
         <div className="mt-5 space-y-5">

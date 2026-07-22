@@ -199,6 +199,21 @@ export async function registrarEntradaEstoque(id: string, quantidadeCompra: stri
   await db.insert(movimentoEstoque).values({ id: crypto.randomUUID(), tenantId, insumoId: id, tipo: 'entrada', quantidade, pedidoId: null, chaveIdempotencia: key, observacao: 'Entrada manual de estoque', criadoEm: new Date() })
 }
 
+export async function ajustarEstoqueAtual(id: string, quantidadeBase: string): Promise<void> {
+  const { tenantId } = await requireAccess('admin')
+  const quantidade = Number(quantidadeBase.replace(',', '.'))
+  if (!Number.isFinite(quantidade) || quantidade < 0) throw new Error('Informe uma quantidade válida')
+
+  const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId)))
+  if (!item) throw new Error('Insumo não encontrado')
+
+  await db.update(insumo).set({ estoqueAtual: quantidade.toFixed(3) }).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId)))
+  await db.insert(movimentoEstoque).values({
+    id: crypto.randomUUID(), tenantId, insumoId: id, tipo: 'ajuste', quantidade: quantidade.toFixed(3), pedidoId: null,
+    chaveIdempotencia: `ajuste:${crypto.randomUUID()}`, observacao: 'Ajuste manual do estoque', criadoEm: new Date(),
+  })
+}
+
 export async function editarInsumo(id: string, input: EditarInsumoInput): Promise<void> {
   const { tenantId } = await requireAccess('admin')
   const nome = input.nome.trim()
