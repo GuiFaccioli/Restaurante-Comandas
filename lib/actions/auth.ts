@@ -1,9 +1,15 @@
 'use server'
 
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
-import { db } from '@/lib/db/index'
+import { db, runInDbTransaction } from '@/lib/db/index'
 import { tenant, tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
+import {
+  tenant as sqliteTenant,
+  tenantUser as sqliteTenantUser,
+  usuario as sqliteUsuario,
+  usuarioAcesso as sqliteUsuarioAcesso,
+} from '@/lib/db/schema-sqlite'
 import { assertValidEmail, hashPassword, verifyPassword } from '@/lib/auth/password'
 import {
   createAuthSession,
@@ -14,9 +20,21 @@ import {
 import { redirectForAccesses } from '@/lib/auth/access'
 import type { AcessoUsuario } from '@/lib/db/schema'
 
+const SIGN_UP_ERROR_MESSAGE = 'Não foi possível criar a conta'
+
 function formValue(data: FormData | Record<string, unknown>, key: string): string {
   if (data instanceof FormData) return String(data.get(key) ?? '')
   return String(data[key] ?? '')
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const code = 'code' in error ? String(error.code) : ''
+  if (code === '23505' || code === 'SQLITE_CONSTRAINT_UNIQUE') return true
+
+  const message = error instanceof Error ? error.message : ''
+  return code === 'SQLITE_CONSTRAINT' && message.includes('UNIQUE constraint failed')
 }
 
 function slugifyTenantName(name: string): string {
@@ -57,55 +75,82 @@ export async function signUpOwner(
   if (!nome) throw new Error('Informe seu nome')
   if (!tenantNome) throw new Error('Informe o nome do restaurante')
 
-  const [existing] = await db
-    .select({ id: usuario.id })
-    .from(usuario)
-    .where(eq(usuario.email, email))
-
-  const usuarioId = existing?.id ?? crypto.randomUUID()
-  const now = new Date()
-
-  if (!existing) {
-    const passwordHash = await hashPassword(password)
-
-    await db.insert(usuario).values({
-      id: usuarioId,
-      nome,
-      email,
-      passwordHash,
-      role: 'admin',
-      createdAt: now,
-      updatedAt: now,
-    })
-  }
-
+  const usuarioId = crypto.randomUUID()
   const tenantId = crypto.randomUUID()
   const tenantUserId = crypto.randomUUID()
-
-  await db.insert(tenant).values({
+  const now = new Date()
+  const passwordHash = await hashPassword(password)
+  const usuarioValues = {
+    id: usuarioId,
+    nome,
+    email,
+    passwordHash,
+    role: 'admin' as const,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const tenantValues = {
     id: tenantId,
     nome: tenantNome,
     slug: slugifyTenantName(tenantNome),
-    status: 'active',
+    status: 'active' as const,
     createdAt: now,
     updatedAt: now,
-  })
-
-  await db.insert(tenantUser).values({
+  }
+  const tenantUserValues = {
     id: tenantUserId,
     tenantId,
     usuarioId,
-    status: 'active',
+    status: 'active' as const,
     createdAt: now,
     updatedAt: now,
-  })
-
-  await db.insert(usuarioAcesso).values({
+  }
+  const acessoValues = {
     id: crypto.randomUUID(),
     tenantUserId,
     usuarioId,
-    acesso: 'admin',
-  })
+    acesso: 'admin' as const,
+  }
+
+  try {
+    await runInDbTransaction({
+      sqliteOperation: (tx) => {
+        const existing = tx
+          .select({ id: sqliteUsuario.id })
+          .from(sqliteUsuario)
+          .where(eq(sqliteUsuario.email, email))
+          .get()
+
+        if (existing) throw new Error(SIGN_UP_ERROR_MESSAGE)
+
+        tx.insert(sqliteUsuario).values(usuarioValues).run()
+        tx.insert(sqliteTenant).values(tenantValues).run()
+        tx.insert(sqliteTenantUser).values(tenantUserValues).run()
+        tx.insert(sqliteUsuarioAcesso).values(acessoValues).run()
+      },
+      postgresOperation: async (tx) => {
+        const [existing] = await tx
+          .select({ id: usuario.id })
+          .from(usuario)
+          .where(eq(usuario.email, email))
+
+        if (existing) throw new Error(SIGN_UP_ERROR_MESSAGE)
+
+        await tx.insert(usuario).values(usuarioValues)
+        await tx.insert(tenant).values(tenantValues)
+        await tx.insert(tenantUser).values(tenantUserValues)
+        await tx.insert(usuarioAcesso).values(acessoValues)
+      },
+    })
+  } catch (error) {
+    if (
+      isUniqueConstraintError(error) ||
+      (error instanceof Error && error.message === SIGN_UP_ERROR_MESSAGE)
+    ) {
+      throw new Error(SIGN_UP_ERROR_MESSAGE)
+    }
+    throw error
+  }
 
   await createAuthSession(usuarioId, tenantId)
   redirect('/selecionar-area')
@@ -129,7 +174,13 @@ export async function signIn(
     .select({ id: tenantUser.id, tenantId: tenantUser.tenantId, nome: tenant.nome })
     .from(tenantUser)
     .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
-    .where(eq(tenantUser.usuarioId, user.id))
+    .where(
+      and(
+        eq(tenantUser.usuarioId, user.id),
+        eq(tenantUser.status, 'active'),
+        eq(tenant.status, 'active')
+      )
+    )
 
   if (memberships.length === 0) {
     await createAuthSession(user.id)
@@ -147,7 +198,12 @@ export async function signIn(
   const accesses = await db
     .select({ acesso: usuarioAcesso.acesso })
     .from(usuarioAcesso)
-    .where(eq(usuarioAcesso.tenantUserId, membership.id))
+    .where(
+      and(
+        eq(usuarioAcesso.tenantUserId, membership.id),
+        eq(usuarioAcesso.usuarioId, user.id)
+      )
+    )
 
   redirect(redirectForAccesses(accesses.map((row) => row.acesso as AcessoUsuario)))
 }
@@ -167,7 +223,13 @@ export async function listCurrentTenantMemberships(): Promise<
     .select({ tenantId: tenantUser.tenantId, nome: tenant.nome })
     .from(tenantUser)
     .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
-    .where(eq(tenantUser.usuarioId, session.usuarioId))
+    .where(
+      and(
+        eq(tenantUser.usuarioId, session.usuarioId),
+        eq(tenantUser.status, 'active'),
+        eq(tenant.status, 'active')
+      )
+    )
 }
 
 export async function selectTenant(data: FormData | { tenantId: string }): Promise<void> {
@@ -180,9 +242,17 @@ export async function selectTenant(data: FormData | { tenantId: string }): Promi
   const memberships = await db
     .select({ tenantId: tenantUser.tenantId })
     .from(tenantUser)
-    .where(eq(tenantUser.usuarioId, session.usuarioId))
+    .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
+    .where(
+      and(
+        eq(tenantUser.usuarioId, session.usuarioId),
+        eq(tenantUser.tenantId, requestedTenantId),
+        eq(tenantUser.status, 'active'),
+        eq(tenant.status, 'active')
+      )
+    )
 
-  if (!memberships.some((membership) => membership.tenantId === requestedTenantId)) {
+  if (memberships.length === 0) {
     redirect('/sem-acesso')
   }
 

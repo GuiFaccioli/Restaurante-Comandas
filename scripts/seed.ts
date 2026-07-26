@@ -9,9 +9,11 @@ import { hashPassword } from '../lib/auth/password'
 import { DEV_TEST_PASSWORD, DEV_TEST_USERS } from '../lib/dev/test-users'
 import { DEFAULT_MENU_CATEGORIES } from '../lib/menu/default-menu'
 import { migrateSqliteDatabase } from '../lib/db/sqlite-migrations'
+import { sqlitePathFromDatabaseUrl } from '../lib/db/database-url'
 
-const url = process.env.DATABASE_URL ?? 'file:./dev.db'
-const dbPath = url.startsWith('file:') ? url.replace('file:', '') : './dev.db'
+const url = process.env.DATABASE_URL
+if (!url) throw new Error('DATABASE_URL is required for db:seed.')
+const dbPath = sqlitePathFromDatabaseUrl(url)
 
 const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')

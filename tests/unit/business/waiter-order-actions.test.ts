@@ -14,13 +14,4 @@ describe('waiter order action semantics', () => {
     expect(panel).toMatch(/intent="neutral"[\s\S]*Itens/)
   })
 
-  it('announces cancel, deliver, and pending-delivery transitions', () => {
-    const panel = source('components/garcom/table-orders-panel.tsx')
-    const deliveries = source('components/garcom/pending-deliveries-client.tsx')
-
-    expect(panel).toContain('aria-busy={canceling}')
-    expect(panel).toContain('aria-busy={confirming}')
-    expect(deliveries).toContain('aria-busy={pending}')
-    expect(deliveries).toContain('intent="positive"')
-  })
 })

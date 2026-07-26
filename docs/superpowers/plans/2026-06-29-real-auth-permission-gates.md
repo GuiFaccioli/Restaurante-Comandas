@@ -23,27 +23,27 @@
 
 ## File Map
 
-- `lib/db/schema.ts` — PostgreSQL auth/access/session schema.
-- `lib/db/schema-sqlite.ts` — SQLite auth/access/session schema for local tests/dev if still used.
-- `lib/auth/password.ts` — password hashing and verification.
-- `lib/auth/session.ts` — session cookie, token hashing, session lookup, logout.
-- `lib/auth/access.ts` — `requireAccess`, `getCurrentAccesses`, area redirect helpers.
-- `lib/actions/auth.ts` — sign-up, sign-in, sign-out actions.
-- `app/auth/sign-in/page.tsx` — first-party login form.
-- `app/auth/sign-up/page.tsx` — first-party registration form.
-- `app/selecionar-area/page.tsx` — area chooser for users with multiple accesses.
-- `app/admin/layout.tsx` — admin setup guard.
-- `app/admin/pedidos/page.tsx` — caixa guard.
-- `app/cozinha/layout.tsx` — cozinha guard.
-- `app/garcom/layout.tsx` — garcom guard.
-- `app/api/events/route.ts` — cozinha guard for SSE.
-- `lib/actions/pedidos.ts` — garcom/cozinha action guards.
-- `lib/actions/produtos.ts` — admin action guard.
-- `lib/actions/mesas.ts` — admin action guard.
-- `tests/unit/auth/password.test.ts` — password tests.
-- `tests/unit/auth/access.test.ts` — access guard tests.
-- `tests/unit/auth/actions.test.ts` — auth action tests.
-- `tests/unit/business/permission-boundary.test.ts` — source-level permission boundary tests.
+- `lib/db/schema.ts` â€” PostgreSQL auth/access/session schema.
+- `lib/db/schema-sqlite.ts` â€” SQLite auth/access/session schema for local tests/dev if still used.
+- `lib/auth/password.ts` â€” password hashing and verification.
+- `lib/auth/session.ts` â€” session cookie, token hashing, session lookup, logout.
+- `lib/auth/access.ts` â€” `requireAccess`, `getCurrentAccesses`, area redirect helpers.
+- `lib/actions/auth.ts` â€” sign-up, sign-in, sign-out actions.
+- `app/auth/sign-in/page.tsx` â€” first-party login form.
+- `app/auth/sign-up/page.tsx` â€” first-party registration form.
+- `app/selecionar-area/page.tsx` â€” area chooser for users with multiple accesses.
+- `app/admin/layout.tsx` â€” admin setup guard.
+- `app/admin/pedidos/page.tsx` â€” caixa guard.
+- `app/cozinha/layout.tsx` â€” cozinha guard.
+- `app/garcom/layout.tsx` â€” garcom guard.
+- `app/api/events/route.ts` â€” cozinha guard for SSE.
+- `lib/actions/pedidos.ts` â€” garcom/cozinha action guards.
+- `lib/actions/produtos.ts` â€” admin action guard.
+- `lib/actions/mesas.ts` â€” admin action guard.
+- `tests/unit/auth/password.test.ts` â€” password tests.
+- `tests/unit/auth/access.test.ts` â€” access guard tests.
+- `tests/unit/auth/actions.test.ts` â€” auth action tests.
+- `tests/unit/business/permission-boundary.test.ts` â€” source-level permission boundary tests.
 
 ---
 

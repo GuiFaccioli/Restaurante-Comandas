@@ -18,25 +18,41 @@ type Pedido = {
 export function KanbanBoard({ initialPedidos }: { initialPedidos: Pedido[] }) {
   const [pedidos, setPedidos] = useState(initialPedidos)
 
+  const handleStatusChange = useCallback((pedidoId: string, status: StatusPedido) => {
+    setPedidos((prev) =>
+      prev.map((pedido) => (pedido.id === pedidoId ? { ...pedido, status } : pedido))
+    )
+  }, [])
+
   const handleEvent = useCallback((event: KitchenEvent) => {
     if (event.type === 'novo_pedido') {
       const { pedidoId, mesaNumero, itens } = event.payload
-      setPedidos((prev) => [
-        {
-          id: pedidoId,
-          mesaNumero,
-          status: 'novo' as StatusPedido,
-          criadoEm: new Date(),
-          itens,
-        },
-        ...prev,
-      ])
+      setPedidos((prev) => {
+        if (prev.some((pedido) => pedido.id === pedidoId)) return prev
+
+        return [
+          {
+            id: pedidoId,
+            mesaNumero,
+            status: 'novo' as StatusPedido,
+            criadoEm: new Date(),
+            itens,
+          },
+          ...prev,
+        ]
+      })
     }
 
     if (event.type === 'status_atualizado') {
       const { pedidoId, status } = event.payload
       if (status === 'entregue' || status === 'cancelado') {
         setPedidos((prev) => prev.filter((p) => p.id !== pedidoId))
+      } else if (status === 'novo' || status === 'em_preparo' || status === 'pronto') {
+        setPedidos((prev) =>
+          prev.map((pedido) =>
+            pedido.id === pedidoId ? { ...pedido, status } : pedido
+          )
+        )
       }
     }
   }, [])
@@ -60,7 +76,7 @@ export function KanbanBoard({ initialPedidos }: { initialPedidos: Pedido[] }) {
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {pedidos.map((p) => (
-              <PedidoCard key={p.id} pedido={p} />
+              <PedidoCard key={p.id} pedido={p} onStatusChange={handleStatusChange} />
             ))}
           </div>
         )}

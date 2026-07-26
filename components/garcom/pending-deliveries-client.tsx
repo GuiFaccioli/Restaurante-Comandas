@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { SseListener } from '@/components/cozinha/sse-listener'
@@ -27,12 +28,18 @@ function PendingDeliveryCard({
   onDelivered: (pedidoId: string) => void
 }) {
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
   const itemGroups = groupKitchenItemsByCategory(pedido.itens)
 
   function handleConfirm() {
+    setError(null)
     startTransition(async () => {
-      await confirmarEntrega(pedido.id)
-      onDelivered(pedido.id)
+      try {
+        await confirmarEntrega(pedido.id)
+        onDelivered(pedido.id)
+      } catch {
+        setError('Não foi possível confirmar.')
+      }
     })
   }
 
@@ -56,6 +63,11 @@ function PendingDeliveryCard({
           {pending ? 'Confirmando...' : 'Confirmar entrega'}
         </Button>
       </div>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="space-y-3">
         {itemGroups.map((group) => (
@@ -83,35 +95,49 @@ function PendingDeliveryCard({
 }
 
 export function PendingDeliveriesClient({ initialPedidos }: { initialPedidos: Pedido[] }) {
-  const [pedidos, setPedidos] = useState(initialPedidos)
+  const router = useRouter()
+  const [pedidos, setPedidos] = useState(() =>
+    initialPedidos.filter((pedido) => pedido.status === 'pronto')
+  )
+  const [feedback, setFeedback] = useState<string | null>(null)
+
+  useEffect(() => {
+    setPedidos(initialPedidos.filter((pedido) => pedido.status === 'pronto'))
+  }, [initialPedidos])
 
   const removePedido = useCallback((pedidoId: string) => {
     setPedidos((prev) => prev.filter((p) => p.id !== pedidoId))
   }, [])
 
-  const handleEvent = useCallback((event: KitchenEvent) => {
-    if (event.type === 'novo_pedido') {
-      const { pedidoId, mesaNumero, itens } = event.payload
-      setPedidos((prev) => [
-        {
-          id: pedidoId,
-          mesaNumero,
-          status: 'novo' as StatusPedido,
-          criadoEm: new Date(),
-          itens,
-        },
-        ...prev,
-      ])
-    }
+  const handleDelivered = useCallback(
+    (pedidoId: string) => {
+      removePedido(pedidoId)
+      setFeedback('Entrega confirmada.')
+    },
+    [removePedido]
+  )
 
-    if (event.type === 'status_atualizado' && event.payload.status === 'entregue') {
+  const handleEvent = useCallback((event: KitchenEvent) => {
+    if (event.type !== 'status_atualizado') return
+
+    if (event.payload.status === 'pronto') {
+      router.refresh()
+    } else if (
+      event.payload.status === 'entregue' ||
+      event.payload.status === 'cancelado'
+    ) {
       removePedido(event.payload.pedidoId)
     }
-  }, [removePedido])
+  }, [removePedido, router])
 
   return (
     <>
       <SseListener onEvent={handleEvent} />
+      {feedback && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {feedback}
+        </p>
+      )}
       {pedidos.length === 0 ? (
         <div className="space-y-3 rounded-[var(--radius)] border bg-card p-6">
           <p className="font-medium">Nenhuma entrega pendente agora.</p>
@@ -138,7 +164,7 @@ export function PendingDeliveriesClient({ initialPedidos }: { initialPedidos: Pe
             <PendingDeliveryCard
               key={pedido.id}
               pedido={pedido}
-              onDelivered={removePedido}
+              onDelivered={handleDelivered}
             />
           ))}
         </div>

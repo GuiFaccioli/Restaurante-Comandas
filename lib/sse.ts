@@ -17,22 +17,67 @@ export type KitchenEvent =
       }
     }
   | { type: 'status_atualizado'; payload: { pedidoId: string; status: string } }
-  | { type: 'produto_indisponivel'; payload: { produtoId: string } }
 
-const clients = new Set<ReadableStreamDefaultController>()
+const clientsByTenant = new Map<string, Set<ReadableStreamDefaultController>>()
+const MIN_ACCEPTABLE_DESIRED_SIZE = 0
 
-export function addClient(controller: ReadableStreamDefaultController) {
+export function addClient(
+  tenantId: string,
+  controller: ReadableStreamDefaultController
+) {
+  let clients = clientsByTenant.get(tenantId)
+  if (!clients) {
+    clients = new Set()
+    clientsByTenant.set(tenantId, clients)
+  }
+
   clients.add(controller)
 }
 
-export function removeClient(controller: ReadableStreamDefaultController) {
+export function removeClient(
+  tenantId: string,
+  controller: ReadableStreamDefaultController
+) {
+  const clients = clientsByTenant.get(tenantId)
+  if (!clients) return
+
   clients.delete(controller)
+  if (clients.size === 0) {
+    clientsByTenant.delete(tenantId)
+  }
 }
 
-export function notifyKitchen(event: KitchenEvent) {
+function closeClient(
+  tenantId: string,
+  controller: ReadableStreamDefaultController
+) {
+  removeClient(tenantId, controller)
+
+  try {
+    controller.close()
+  } catch {
+    // The stream may already be closed by the request lifecycle.
+  }
+}
+
+export function notifyKitchen(tenantId: string, event: KitchenEvent) {
+  const clients = clientsByTenant.get(tenantId)
+  if (!clients) return
+
   const msg = `data: ${JSON.stringify(event)}\n\n`
   const encoded = new TextEncoder().encode(msg)
-  clients.forEach((c) => {
-    try { c.enqueue(encoded) } catch { clients.delete(c) }
+  clients.forEach((controller) => {
+    const desiredSize = controller.desiredSize
+    // Zero is a full standard queue; allow one pending event before disconnecting.
+    if (desiredSize !== null && desiredSize < MIN_ACCEPTABLE_DESIRED_SIZE) {
+      closeClient(tenantId, controller)
+      return
+    }
+
+    try {
+      controller.enqueue(encoded)
+    } catch {
+      removeClient(tenantId, controller)
+    }
   })
 }

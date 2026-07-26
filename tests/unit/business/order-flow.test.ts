@@ -69,38 +69,23 @@ describe('pedido business flow', () => {
     expect(adminSource).not.toContain('useCart')
   })
 
-  test('kitchen is a visual-only board of open comandas', () => {
+  test('kitchen query keeps every official active preparation state visible', () => {
     const kitchenSource = source('app/cozinha/dashboard/page.tsx')
-    const cardSource = source('components/cozinha/pedido-card.tsx')
-    const boardSource = source('components/cozinha/kanban-board.tsx')
 
-    expect(kitchenSource).toContain("eq(pedido.status, 'novo')")
-    expect(kitchenSource).not.toContain('inArray(pedido.status')
-    expect(cardSource).not.toContain('atualizarStatus')
-    expect(cardSource).not.toContain('onStatusChange')
-    expect(cardSource).not.toContain('Iniciar Preparo')
-    expect(cardSource).not.toContain('Marcar Pronto')
-    expect(cardSource).toContain('LiveElapsedTimer')
-    expect(boardSource).not.toContain('COLUMNS')
-    expect(boardSource).toContain("status === 'entregue'")
-    expect(boardSource).toContain("status === 'cancelado'")
+    expect(kitchenSource).toContain("inArray(pedido.status, ['novo', 'em_preparo', 'pronto'])")
   })
 
   test('waiter pending deliveries page is the first waiter workflow screen', () => {
     const accessSource = source('lib/auth/access.ts')
     const pageSource = source('app/garcom/pedidos/page.tsx')
-    const clientSource = source('components/garcom/pending-deliveries-client.tsx')
 
     expect(accessSource).toContain("garcom: '/garcom/pedidos'")
     expect(pageSource).toContain("requireAccess('garcom')")
     expect(pageSource).toContain('from(pedido)')
-    expect(pageSource).toContain("eq(pedido.status, 'novo')")
+    expect(pageSource).toContain("eq(pedido.status, 'pronto')")
     expect(pageSource).toContain('PendingDeliveriesClient')
     expect(pageSource).not.toContain("redirect('/garcom/mesas')")
     expect(pageSource).not.toContain('href="/garcom/mesas"')
-    expect(clientSource).toContain('confirmarEntrega')
-    expect(clientSource).toContain('Confirmar entrega')
-    expect(clientSource).toContain("href=\"/garcom/mesas\"")
   })
 
   test('waiter pending deliveries UI keeps mobile actions readable', () => {

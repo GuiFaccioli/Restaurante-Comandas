@@ -19,7 +19,12 @@ export default async function DashboardPage() {
     })
     .from(pedido)
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
-    .where(and(eq(pedido.tenantId, tenantId), eq(pedido.status, 'novo')))
+    .where(
+      and(
+        eq(pedido.tenantId, tenantId),
+        inArray(pedido.status, ['novo', 'em_preparo', 'pronto'])
+      )
+    )
     .orderBy(desc(pedido.criadoEm))
 
   const pedidoIds = pedidosAtivos.map((p) => p.id)

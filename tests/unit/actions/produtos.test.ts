@@ -1,10 +1,20 @@
 ﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const drizzleExpressions = vi.hoisted(() => ({
+  and: vi.fn((...conditions: unknown[]) => ({ kind: 'and', conditions })),
+  eq: vi.fn((column: unknown, value: unknown) => ({ kind: 'eq', column, value })),
+  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
+    kind: 'sql',
+    strings: [...strings],
+    values,
+  })),
+}))
+
 vi.mock('drizzle-orm', async (importOriginal) => {
   const actual = await importOriginal<typeof import('drizzle-orm')>()
   return {
     ...actual,
-    eq: vi.fn(actual.eq),
+    ...drizzleExpressions,
   }
 })
 vi.mock('@/lib/db/index', () => ({
@@ -30,19 +40,34 @@ vi.mock('@vercel/blob', () => ({
 
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
-import { categoria, produto } from '@/lib/db/schema'
+import { categoria, mesa, produto } from '@/lib/db/schema'
 import { notifyKitchen } from '@/lib/sse'
 import { put } from '@vercel/blob'
 import {
   criarProduto,
+  editarProduto,
   toggleDisponivel,
   criarCategoria,
   removerCategoria,
   uploadProdutoImagem,
 } from '@/lib/actions/produtos'
-import { criarMesa } from '@/lib/actions/mesas'
+import { criarMesa, toggleAtiva } from '@/lib/actions/mesas'
 
 beforeEach(() => vi.clearAllMocks())
+
+function tenantScopedWhere(
+  idColumn: unknown,
+  id: string,
+  tenantColumn: unknown
+) {
+  return {
+    kind: 'and',
+    conditions: [
+      { kind: 'eq', column: idColumn, value: id },
+      { kind: 'eq', column: tenantColumn, value: 'tenant-1' },
+    ],
+  }
+}
 
 describe('criarCategoria', () => {
   it('trims the name, appends after the tenant max order, and returns id plus name', async () => {
@@ -126,6 +151,11 @@ describe('removerCategoria', () => {
 
 describe('criarProduto', () => {
   it('inserts produto and returns id', async () => {
+    ;(db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ id: 'cat-1' }]),
+      }),
+    })
     const values = vi.fn().mockReturnValue({
       returning: vi.fn().mockResolvedValue([{ id: 'prod-1' }]),
     })
@@ -144,6 +174,68 @@ describe('criarProduto', () => {
       disponivel: 1,
       imagemUrl: null,
     })
+  })
+
+  it('rejects a cross-tenant category before insert, update, or notification', async () => {
+    ;(db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    })
+
+    await expect(
+      criarProduto({ categoriaId: 'cat-foreign', nome: 'Margherita', preco: '32,00' })
+    ).rejects.toThrow('Categoria inválida')
+
+    expect(eq).toHaveBeenCalledWith(categoria.id, 'cat-foreign')
+    expect(eq).toHaveBeenCalledWith(categoria.tenantId, 'tenant-1')
+    expect(db.insert).not.toHaveBeenCalled()
+    expect(db.update).not.toHaveBeenCalled()
+    expect(notifyKitchen).not.toHaveBeenCalled()
+  })
+})
+
+describe('editarProduto', () => {
+  it('tenant-scopes both the category lookup and the specific product update', async () => {
+    const categoriaWhere = vi.fn().mockResolvedValue([{ id: 'cat-1' }])
+    ;(db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: categoriaWhere }),
+    })
+    const produtoWhere = vi.fn().mockResolvedValue(undefined)
+    const set = vi.fn().mockReturnValue({ where: produtoWhere })
+    ;(db.update as any).mockReturnValue({ set })
+
+    await editarProduto('prod-1', {
+      categoriaId: 'cat-1',
+      nome: 'Margherita especial',
+    })
+
+    expect(categoriaWhere).toHaveBeenCalledWith(
+      tenantScopedWhere(categoria.id, 'cat-1', categoria.tenantId)
+    )
+    expect(produtoWhere).toHaveBeenCalledWith(
+      tenantScopedWhere(produto.id, 'prod-1', produto.tenantId)
+    )
+  })
+
+  it('rejects a cross-tenant category before update or notification', async () => {
+    const categoriaWhere = vi.fn().mockResolvedValue([])
+    ;(db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: categoriaWhere,
+      }),
+    })
+
+    await expect(
+      editarProduto('prod-1', { categoriaId: 'cat-foreign' })
+    ).rejects.toThrow('Categoria inválida')
+
+    expect(categoriaWhere).toHaveBeenCalledWith(
+      tenantScopedWhere(categoria.id, 'cat-foreign', categoria.tenantId)
+    )
+    expect(db.insert).not.toHaveBeenCalled()
+    expect(db.update).not.toHaveBeenCalled()
+    expect(notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
@@ -173,7 +265,7 @@ describe('uploadProdutoImagem', () => {
 })
 
 describe('toggleDisponivel', () => {
-  it('fires produto_indisponivel SSE when disabling', async () => {
+  it('does not emit an event without a runtime consumer when disabling', async () => {
     ;(db.select as any).mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ id: 'prod-1', disponivel: true }]),
@@ -183,10 +275,7 @@ describe('toggleDisponivel', () => {
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
     })
     await toggleDisponivel('prod-1')
-    expect(notifyKitchen).toHaveBeenCalledWith({
-      type: 'produto_indisponivel',
-      payload: { produtoId: 'prod-1' },
-    })
+    expect(notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
@@ -205,5 +294,48 @@ describe('criarMesa', () => {
       numero: 5,
       ativa: 1,
     })
+  })
+})
+
+describe('toggleAtiva', () => {
+  it('atomically toggles with a tenant-scoped update and no preceding read', async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: 'mesa-1' }])
+    const updateWhere = vi.fn().mockReturnValue({ returning })
+    const set = vi.fn().mockReturnValue({ where: updateWhere })
+    ;(db.update as any).mockReturnValue({
+      set,
+    })
+
+    await toggleAtiva('mesa-1')
+
+    expect(db.select).not.toHaveBeenCalled()
+    expect(set).toHaveBeenCalledWith({
+      ativa: {
+        kind: 'sql',
+        strings: ['NOT ', ''],
+        values: [mesa.ativa],
+      },
+    })
+    expect(updateWhere).toHaveBeenCalledWith(
+      tenantScopedWhere(mesa.id, 'mesa-1', mesa.tenantId)
+    )
+    expect(returning).toHaveBeenCalledWith({ id: mesa.id })
+  })
+
+  it('detects a cross-tenant mesa when the scoped update changes zero rows', async () => {
+    const returning = vi.fn().mockResolvedValue([])
+    const updateWhere = vi.fn().mockReturnValue({ returning })
+    const set = vi.fn().mockReturnValue({ where: updateWhere })
+    ;(db.update as any).mockReturnValue({ set })
+
+    await expect(toggleAtiva('mesa-foreign')).rejects.toThrow('Mesa não encontrada')
+
+    expect(db.select).not.toHaveBeenCalled()
+    expect(updateWhere).toHaveBeenCalledWith(
+      tenantScopedWhere(mesa.id, 'mesa-foreign', mesa.tenantId)
+    )
+    expect(returning).toHaveBeenCalledWith({ id: mesa.id })
+    expect(db.insert).not.toHaveBeenCalled()
+    expect(notifyKitchen).not.toHaveBeenCalled()
   })
 })

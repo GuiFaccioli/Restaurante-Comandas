@@ -8,9 +8,17 @@ export type CartItem = {
   observacao?: string
 }
 
-type CartState = {
+type TableCart = {
   items: CartItem[]
   total: number
+}
+
+type CartState = {
+  mesaId: string | null
+  cartsByMesa: Record<string, TableCart>
+  items: CartItem[]
+  total: number
+  selectMesa: (mesaId: string) => void
   addItem: (item: Pick<CartItem, 'produtoId' | 'nome' | 'preco'>) => void
   removeItem: (produtoId: string) => void
   decrementItem: (produtoId: string) => void
@@ -18,60 +26,102 @@ type CartState = {
   setObservacao: (produtoId: string, observacao: string) => void
 }
 
+function updateActiveCart(
+  state: CartState,
+  update: (cart: TableCart) => TableCart
+): CartState | Partial<CartState> {
+  if (!state.mesaId) return state
+
+  const cart = update({ items: state.items, total: state.total })
+
+  return {
+    items: cart.items,
+    total: cart.total,
+    cartsByMesa: {
+      ...state.cartsByMesa,
+      [state.mesaId]: cart,
+    },
+  }
+}
+
 export const useCart = create<CartState>((set) => ({
+  mesaId: null,
+  cartsByMesa: {},
   items: [],
   total: 0,
 
-  addItem: ({ produtoId, nome, preco }) =>
-    set((s) => {
-      const existing = s.items.find((i) => i.produtoId === produtoId)
-      if (existing) {
-        return {
-          items: s.items.map((i) =>
-            i.produtoId === produtoId ? { ...i, quantidade: i.quantidade + 1 } : i
-          ),
-          total: s.total + preco,
-        }
-      }
+  selectMesa: (mesaId) =>
+    set((state) => {
+      if (state.mesaId === mesaId) return state
+
+      const cart = state.cartsByMesa[mesaId] ?? { items: [], total: 0 }
       return {
-        items: [...s.items, { produtoId, nome, preco, quantidade: 1 }],
-        total: s.total + preco,
+        mesaId,
+        items: cart.items,
+        total: cart.total,
       }
     }),
+
+  addItem: ({ produtoId, nome, preco }) =>
+    set((state) =>
+      updateActiveCart(state, (cart) => {
+        const existing = cart.items.find((i) => i.produtoId === produtoId)
+        if (existing) {
+          return {
+            items: cart.items.map((i) =>
+              i.produtoId === produtoId ? { ...i, quantidade: i.quantidade + 1 } : i
+            ),
+            total: cart.total + preco,
+          }
+        }
+        return {
+          items: [...cart.items, { produtoId, nome, preco, quantidade: 1 }],
+          total: cart.total + preco,
+        }
+      })
+    ),
 
   removeItem: (produtoId) =>
-    set((s) => {
-      const item = s.items.find((i) => i.produtoId === produtoId)
-      return {
-        items: s.items.filter((i) => i.produtoId !== produtoId),
-        total: s.total - (item ? item.preco * item.quantidade : 0),
-      }
-    }),
+    set((state) =>
+      updateActiveCart(state, (cart) => {
+        const item = cart.items.find((i) => i.produtoId === produtoId)
+        return {
+          items: cart.items.filter((i) => i.produtoId !== produtoId),
+          total: cart.total - (item ? item.preco * item.quantidade : 0),
+        }
+      })
+    ),
 
   decrementItem: (produtoId) =>
-    set((s) => {
-      const item = s.items.find((i) => i.produtoId === produtoId)
-      if (!item) return s
-      if (item.quantidade === 1) {
-        return {
-          items: s.items.filter((i) => i.produtoId !== produtoId),
-          total: s.total - item.preco,
+    set((state) =>
+      updateActiveCart(state, (cart) => {
+        const item = cart.items.find((i) => i.produtoId === produtoId)
+        if (!item) return cart
+        if (item.quantidade === 1) {
+          return {
+            items: cart.items.filter((i) => i.produtoId !== produtoId),
+            total: cart.total - item.preco,
+          }
         }
-      }
-      return {
-        items: s.items.map((i) =>
-          i.produtoId === produtoId ? { ...i, quantidade: i.quantidade - 1 } : i
-        ),
-        total: s.total - item.preco,
-      }
-    }),
+        return {
+          items: cart.items.map((i) =>
+            i.produtoId === produtoId ? { ...i, quantidade: i.quantidade - 1 } : i
+          ),
+          total: cart.total - item.preco,
+        }
+      })
+    ),
 
-  clearCart: () => set({ items: [], total: 0 }),
+  clearCart: () =>
+    set((state) => updateActiveCart(state, () => ({ items: [], total: 0 }))),
 
   setObservacao: (produtoId, observacao) =>
-    set((s) => ({
-      items: s.items.map((i) =>
-        i.produtoId === produtoId ? { ...i, observacao } : i
-      ),
-    })),
+    set((state) =>
+      updateActiveCart(state, (cart) => ({
+        items: cart.items.map((i) =>
+          i.produtoId === produtoId ? { ...i, observacao } : i
+        ),
+        total: cart.total,
+      }))
+    ),
 }))

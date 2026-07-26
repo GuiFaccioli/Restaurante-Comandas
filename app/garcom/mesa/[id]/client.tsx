@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Bell, MoreVertical } from 'lucide-react'
 import { MenuGrid } from '@/components/garcom/menu-grid'
@@ -8,6 +8,7 @@ import { CartDrawer } from '@/components/garcom/cart-drawer'
 import { TableOrdersPanel } from '@/components/garcom/table-orders-panel'
 import { ScrollToTopButton } from '@/components/operational/scroll-to-top'
 import type { TableOrder } from '@/lib/orders/queries'
+import { useCart } from '@/lib/store/cart'
 
 type Produto = {
   id: string
@@ -34,6 +35,13 @@ type Props = {
 
 export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const activeMesaId = useCart((state) => state.mesaId)
+  const selectMesa = useCart((state) => state.selectMesa)
+  const cartReady = activeMesaId === mesaId
+
+  useLayoutEffect(() => {
+    selectMesa(mesaId)
+  }, [mesaId, selectMesa])
 
   return (
     <div className="mx-auto flex h-[100dvh] max-w-4xl flex-col overflow-hidden p-4 pb-28 sm:p-6">
@@ -58,14 +66,18 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
       <div className="shrink-0">
         <TableOrdersPanel mesaId={mesaId} initialPedidos={initialPedidos} />
       </div>
-      <MenuGrid categorias={categorias} />
-      <CartFab onClick={() => setDrawerOpen(true)} />
-      <CartDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        mesaId={mesaId}
-        mesaNumero={mesaNumero}
-      />
+      {cartReady && (
+        <>
+          <MenuGrid categorias={categorias} />
+          <CartFab onClick={() => setDrawerOpen(true)} />
+          <CartDrawer
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            mesaId={mesaId}
+            mesaNumero={mesaNumero}
+          />
+        </>
+      )}
       <ScrollToTopButton />
     </div>
   )

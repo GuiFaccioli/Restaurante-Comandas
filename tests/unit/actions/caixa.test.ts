@@ -5,11 +5,13 @@ const mocks = vi.hoisted(() => ({
     select: vi.fn(),
     insert: vi.fn(),
   },
+  runInDbTransaction: vi.fn(),
   requireAccess: vi.fn(async () => ({ usuarioId: 'caixa-1', tenantId: 'tenant-1', access: 'caixa' })),
 }))
 
 vi.mock('@/lib/db/index', () => ({
   db: mocks.db,
+  runInDbTransaction: mocks.runInDbTransaction,
 }))
 
 vi.mock('@/lib/auth/access', () => ({
@@ -38,39 +40,22 @@ vi.mock('@/lib/db/schema', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.requireAccess.mockResolvedValue({ usuarioId: 'caixa-1', tenantId: 'tenant-1', access: 'caixa' })
+  mocks.runInDbTransaction.mockReturnValue({ status: 'registrado' })
 })
 
 describe('registrarPagamentoPedido', () => {
-  it('registers an external payment for a delivered order in the selected tenant', async () => {
+  it('registers an external payment through the authenticated cashier transaction', async () => {
     const { registrarPagamentoPedido } = await import('@/lib/actions/pedidos')
-    const values = vi.fn().mockResolvedValue(undefined)
 
-    mocks.db.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ id: 'pedido-1', status: 'entregue' }]),
-      }),
-    })
-    mocks.db.insert.mockReturnValueOnce({ values })
-
-    await registrarPagamentoPedido({
+    await expect(registrarPagamentoPedido({
       pedidoId: 'pedido-1',
       formaPagamento: 'pix',
       valor: '120,50',
       observacao: 'Pago no balcão',
-    })
+    })).resolves.toEqual({ status: 'registrado' })
 
     expect(mocks.requireAccess).toHaveBeenCalledWith('caixa')
-    expect(values).toHaveBeenCalledWith({
-      id: expect.any(String),
-      tenantId: 'tenant-1',
-      pedidoId: 'pedido-1',
-      registradoPorUsuarioId: 'caixa-1',
-      formaPagamento: 'pix',
-      valor: '120.50',
-      status: 'registrado',
-      observacao: 'Pago no balcão',
-      registradoEm: expect.any(Date),
-    })
+    expect(mocks.runInDbTransaction).toHaveBeenCalledTimes(1)
   })
 
   it('rejects non-positive payment values', async () => {
@@ -85,11 +70,8 @@ describe('registrarPagamentoPedido', () => {
 
   it('rejects cross-tenant or missing orders', async () => {
     const { registrarPagamentoPedido } = await import('@/lib/actions/pedidos')
-
-    mocks.db.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([]),
-      }),
+    mocks.runInDbTransaction.mockImplementationOnce(() => {
+      throw new Error('Pedido não encontrado')
     })
 
     await expect(

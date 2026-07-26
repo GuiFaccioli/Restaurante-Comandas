@@ -19,7 +19,7 @@ export default async function PedidosPage() {
     })
     .from(pedido)
     .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
-    .where(and(eq(pedido.tenantId, tenantId), eq(pedido.status, 'novo')))
+    .where(and(eq(pedido.tenantId, tenantId), eq(pedido.status, 'pronto')))
     .orderBy(desc(pedido.criadoEm))
 
   const pedidoIds = pedidosPendentes.map((p) => p.id)

@@ -7,39 +7,39 @@ tags: [auth, permissions, security]
 
 # Permission Gates
 
-## Definição
+## DefiniÃ§Ã£o
 
-Permission gates são os pontos centrais de autorização do Restaurante-Comandas. O projeto usa `requireAccess(access)` para proteger páginas, Route Handlers e Server Actions.
+Permission gates sÃ£o os pontos centrais de autorizaÃ§Ã£o do Restaurante-Comandas. O projeto usa `requireAccess(access)` para proteger pÃ¡ginas, Route Handlers e Server Actions.
 
 ## Contexto de uso
 
-O sistema não deve confiar apenas em navegação ou UI escondida. Server Actions também são superfícies de API e precisam validar permissão no servidor.
+O sistema nÃ£o deve confiar apenas em navegaÃ§Ã£o ou UI escondida. Server Actions tambÃ©m sÃ£o superfÃ­cies de API e precisam validar permissÃ£o no servidor.
 
 Regras atuais:
 
 - Um e-mail representa uma pessoa.
 - Uma pessoa pertence a uma empresa.
-- Uma pessoa pode ter múltiplos acessos dentro dessa empresa.
-- Usuários com múltiplos acessos passam por `/selecionar-area`.
-- Admin não herda automaticamente `caixa`, `cozinha` ou `garcom`.
+- Uma pessoa pode ter mÃºltiplos acessos dentro dessa empresa.
+- UsuÃ¡rios com mÃºltiplos acessos passam por `/selecionar-area`.
+- Admin nÃ£o herda automaticamente `caixa`, `cozinha` ou `garcom`.
 
 ## Mapa de acessos
 
-| Acesso | Superfícies |
+| Acesso | SuperfÃ­cies |
 |--------|-------------|
-| `admin` | `/admin/menu`, `/admin/mesas`, ações de cardápio e mesas |
+| `admin` | `/admin/menu`, `/admin/mesas`, aÃ§Ãµes de cardÃ¡pio e mesas |
 | `caixa` | `/admin/pedidos`, fechamento de comanda e registro de pagamento externo |
-| `cozinha` | `/cozinha/dashboard`, `/api/events`, atualização de status |
-| `garcom` | `/garcom/*`, confirmação de pedidos |
+| `cozinha` | `/cozinha/dashboard`, `/api/events`, atualizaÃ§Ã£o de status |
+| `garcom` | `/garcom/*`, confirmaÃ§Ã£o de pedidos |
 
 ## Trade-offs
 
-| Prós | Contras |
+| PrÃ³s | Contras |
 |------|---------|
-| Uma regra central reduz buracos de segurança | Exige disciplina para chamar o guard em toda nova superfície |
-| Testes de fronteira detectam rota/action sem permissão | Testes source-level precisam ser mantidos junto com a arquitetura |
+| Uma regra central reduz buracos de seguranÃ§a | Exige disciplina para chamar o guard em toda nova superfÃ­cie |
+| Testes de fronteira detectam rota/action sem permissÃ£o | Testes source-level precisam ser mantidos junto com a arquitetura |
 
-## Relações
+## RelaÃ§Ãµes
 
 - Relacionado com: [[server-actions]]
 - Relacionado com: [[app-router]]

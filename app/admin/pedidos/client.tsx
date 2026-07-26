@@ -1,6 +1,13 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useState, useTransition } from 'react'
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from 'react'
 import { toast } from 'sonner'
 
 import { SseListener } from '@/components/cozinha/sse-listener'
@@ -48,6 +55,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
   const [paymentFormPedidoId, setPaymentFormPedidoId] = useState<string | null>(firstPaymentPedido?.id ?? null)
   const [paymentMethod, setPaymentMethod] = useState<FormaPagamento>('pix')
   const [paymentAmount, setPaymentAmount] = useState(firstPaymentPedido?.total.toFixed(2).replace('.', ',') ?? '')
+  const latestPedidos = useRef(initialPedidos)
   const [queueFilter, setQueueFilter] = useState<QueueFilter>('cobrar')
   const [searchTerm, setSearchTerm] = useState('')
   const [lastEvent, setLastEvent] = useState<string | null>(null)
@@ -71,6 +79,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
     if (!response.ok) return
 
     const data = (await response.json()) as { pedidos: CashierOrder[] }
+    latestPedidos.current = data.pedidos
     setPedidos(data.pedidos)
     setExpandedId((current) => {
       if (current === null) return null
@@ -78,10 +87,24 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
       return data.pedidos.find(isAwaitingPayment)?.id ?? data.pedidos[0]?.id ?? null
     })
     setPaymentFormPedidoId((current) => {
-      if (current && data.pedidos.some((pedido) => pedido.id === current && isAwaitingPayment(pedido))) return current
-      return data.pedidos.find(isAwaitingPayment)?.id ?? null
+      const nextPedido = current
+        ? data.pedidos.find(
+            (pedido) => pedido.id === current && isAwaitingPayment(pedido),
+          ) ?? data.pedidos.find(isAwaitingPayment)
+        : data.pedidos.find(isAwaitingPayment)
+      const nextPedidoId = nextPedido?.id ?? null
+      return nextPedidoId
     })
   }, [])
+
+  useEffect(() => {
+    const selectedPedido = latestPedidos.current.find(
+      (pedido) => pedido.id === paymentFormPedidoId,
+    )
+    setPaymentAmount(
+      selectedPedido?.total.toFixed(2).replace('.', ',') ?? '',
+    )
+  }, [paymentFormPedidoId])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -111,18 +134,27 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
     setPaymentAmount(pedido.total.toFixed(2).replace('.', ','))
   }
 
+  function closePaymentForm() {
+    setPaymentFormPedidoId(null)
+    setPaymentAmount('')
+  }
+
   function handlePaymentSubmit(event: FormEvent<HTMLFormElement>, pedido: CashierOrder) {
     event.preventDefault()
 
     startTransition(async () => {
       try {
-        await registrarPagamentoPedido({
+        const result = await registrarPagamentoPedido({
           pedidoId: pedido.id,
           formaPagamento: paymentMethod,
           valor: paymentAmount,
         })
-        toast.success('Pagamento registrado.')
-        setPaymentFormPedidoId(null)
+        if (result.status === 'ja_registrado') {
+          toast.info('Pagamento já registrado.')
+        } else {
+          toast.success('Pagamento registrado.')
+        }
+        closePaymentForm()
         await refreshPedidos()
       } catch (error) {
         console.error('Failed to register payment', error)
@@ -335,7 +367,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: CashierOr
                             intent="destructive"
                             appearance="outline"
                             className="min-h-11"
-                            onClick={() => setPaymentFormPedidoId(null)}
+                            onClick={closePaymentForm}
                             disabled={isPending}
                           >
                             Cancelar

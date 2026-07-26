@@ -11,6 +11,8 @@ type Props = {
   initialPedidos: TableOrder[]
 }
 
+const refreshErrorMessage = 'Não foi possível atualizar os pedidos. Tente novamente.'
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -32,6 +34,10 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   )
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<'cancelar' | 'confirmar' | null>(null)
+  const [feedback, setFeedback] = useState<{
+    type: 'success' | 'error'
+    message: string
+  } | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const refreshPedidos = useCallback(async () => {
@@ -39,7 +45,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
       cache: 'no-store',
     })
 
-    if (!response.ok) return
+    if (!response.ok) throw new Error(refreshErrorMessage)
 
     const data = (await response.json()) as { pedidos: TableOrder[] }
     setPedidos(data.pedidos)
@@ -55,7 +61,9 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      void refreshPedidos()
+      void refreshPedidos().catch(() => {
+        setFeedback({ type: 'error', message: refreshErrorMessage })
+      })
     }, 5000)
 
     return () => window.clearInterval(interval)
@@ -64,10 +72,25 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   function handleConfirmarEntrega(pedidoId: string) {
     setPendingId(pedidoId)
     setPendingAction('confirmar')
+    setFeedback(null)
     startTransition(async () => {
       try {
-        await confirmarEntrega(pedidoId)
-        await refreshPedidos()
+        try {
+          await confirmarEntrega(pedidoId)
+        } catch {
+          setFeedback({ type: 'error', message: 'Não foi possível entregar.' })
+          return
+        }
+
+        try {
+          await refreshPedidos()
+          setFeedback({ type: 'success', message: 'Entrega confirmada.' })
+        } catch {
+          setFeedback({
+            type: 'error',
+            message: 'Entrega registrada, mas não foi possível atualizar a lista. Tente novamente.',
+          })
+        }
       } finally {
         setPendingId(null)
         setPendingAction(null)
@@ -78,10 +101,25 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   function handleCancelarPedido(pedidoId: string) {
     setPendingId(pedidoId)
     setPendingAction('cancelar')
+    setFeedback(null)
     startTransition(async () => {
       try {
-        await cancelarPedido(pedidoId)
-        await refreshPedidos()
+        try {
+          await cancelarPedido(pedidoId)
+        } catch {
+          setFeedback({ type: 'error', message: 'Não foi possível cancelar.' })
+          return
+        }
+
+        try {
+          await refreshPedidos()
+          setFeedback({ type: 'success', message: 'Pedido cancelado.' })
+        } catch {
+          setFeedback({
+            type: 'error',
+            message: 'Cancelamento registrado, mas não foi possível atualizar a lista. Tente novamente.',
+          })
+        }
       } finally {
         setPendingId(null)
         setPendingAction(null)
@@ -99,13 +137,24 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
 
   return (
     <div className="space-y-3" aria-label="Pedidos desta mesa">
+      {feedback?.type === 'success' && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {feedback.message}
+        </p>
+      )}
+      {feedback?.type === 'error' && (
+        <p role="alert" className="text-sm text-destructive">
+          {feedback.message}
+        </p>
+      )}
       {pedidos.length === 0 ? null : (
          <div className="space-y-3">
           {pedidos.map((pedido) => {
             const expanded = expandedIds.includes(pedido.id)
             const canceling = isPending && pendingId === pedido.id && pendingAction === 'cancelar'
             const confirming = isPending && pendingId === pedido.id && pendingAction === 'confirmar'
-            const actionDisabled = pedido.status !== 'novo' || (isPending && pendingId === pedido.id)
+            const canCancel = pedido.status === 'novo'
+            const canDeliver = pedido.status === 'pronto'
 
             return (
               <article key={pedido.id} className="order-card space-y-5 rounded-md border p-3">
@@ -137,7 +186,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                       size="sm"
                       className="min-h-11"
                       aria-busy={canceling}
-                      disabled={actionDisabled}
+                      disabled={!canCancel || isPending}
                       onClick={() => handleCancelarPedido(pedido.id)}
                     >
                       {canceling ? 'Cancelando...' : 'Cancelar'}
@@ -160,7 +209,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
                     appearance="solid"
                     size="sm"
                     aria-busy={confirming}
-                    disabled={actionDisabled}
+                    disabled={!canDeliver || isPending}
                     onClick={() => handleConfirmarEntrega(pedido.id)}
                   >
                     {confirming ? 'Entregando...' : 'Entregue'}

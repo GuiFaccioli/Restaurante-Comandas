@@ -26,7 +26,7 @@ export default async function EstoqueDetalhePage({ params }: { params: Promise<{
   return (
     <AdminPage>
       <div className="space-y-6">
-        <Link href="/admin/estoque" className="text-sm text-muted-foreground hover:text-foreground">← Estoque</Link>
+        <Link href="/admin/estoque/saldos" className="text-sm text-muted-foreground hover:text-foreground">← Estoque</Link>
         <div className="border-b pb-5"><h1 className="text-xl font-semibold tracking-tight">{item.nome}</h1><p className="mt-1 text-sm text-muted-foreground">{item.unidadeBase}</p></div>
         <div className="grid gap-4 sm:grid-cols-3">
           <div><p className="text-xs text-muted-foreground">Disponível</p><p className="mt-1 text-lg font-semibold">{formatQuantity(item.estoqueAtual, item.unidadeBase)}</p></div>

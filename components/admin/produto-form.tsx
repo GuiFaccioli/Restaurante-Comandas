@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -92,6 +93,17 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
               </div>
             </div>
           </details>
+          {produto ? (
+            <div className="flex flex-col gap-2 rounded-[var(--radius)] border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">Ingredientes do produto</p>
+                <p className="mt-1 text-xs text-muted-foreground">Defina os insumos consumidos na ficha técnica.</p>
+              </div>
+              <Link href={`/admin/estoque/ficha-tecnica?produtoId=${produto.id}`} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-border bg-background px-3 text-sm font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                Editar insumos
+              </Link>
+            </div>
+          ) : null}
         </div>
         <DialogFooter>
           <Button type="button" intent="destructive" appearance="outline" className="min-h-11" onClick={onClose}>Cancelar</Button>

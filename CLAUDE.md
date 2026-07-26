@@ -1,47 +1,47 @@
-﻿# Project Wiki ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â InstruÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes para Claude
+﻿# Project Wiki — Instruções para Claude
 
-## Carregamento obrigatÃƒÆ’Ã‚Â³rio
+## Carregamento obrigatório
 
-Ao iniciar qualquer sessÃƒÆ’Ã‚Â£o neste projeto, leia `wiki/index.md` primeiro. Ele ÃƒÆ’Ã‚Â© o ponto de entrada para todo o conhecimento acumulado. Se precisar de mais contexto sobre um tÃƒÆ’Ã‚Â³pico, siga os links para as pÃƒÆ’Ã‚Â¡ginas especÃƒÆ’Ã‚Â­ficas antes de responder.
+Ao iniciar qualquer sessão neste projeto, leia `wiki/index.md` primeiro. Ele é o ponto de entrada para todo o conhecimento acumulado. Se precisar de mais contexto sobre um tópico, siga os links para as páginas específicas antes de responder.
 
 ## Seu papel
 
-VocÃƒÆ’Ã‚Âª ÃƒÆ’Ã‚Â© o mantenedor deste wiki. Quando aprender algo novo durante a sessÃƒÆ’Ã‚Â£o ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â uma decisÃƒÆ’Ã‚Â£o, um conceito, um detalhe sobre entidade ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â atualize o wiki. NÃƒÆ’Ã‚Â£o espere o usuÃƒÆ’Ã‚Â¡rio pedir.
+Você é o mantenedor deste wiki. Quando aprender algo novo durante a sessão — uma decisão, um conceito, um detalhe sobre entidade — atualize o wiki. Não espere o usuário pedir.
 
 ## Estrutura do wiki
 
 ```
 wiki/
-  index.md          # entrada principal, sumÃƒÆ’Ã‚Â¡rio geral
+  index.md          # entrada principal, sumário geral
   meta/
-    schema.md       # regras de manutenÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o e convenÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes
-    changelog.md    # log de mudanÃƒÆ’Ã‚Â§as
-  entities/         # coisas especÃƒÆ’Ã‚Â­ficas: sistemas, serviÃƒÆ’Ã‚Â§os, pessoas, produtos
-  concepts/         # ideias abstratas: padrÃƒÆ’Ã‚Âµes, decisÃƒÆ’Ã‚Âµes de arquitetura, glossÃƒÆ’Ã‚Â¡rio
+    schema.md       # regras de manutenção e convenções
+    changelog.md    # log de mudanças
+  entities/         # coisas específicas: sistemas, serviços, pessoas, produtos
+  concepts/         # ideias abstratas: padrões, decisões de arquitetura, glossário
   sources/          # resumos de fontes ingeridas (docs, artigos, URLs)
 ```
 
-## Regras de manutenÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o
+## Regras de manutenção
 
-1. **Nunca modifique fontes brutas** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â apenas crie/atualize pÃƒÆ’Ã‚Â¡ginas do wiki
-2. **Cross-references sempre** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â use `[[nome-da-pÃƒÆ’Ã‚Â¡gina]]` ao mencionar algo que tem ou deveria ter pÃƒÆ’Ã‚Â¡gina prÃƒÆ’Ã‚Â³pria
-3. **ContradiÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes sÃƒÆ’Ã‚Â£o sinalizadas**, nÃƒÆ’Ã‚Â£o silenciadas ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â marque com `ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â CONTRADIÃƒÆ’Ã¢â‚¬Â¡ÃƒÆ’Ã†â€™O:` e registre ambas as versÃƒÆ’Ã‚Âµes
-4. **Cascade automÃƒÆ’Ã‚Â¡tico** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ao atualizar uma pÃƒÆ’Ã‚Â¡gina, verifique se outras pÃƒÆ’Ã‚Â¡ginas que a referenciam precisam de ajuste
-5. **index.md ÃƒÆ’Ã‚Â© sempre atualizado** quando uma pÃƒÆ’Ã‚Â¡gina nova ÃƒÆ’Ã‚Â© criada
+1. **Nunca modifique fontes brutas** — apenas crie/atualize páginas do wiki
+2. **Cross-references sempre** — use `[[nome-da-página]]` ao mencionar algo que tem ou deveria ter página própria
+3. **Contradições são sinalizadas**, não silenciadas — marque com `⚠️ CONTRADIÇÃO:` e registre ambas as versões
+4. **Cascade automático** — ao atualizar uma página, verifique se outras páginas que a referenciam precisam de ajuste
+5. **index.md é sempre atualizado** quando uma página nova é criada
 
-## Slash commands disponÃƒÆ’Ã‚Â­veis
+## Slash commands disponíveis
 
-- `/ingest` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ingere uma fonte e atualiza o wiki
-- `/query` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â busca no wiki e sintetiza resposta
-- `/lint` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â health check: contradiÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes, links quebrados, lacunas
+- `/ingest` — ingere uma fonte e atualiza o wiki
+- `/query` — busca no wiki e sintetiza resposta
+- `/lint` — health check: contradições, links quebrados, lacunas
 
-## ConvenÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de arquivos
+## Convenção de arquivos
 
 - Nomes em kebab-case: `nome-do-arquivo.md`
-- CabeÃƒÆ’Ã‚Â§alho obrigatÃƒÆ’Ã‚Â³rio em todo arquivo:
+- Cabeçalho obrigatório em todo arquivo:
   ```
   ---
-  title: TÃƒÆ’Ã‚Â­tulo
+  title: Título
   type: entity|concept|source
   updated: YYYY-MM-DD
   tags: [tag1, tag2]
@@ -49,7 +49,7 @@ wiki/
   ```
 
 ## Component Registry
-<!-- context-sync: auto-generated Ã¢â‚¬â€ do not edit manually -->
+<!-- context-sync: auto-generated — do not edit manually -->
 | Module | Summary | Specialist | Updated |
 |--------|---------|------------|---------|
 | [app/](app/) | Defines global layout, metadata, toaster, and role-based home redirect. | frontend-dev | 2026-07-03 |

@@ -5,22 +5,50 @@ import { requireAnyAccess } from '@/lib/auth/access'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  await requireAnyAccess(['cozinha', 'garcom', 'caixa'])
-  let controller: ReadableStreamDefaultController
+  const { tenantId } = await requireAnyAccess(['cozinha', 'garcom', 'caixa'])
+  let controller: ReadableStreamDefaultController | undefined
+  let registered = false
+  let cleanedUp = false
+
+  const cleanup = () => {
+    if (cleanedUp) return
+    cleanedUp = true
+    req.signal.removeEventListener('abort', cleanup)
+
+    if (registered && controller) {
+      removeClient(tenantId, controller)
+      registered = false
+    }
+
+    if (controller) {
+      try {
+        controller.close()
+      } catch {
+        // The stream may already be closing through cancel().
+      }
+    }
+  }
+
+  req.signal.addEventListener('abort', cleanup, { once: true })
+  const abortedBeforeStream = req.signal.aborted
 
   const stream = new ReadableStream({
     start(c) {
       controller = c
-      addClient(controller)
+      if (abortedBeforeStream || req.signal.aborted) {
+        cleanup()
+        return
+      }
+
+      addClient(tenantId, controller)
+      registered = true
       // Send initial heartbeat
       controller.enqueue(new TextEncoder().encode(': connected\n\n'))
     },
     cancel() {
-      removeClient(controller)
+      cleanup()
     },
   })
-
-  req.signal.addEventListener('abort', () => removeClient(controller))
 
   return new Response(stream, {
     headers: {

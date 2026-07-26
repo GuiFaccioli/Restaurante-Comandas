@@ -1,5 +1,5 @@
 'use server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { mesa } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
@@ -16,13 +16,13 @@ export async function criarMesa(numero: number): Promise<{ id: string }> {
 
 export async function toggleAtiva(id: string): Promise<void> {
   const { tenantId } = await requireAccess('admin')
-  const [m] = await db
-    .select({ ativa: mesa.ativa })
-    .from(mesa)
-    .where(and(eq(mesa.id, id), eq(mesa.tenantId, tenantId)))
-
-  await db
+  const [updated] = await db
     .update(mesa)
-    .set({ ativa: dbBoolean(!Boolean(m.ativa)) as boolean })
+    .set({ ativa: sql`NOT ${mesa.ativa}` })
     .where(and(eq(mesa.id, id), eq(mesa.tenantId, tenantId)))
+    .returning({ id: mesa.id })
+
+  if (!updated) {
+    throw new Error('Mesa não encontrada')
+  }
 }

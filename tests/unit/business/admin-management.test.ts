@@ -55,6 +55,15 @@ describe('admin management area', () => {
     expect(menuClient).not.toContain('<Badge')
   })
 
+  it('does not retain unused category ordering or product availability events', () => {
+    const productActions = source('lib/actions/produtos.ts')
+    const sse = source('lib/sse.ts')
+
+    expect(productActions).not.toContain('reordenarCategorias')
+    expect(productActions).not.toContain('produto_indisponivel')
+    expect(sse).not.toContain('produto_indisponivel')
+  })
+
   it('keeps product actions progressive and availability visible inside each row', () => {
     const menuClient = source('app/admin/menu/client.tsx')
 

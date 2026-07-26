@@ -1,7 +1,9 @@
 import { and, eq } from 'drizzle-orm'
-import { db } from '@/lib/db/index'
-import { insumo, movimentoEstoque } from '@/lib/db/schema'
-import { isSQLiteDatabase } from '@/lib/db/compat'
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import type { NeonDatabase } from 'drizzle-orm/neon-serverless'
+import { runInDbTransaction } from '@/lib/db/index'
+import * as pgSchema from '@/lib/db/schema'
+import * as sqliteSchema from '@/lib/db/schema-sqlite'
 import { calcularCustoMedioPonderado } from '@/lib/stock/costing'
 import type { TipoMovimentoEstoque } from '@/lib/db/schema'
 
@@ -26,96 +28,351 @@ export type AppliedStockMovement = {
   custoUnitario: number | null
 }
 
+export type SQLiteStockTransaction = Parameters<
+  Parameters<
+    BetterSQLite3Database<typeof sqliteSchema>['transaction']
+  >[0]
+>[0]
+
+export type PostgresStockTransaction = Parameters<
+  Parameters<
+    NeonDatabase<typeof pgSchema>['transaction']
+  >[0]
+>[0]
+
+export type LockedStockItem = {
+  nome: string
+  estoqueAtual: string
+  custoUnitario: string | null
+}
+
+type StockMovementValues = {
+  saldoAnterior: number
+  saldoResultante: number
+  custoUnitario: number | null
+  stockUpdate: {
+    estoqueAtual: string
+    custoUnitario?: string
+  }
+  movementValues: {
+    id: string
+    tenantId: string
+    insumoId: string
+    tipo: TipoMovimentoEstoque
+    quantidade: string
+    saldoAnterior: string
+    saldoResultante: string
+    custoUnitario: string | null
+    custoTotal: string | null
+    pedidoId: string | null
+    itemPedidoId: string | null
+    chaveIdempotencia: string
+    motivo: string | null
+    observacao: string | null
+    criadoPorUsuarioId: string | null
+    criadoEm: Date
+  }
+}
+
+const STOCK_QUANTITY_SCALE = 1_000
+
 function fixed(value: number, scale = 3): string {
   return value.toFixed(scale)
+}
+
+export function stockQuantityToMillis(value: string | number): number {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new Error('Quantidade de estoque inválida')
+    }
+    const millis = Math.round(value * STOCK_QUANTITY_SCALE)
+    if (
+      !Number.isSafeInteger(millis) ||
+      Math.abs(value * STOCK_QUANTITY_SCALE - millis) > 1e-9
+    ) {
+      throw new Error('Quantidade de estoque inválida')
+    }
+    return millis
+  }
+
+  const normalized = value.trim()
+  const match = /^(-?)(\d+)(?:\.(\d{1,3}))?$/.exec(normalized)
+  if (!match) throw new Error('Quantidade de estoque inválida')
+  const sign = match[1] === '-' ? -1 : 1
+  const whole = Number(match[2])
+  const fraction = Number((match[3] ?? '').padEnd(3, '0'))
+  const millis = sign * (whole * STOCK_QUANTITY_SCALE + fraction)
+  if (!Number.isSafeInteger(millis)) {
+    throw new Error('Quantidade de estoque inválida')
+  }
+  return millis
+}
+
+export function stockMillisToDecimal(millis: number): string {
+  if (!Number.isSafeInteger(millis)) {
+    throw new Error('Quantidade de estoque inválida')
+  }
+  const sign = millis < 0 ? '-' : ''
+  const absolute = Math.abs(millis)
+  const whole = Math.floor(absolute / STOCK_QUANTITY_SCALE)
+  const fraction = String(absolute % STOCK_QUANTITY_SCALE).padStart(3, '0')
+  return `${sign}${whole}.${fraction}`
 }
 
 function validateInput(input: ApplyStockMovementInput): void {
   if (!input.tenantId || !input.insumoId || !input.chaveIdempotencia.trim()) {
     throw new Error('Movimentação de estoque inválida')
   }
-  if (!Number.isFinite(input.quantidade) || (input.quantidade === 0 && input.tipo !== 'contagem')) {
+  const quantityMillis = stockQuantityToMillis(input.quantidade)
+  if (
+    quantityMillis === 0 &&
+    input.tipo !== 'contagem'
+  ) {
     throw new Error('A quantidade da movimentação deve ser diferente de zero')
   }
-  if (input.custoUnitario !== null && input.custoUnitario !== undefined && (!Number.isFinite(input.custoUnitario) || input.custoUnitario < 0)) {
+  if (
+    input.custoUnitario !== null &&
+    input.custoUnitario !== undefined &&
+    (!Number.isFinite(input.custoUnitario) || input.custoUnitario < 0)
+  ) {
     throw new Error('O custo unitário é inválido')
   }
 }
 
-export async function applyStockMovement(input: ApplyStockMovementInput): Promise<AppliedStockMovement> {
+function buildMovementValues(
+  input: ApplyStockMovementInput,
+  item: LockedStockItem,
+): StockMovementValues {
+  const saldoAnteriorMillis = stockQuantityToMillis(item.estoqueAtual)
+  const quantidadeInformadaMillis = stockQuantityToMillis(input.quantidade)
+  const quantidadeMovimentoMillis = input.tipo === 'contagem'
+    ? quantidadeInformadaMillis - saldoAnteriorMillis
+    : quantidadeInformadaMillis
+  const saldoResultanteMillis =
+    saldoAnteriorMillis + quantidadeMovimentoMillis
+  if (saldoResultanteMillis < 0) {
+    throw new Error(`Não há estoque suficiente para ${item.nome}`)
+  }
+  const saldoAnterior = saldoAnteriorMillis / STOCK_QUANTITY_SCALE
+  const quantidadeMovimento =
+    quantidadeMovimentoMillis / STOCK_QUANTITY_SCALE
+  const saldoResultante = saldoResultanteMillis / STOCK_QUANTITY_SCALE
+
+  const shouldUpdateCost = input.tipo === 'entrada'
+  const custoAtual = item.custoUnitario === null
+    ? null
+    : Number(item.custoUnitario)
+  const custoUnitario = (
+    shouldUpdateCost &&
+    input.custoUnitario !== null &&
+    input.custoUnitario !== undefined
+  )
+    ? calcularCustoMedioPonderado(
+      saldoAnterior,
+      custoAtual,
+      quantidadeMovimento,
+      input.custoUnitario,
+    )
+    : custoAtual
+  const custoMovimento = input.custoUnitario ?? custoAtual
+  const custoTotal = custoMovimento === null
+    ? null
+    : Math.abs(quantidadeMovimento) * custoMovimento
+
+  return {
+    saldoAnterior,
+    saldoResultante,
+    custoUnitario,
+    stockUpdate: {
+      estoqueAtual: stockMillisToDecimal(saldoResultanteMillis),
+      ...(shouldUpdateCost &&
+      input.custoUnitario !== null &&
+      input.custoUnitario !== undefined
+        ? { custoUnitario: fixed(custoUnitario ?? 0, 4) }
+        : {}),
+    },
+    movementValues: {
+      id: crypto.randomUUID(),
+      tenantId: input.tenantId,
+      insumoId: input.insumoId,
+      tipo: input.tipo,
+      quantidade: stockMillisToDecimal(quantidadeMovimentoMillis),
+      saldoAnterior: stockMillisToDecimal(saldoAnteriorMillis),
+      saldoResultante: stockMillisToDecimal(saldoResultanteMillis),
+      custoUnitario: custoMovimento === null
+        ? null
+        : fixed(custoMovimento, 4),
+      custoTotal: custoTotal === null ? null : custoTotal.toFixed(2),
+      pedidoId: input.pedidoId ?? null,
+      itemPedidoId: input.itemPedidoId ?? null,
+      chaveIdempotencia: input.chaveIdempotencia,
+      motivo: input.motivo?.trim() || null,
+      observacao: input.observacao?.trim() || null,
+      criadoPorUsuarioId: input.usuarioId ?? null,
+      criadoEm: new Date(),
+    },
+  }
+}
+
+function idempotentResult(): AppliedStockMovement {
+  return {
+    applied: false,
+    saldoAnterior: 0,
+    saldoResultante: 0,
+    custoUnitario: null,
+  }
+}
+
+function appliedResult(
+  values: StockMovementValues,
+): AppliedStockMovement {
+  return {
+    applied: true,
+    saldoAnterior: values.saldoAnterior,
+    saldoResultante: values.saldoResultante,
+    custoUnitario: values.custoUnitario,
+  }
+}
+
+export function readStockItemInSqliteTransaction(
+  tx: SQLiteStockTransaction,
+  tenantId: string,
+  insumoId: string,
+): LockedStockItem {
+  const item = tx
+    .select({
+      nome: sqliteSchema.insumo.nome,
+      estoqueAtual: sqliteSchema.insumo.estoqueAtual,
+      custoUnitario: sqliteSchema.insumo.custoUnitario,
+    })
+    .from(sqliteSchema.insumo)
+    .where(and(
+      eq(sqliteSchema.insumo.id, insumoId),
+      eq(sqliteSchema.insumo.tenantId, tenantId),
+    ))
+    .get()
+  if (!item) throw new Error('Insumo não encontrado')
+  return item
+}
+
+export async function lockStockItemInPostgresTransaction(
+  tx: PostgresStockTransaction,
+  tenantId: string,
+  insumoId: string,
+): Promise<LockedStockItem> {
+  const [item] = await tx
+    .select({
+      nome: pgSchema.insumo.nome,
+      estoqueAtual: pgSchema.insumo.estoqueAtual,
+      custoUnitario: pgSchema.insumo.custoUnitario,
+    })
+    .from(pgSchema.insumo)
+    .where(and(
+      eq(pgSchema.insumo.id, insumoId),
+      eq(pgSchema.insumo.tenantId, tenantId),
+    ))
+    .for('update')
+  if (!item) throw new Error('Insumo não encontrado')
+  return item
+}
+
+export function applyStockMovementInSqliteTransaction(
+  tx: SQLiteStockTransaction,
+  input: ApplyStockMovementInput,
+): AppliedStockMovement {
   validateInput(input)
 
-  const buildValues = (item: any) => {
-    const saldoAnterior = Number(item.estoqueAtual)
-    const saldoResultante = saldoAnterior + input.quantidade
-    if (saldoResultante < 0) throw new Error(`Não há estoque suficiente para ${item.nome}`)
+  const existing = tx
+    .select({ id: sqliteSchema.movimentoEstoque.id })
+    .from(sqliteSchema.movimentoEstoque)
+    .where(and(
+      eq(sqliteSchema.movimentoEstoque.tenantId, input.tenantId),
+      eq(
+        sqliteSchema.movimentoEstoque.chaveIdempotencia,
+        input.chaveIdempotencia,
+      ),
+    ))
+    .get()
+  if (existing) return idempotentResult()
 
-    const shouldUpdateCost = input.tipo === 'entrada'
-    const custoAtual = item.custoUnitario === null ? null : Number(item.custoUnitario)
-    const custoUnitario = shouldUpdateCost && input.custoUnitario !== null && input.custoUnitario !== undefined
-      ? calcularCustoMedioPonderado(saldoAnterior, custoAtual, input.quantidade, input.custoUnitario)
-      : custoAtual
-    const custoMovimento = input.custoUnitario ?? custoAtual
-    const custoTotal = custoMovimento === null ? null : Math.abs(input.quantidade) * custoMovimento
-    return {
-      saldoAnterior,
-      saldoResultante,
-      custoUnitario,
-      stockUpdate: {
-        estoqueAtual: fixed(saldoResultante),
-        ...(shouldUpdateCost && input.custoUnitario !== null && input.custoUnitario !== undefined
-          ? { custoUnitario: fixed(custoUnitario ?? 0, 4) }
-          : {}),
-      },
-      movementValues: {
-        id: crypto.randomUUID(),
-        tenantId: input.tenantId,
-        insumoId: input.insumoId,
-        tipo: input.tipo,
-        quantidade: fixed(input.quantidade),
-        saldoAnterior: fixed(saldoAnterior),
-        saldoResultante: fixed(saldoResultante),
-        custoUnitario: custoMovimento === null ? null : fixed(custoMovimento, 4),
-        custoTotal: custoTotal === null ? null : custoTotal.toFixed(2),
-        pedidoId: input.pedidoId ?? null,
-        itemPedidoId: input.itemPedidoId ?? null,
-        chaveIdempotencia: input.chaveIdempotencia,
-        motivo: input.motivo?.trim() || null,
-        observacao: input.observacao?.trim() || null,
-        criadoPorUsuarioId: input.usuarioId ?? null,
-        criadoEm: new Date(),
-      },
-    }
-  }
+  const values = buildMovementValues(
+    input,
+    readStockItemInSqliteTransaction(tx, input.tenantId, input.insumoId),
+  )
+  tx
+    .update(sqliteSchema.insumo)
+    .set(values.stockUpdate)
+    .where(and(
+      eq(sqliteSchema.insumo.id, input.insumoId),
+      eq(sqliteSchema.insumo.tenantId, input.tenantId),
+    ))
+    .run()
+  tx
+    .insert(sqliteSchema.movimentoEstoque)
+    .values(values.movementValues)
+    .run()
+  return appliedResult(values)
+}
 
-  const operationSync = (tx: any): AppliedStockMovement => {
-    const existingRows = tx.select({ id: movimentoEstoque.id }).from(movimentoEstoque).where(and(eq(movimentoEstoque.tenantId, input.tenantId), eq(movimentoEstoque.chaveIdempotencia, input.chaveIdempotencia))).all()
-    if (existingRows.length > 0) return { applied: false, saldoAnterior: 0, saldoResultante: 0, custoUnitario: null }
-    const rows = tx.select().from(insumo).where(and(eq(insumo.id, input.insumoId), eq(insumo.tenantId, input.tenantId))).all()
-    const item = rows[0]
-    if (!item) throw new Error('Insumo não encontrado')
-    const values = buildValues(item)
-    tx.update(insumo).set(values.stockUpdate).where(and(eq(insumo.id, input.insumoId), eq(insumo.tenantId, input.tenantId))).run()
-    tx.insert(movimentoEstoque).values(values.movementValues).run()
-    return { applied: true, saldoAnterior: values.saldoAnterior, saldoResultante: values.saldoResultante, custoUnitario: values.custoUnitario }
-  }
+export async function applyStockMovementInPostgresTransaction(
+  tx: PostgresStockTransaction,
+  input: ApplyStockMovementInput,
+): Promise<AppliedStockMovement> {
+  validateInput(input)
 
-  const operationAsync = async (tx: any): Promise<AppliedStockMovement> => {
-    const existingRows = await tx.select({ id: movimentoEstoque.id }).from(movimentoEstoque).where(and(eq(movimentoEstoque.tenantId, input.tenantId), eq(movimentoEstoque.chaveIdempotencia, input.chaveIdempotencia)))
-    if (existingRows.length > 0) {
-      return { applied: false, saldoAnterior: 0, saldoResultante: 0, custoUnitario: null }
-    }
-    const rows = await tx.select().from(insumo).where(and(eq(insumo.id, input.insumoId), eq(insumo.tenantId, input.tenantId)))
-    const item = rows[0]
-    if (!item) throw new Error('Insumo não encontrado')
-    const values = buildValues(item)
-    await tx.update(insumo).set(values.stockUpdate).where(and(eq(insumo.id, input.insumoId), eq(insumo.tenantId, input.tenantId)))
-    await tx.insert(movimentoEstoque).values(values.movementValues)
-    return { applied: true, saldoAnterior: values.saldoAnterior, saldoResultante: values.saldoResultante, custoUnitario: values.custoUnitario }
-  }
+  const [existing] = await tx
+    .select({ id: pgSchema.movimentoEstoque.id })
+    .from(pgSchema.movimentoEstoque)
+    .where(and(
+      eq(pgSchema.movimentoEstoque.tenantId, input.tenantId),
+      eq(
+        pgSchema.movimentoEstoque.chaveIdempotencia,
+        input.chaveIdempotencia,
+      ),
+    ))
+  if (existing) return idempotentResult()
 
-  if (isSQLiteDatabase) {
-    return (db as any).transaction((tx: any) => operationSync(tx))
-  }
-  return db.transaction((tx) => operationAsync(tx))
+  const item = await lockStockItemInPostgresTransaction(
+    tx,
+    input.tenantId,
+    input.insumoId,
+  )
+
+  const [existingAfterLock] = await tx
+    .select({ id: pgSchema.movimentoEstoque.id })
+    .from(pgSchema.movimentoEstoque)
+    .where(and(
+      eq(pgSchema.movimentoEstoque.tenantId, input.tenantId),
+      eq(
+        pgSchema.movimentoEstoque.chaveIdempotencia,
+        input.chaveIdempotencia,
+      ),
+    ))
+  if (existingAfterLock) return idempotentResult()
+
+  const values = buildMovementValues(input, item)
+  await tx
+    .update(pgSchema.insumo)
+    .set(values.stockUpdate)
+    .where(and(
+      eq(pgSchema.insumo.id, input.insumoId),
+      eq(pgSchema.insumo.tenantId, input.tenantId),
+    ))
+  await tx.insert(pgSchema.movimentoEstoque).values(values.movementValues)
+  return appliedResult(values)
+}
+
+export async function applyStockMovement(
+  input: ApplyStockMovementInput,
+): Promise<AppliedStockMovement> {
+  validateInput(input)
+
+  return await runInDbTransaction({
+    sqliteOperation: (tx) => (
+      applyStockMovementInSqliteTransaction(tx, input)
+    ),
+    postgresOperation: (tx) => (
+      applyStockMovementInPostgresTransaction(tx, input)
+    ),
+  })
 }

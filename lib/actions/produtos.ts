@@ -3,7 +3,6 @@ import { put } from '@vercel/blob'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, produto } from '@/lib/db/schema'
-import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
 import { dbBoolean } from '@/lib/db/compat'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
@@ -23,6 +22,20 @@ export type CreatedCategory = {
 
 const PRODUCT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const MAX_PRODUCT_IMAGE_SIZE = 4 * 1024 * 1024
+
+async function validarCategoriaDoTenant(
+  categoriaId: string,
+  tenantId: string
+): Promise<void> {
+  const [categoriaAtual] = await db
+    .select({ id: categoria.id })
+    .from(categoria)
+    .where(and(eq(categoria.id, categoriaId), eq(categoria.tenantId, tenantId)))
+
+  if (!categoriaAtual) {
+    throw new Error('Categoria inválida')
+  }
+}
 
 export async function uploadProdutoImagem(formData: FormData): Promise<{ url: string }> {
   const { tenantId } = await requireAccess('admin')
@@ -116,17 +129,10 @@ export async function removerCategoria(id: string): Promise<RemoveCategoryResult
   return { ok: true }
 }
 
-export async function reordenarCategorias(ids: string[]): Promise<void> {
-  const { tenantId } = await requireAccess('admin')
-  await Promise.all(
-    ids.map((id, ordem) =>
-      db.update(categoria).set({ ordem }).where(and(eq(categoria.id, id), eq(categoria.tenantId, tenantId)))
-    )
-  )
-}
-
 export async function criarProduto(data: NovoProduto): Promise<{ id: string }> {
   const { tenantId } = await requireAccess('admin')
+  await validarCategoriaDoTenant(data.categoriaId, tenantId)
+
   const [prod] = await db
     .insert(produto)
     .values({
@@ -148,6 +154,10 @@ export async function editarProduto(
   data: Partial<NovoProduto>
 ): Promise<void> {
   const { tenantId } = await requireAccess('admin')
+  if (data.categoriaId) {
+    await validarCategoriaDoTenant(data.categoriaId, tenantId)
+  }
+
   await db
     .update(produto)
     .set({
@@ -180,11 +190,4 @@ export async function toggleDisponivel(id: string): Promise<void> {
     .set({ disponivel: dbBoolean(novoEstado) as boolean })
     .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
 
-  if (!novoEstado) {
-    try {
-      notifyKitchen({ type: 'produto_indisponivel', payload: { produtoId: id } })
-    } catch (error) {
-      console.error('Failed to notify kitchen about unavailable product', error)
-    }
-  }
 }

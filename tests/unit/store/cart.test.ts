@@ -3,7 +3,12 @@ import { act } from '@testing-library/react'
 import { useCart } from '@/lib/store/cart'
 
 beforeEach(() => {
-  useCart.setState({ items: [], total: 0 })
+  useCart.setState({
+    mesaId: null,
+    cartsByMesa: {},
+    items: [],
+    total: 0,
+  })
 })
 
 describe('useCart', () => {
@@ -12,8 +17,22 @@ describe('useCart', () => {
     expect(useCart.getState().total).toBe(0)
   })
 
+  it('ignores add, remove, and clear before a table is selected', () => {
+    const initialState = useCart.getState()
+
+    act(() => {
+      useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
+      useCart.getState().removeItem('p1')
+      useCart.getState().clearCart()
+    })
+
+    expect(useCart.getState()).toBe(initialState)
+    expect(useCart.getState().cartsByMesa).toEqual({})
+  })
+
   it('addItem increments quantity if item exists', () => {
     act(() => {
+      useCart.getState().selectMesa('mesa-a')
       useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
       useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
     })
@@ -25,6 +44,7 @@ describe('useCart', () => {
 
   it('addItem adds new entry for different product', () => {
     act(() => {
+      useCart.getState().selectMesa('mesa-a')
       useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
       useCart.getState().addItem({ produtoId: 'p2', nome: 'Pepperoni', preco: 38 })
     })
@@ -34,6 +54,7 @@ describe('useCart', () => {
 
   it('removeItem removes the item entirely', () => {
     act(() => {
+      useCart.getState().selectMesa('mesa-a')
       useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
       useCart.getState().removeItem('p1')
     })
@@ -43,6 +64,7 @@ describe('useCart', () => {
 
   it('decrementItem removes item when quantity reaches 0', () => {
     act(() => {
+      useCart.getState().selectMesa('mesa-a')
       useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
       useCart.getState().decrementItem('p1')
     })
@@ -51,6 +73,7 @@ describe('useCart', () => {
 
   it('clearCart empties everything', () => {
     act(() => {
+      useCart.getState().selectMesa('mesa-a')
       useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
       useCart.getState().clearCart()
     })
@@ -60,9 +83,44 @@ describe('useCart', () => {
 
   it('setObservacao sets observation for item', () => {
     act(() => {
+      useCart.getState().selectMesa('mesa-a')
       useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
       useCart.getState().setObservacao('p1', 'sem cebola')
     })
     expect(useCart.getState().items[0].observacao).toBe('sem cebola')
+  })
+
+  it('isolates carts across A to B to A and clears only the confirmed table', () => {
+    act(() => {
+      useCart.getState().selectMesa('mesa-a')
+      useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 })
+      useCart.getState().selectMesa('mesa-b')
+    })
+
+    expect(useCart.getState().items).toEqual([])
+    expect(useCart.getState().total).toBe(0)
+
+    act(() => {
+      useCart.getState().addItem({ produtoId: 'p2', nome: 'Pepperoni', preco: 38 })
+      useCart.getState().selectMesa('mesa-a')
+    })
+
+    expect(useCart.getState().items.map((item) => item.produtoId)).toEqual(['p1'])
+    expect(useCart.getState().total).toBe(32)
+
+    act(() => {
+      useCart.getState().clearCart()
+      useCart.getState().selectMesa('mesa-b')
+    })
+
+    expect(useCart.getState().items.map((item) => item.produtoId)).toEqual(['p2'])
+    expect(useCart.getState().total).toBe(38)
+
+    act(() => {
+      useCart.getState().selectMesa('mesa-a')
+    })
+
+    expect(useCart.getState().items).toEqual([])
+    expect(useCart.getState().total).toBe(0)
   })
 })

@@ -51,7 +51,7 @@ describe('cashier order control', () => {
     ])
     const paymentSubmit = findJsxBlock(client, 'Button', ['type="submit"', 'Registrar pagamento'])
     const paymentDismiss = findJsxBlock(client, 'Button', [
-      'onClick={() => setPaymentFormPedidoId(null)}',
+      'onClick={closePaymentForm}',
       'Cancelar',
     ])
     const paymentFormOpeningTag = findOpeningTag(
@@ -77,6 +77,7 @@ describe('cashier order control', () => {
     expect(client).toContain('5000')
     expect(client).toContain('expandedId')
     expect(client).toContain('paymentFormPedidoId')
+    expect(client).toContain("setPaymentAmount('')")
   })
 
   it('uses the shared semantic utility for the native stat disclosure', () => {

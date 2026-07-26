@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db/index'
-import { tenantUser, usuarioAcesso } from '@/lib/db/schema'
+import { tenant, tenantUser, usuarioAcesso } from '@/lib/db/schema'
 import type { AcessoUsuario } from '@/lib/db/schema'
 import { getCurrentSession } from '@/lib/auth/session'
 
@@ -26,23 +26,34 @@ export const ACCESS_DESTINATION: Record<AcessoUsuario, string> = {
   garcom: '/garcom/pedidos',
 }
 
+async function getAccessesForIdentityAndTenant(
+  usuarioId: string,
+  tenantId: string
+): Promise<AcessoUsuario[]> {
+  const rows = await db
+    .select({ acesso: usuarioAcesso.acesso })
+    .from(usuarioAcesso)
+    .innerJoin(tenantUser, eq(usuarioAcesso.tenantUserId, tenantUser.id))
+    .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
+    .where(
+      and(
+        eq(usuarioAcesso.usuarioId, usuarioId),
+        eq(tenantUser.usuarioId, usuarioId),
+        eq(tenantUser.tenantId, tenantId),
+        eq(tenantUser.status, 'active'),
+        eq(tenant.status, 'active')
+      )
+    )
+
+  return rows.map((row) => row.acesso)
+}
+
 export async function getCurrentAccesses(): Promise<AcessoUsuario[]> {
   const session = await getCurrentSession()
   if (!session) return []
   if (!session.selectedTenantId) return []
 
-  const rows = await db
-    .select({ acesso: usuarioAcesso.acesso })
-    .from(usuarioAcesso)
-    .innerJoin(tenantUser, eq(usuarioAcesso.tenantUserId, tenantUser.id))
-    .where(
-      and(
-        eq(usuarioAcesso.usuarioId, session.usuarioId),
-        eq(tenantUser.tenantId, session.selectedTenantId)
-      )
-    )
-
-  return rows.map((row) => row.acesso)
+  return getAccessesForIdentityAndTenant(session.usuarioId, session.selectedTenantId)
 }
 
 export function redirectForAccesses(accesses: AcessoUsuario[]): string {
@@ -64,7 +75,10 @@ export async function requireAnyAccess(
   if (!session) redirect('/auth/sign-in')
   if (!session.selectedTenantId) redirect('/selecionar-empresa')
 
-  const accesses = await getCurrentAccesses()
+  const accesses = await getAccessesForIdentityAndTenant(
+    session.usuarioId,
+    session.selectedTenantId
+  )
   const matchedAccess = allowedAccesses.find((access) => accesses.includes(access))
   if (!matchedAccess) redirect('/sem-acesso')
 

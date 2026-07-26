@@ -104,6 +104,7 @@ describe('Drizzle schema', () => {
   describe('itemPedido table', () => {
     it('has required columns', () => {
       expect(Object.keys(itemPedido)).toContain('id')
+      expect(Object.keys(itemPedido)).toContain('tenantId')
       expect(Object.keys(itemPedido)).toContain('pedidoId')
       expect(Object.keys(itemPedido)).toContain('produtoId')
       expect(Object.keys(itemPedido)).toContain('quantidade')
@@ -178,6 +179,35 @@ describe('Drizzle schema', () => {
       expect(sqlSchema).toContain('CREATE TABLE movimento_estoque')
     })
 
+    it('scopes stock movement idempotency by tenant in db/schema.sql', () => {
+      const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
+      const movementStart = sqlSchema.indexOf('CREATE TABLE movimento_estoque')
+      const movementEnd = sqlSchema.indexOf(');', movementStart)
+      const movementDefinition = sqlSchema.slice(movementStart, movementEnd)
+
+      expect(movementDefinition).toContain('chave_idempotencia TEXT NOT NULL')
+      expect(movementDefinition).not.toMatch(
+        /chave_idempotencia\s+TEXT\s+NOT NULL\s+UNIQUE/i,
+      )
+      expect(sqlSchema).toMatch(
+        /CREATE UNIQUE INDEX movimento_estoque_tenant_chave_idempotencia_unique\s+ON movimento_estoque\s*\(tenant_id,\s*chave_idempotencia\);/i,
+      )
+    })
+
+    it('declares the immutable order-consumption snapshot and indexes in db/schema.sql', () => {
+      const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
+
+      expect(sqlSchema).toMatch(
+        /CREATE TABLE item_pedido_insumo\s*\([\s\S]*tenant_id UUID NOT NULL[\s\S]*pedido_id UUID NOT NULL[\s\S]*item_pedido_id UUID NOT NULL[\s\S]*insumo_id UUID NOT NULL[\s\S]*quantidade_total NUMERIC\(12,\s*3\) NOT NULL[\s\S]*UNIQUE\s*\(tenant_id,\s*item_pedido_id,\s*insumo_id\)[\s\S]*\);/i,
+      )
+      expect(sqlSchema).toMatch(
+        /CREATE INDEX idx_item_pedido_insumo_tenant_pedido\s+ON item_pedido_insumo\s*\(tenant_id,\s*pedido_id\);/i,
+      )
+      expect(sqlSchema).toMatch(
+        /CREATE INDEX idx_item_pedido_insumo_insumo_id\s+ON item_pedido_insumo\s*\(insumo_id\);/i,
+      )
+    })
+
     it('uses Drizzle and SQL references as schema sources of truth after Prisma removal', () => {
       const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
 
@@ -202,25 +232,21 @@ describe('Drizzle schema', () => {
       expect(migration).not.toMatch(/UPDATE\s+pedido/i)
     })
 
-    it('declares the reference-schema creator foreign key only after usuario exists', () => {
+    it('declares the reference-schema creator foreign key after usuario exists', () => {
       const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
       const pedidoStart = sqlSchema.indexOf('CREATE TABLE pedido')
       const pedidoEnd = sqlSchema.indexOf(');', pedidoStart)
       const usuarioStart = sqlSchema.indexOf('CREATE TABLE usuario')
       const usuarioEnd = sqlSchema.indexOf(');', usuarioStart)
-      const creatorForeignKey = sqlSchema.indexOf(
-        'ADD CONSTRAINT pedido_created_by_user_id_fkey'
-      )
 
       expect(pedidoStart).toBeGreaterThanOrEqual(0)
-      expect(usuarioStart).toBeGreaterThan(pedidoEnd)
-      expect(creatorForeignKey).toBeGreaterThan(usuarioEnd)
+      expect(usuarioStart).toBeGreaterThanOrEqual(0)
+      expect(usuarioEnd).toBeLessThan(pedidoStart)
       const pedidoDefinition = sqlSchema.slice(pedidoStart, pedidoEnd)
-      expect(pedidoDefinition).toContain('created_by_user_id UUID')
-      expect(pedidoDefinition).not.toMatch(/created_by_user_id\s+UUID\s+NOT NULL/)
-      expect(sqlSchema.slice(pedidoStart, pedidoEnd)).not.toContain(
-        'created_by_user_id UUID REFERENCES usuario(id)'
+      expect(pedidoDefinition).toContain(
+        'created_by_user_id UUID REFERENCES usuario(id) ON DELETE SET NULL',
       )
+      expect(pedidoDefinition).not.toMatch(/created_by_user_id\s+UUID\s+NOT NULL/)
     })
   })
 
@@ -273,6 +299,31 @@ describe('Drizzle schema', () => {
       expect(Object.keys(pagamentoPedido)).toContain('valor')
       expect(Object.keys(pagamentoPedido)).toContain('status')
       expect(Object.keys(pagamentoPedido)).toContain('registradoEm')
+    })
+
+    it('keeps only one registered payment per tenant order', () => {
+      const pgSchema = readFileSync(
+        join(process.cwd(), 'lib/db/schema.ts'),
+        'utf8',
+      )
+      const sqliteSchema = readFileSync(
+        join(process.cwd(), 'lib/db/schema-sqlite.ts'),
+        'utf8',
+      )
+      const sqlSchema = readFileSync(
+        join(process.cwd(), 'db/schema.sql'),
+        'utf8',
+      )
+
+      for (const source of [pgSchema, sqliteSchema, sqlSchema]) {
+        expect(source).toContain(
+          'pagamento_pedido_tenant_pedido_registrado_unique',
+        )
+        expect(source).toMatch(/status[\s\S]{0,80}registrado/)
+      }
+      expect(sqlSchema).toMatch(
+        /ON pagamento_pedido\s*\(tenant_id,\s*pedido_id\)\s*WHERE status = 'registrado'/i,
+      )
     })
   })
 
