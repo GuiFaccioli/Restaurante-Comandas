@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
 
 const LAST_LOGIN_EMAIL_KEY = 'restaurante:last-login-email'
 
@@ -37,7 +37,7 @@ export function SignInClientForm({ action }: SignInClientFormProps) {
   }
 
   return (
-    <form action={action} onSubmit={handleSubmit} className="space-y-3">
+    <ActionForm action={action} successMessage="Login realizado com sucesso." onSubmit={handleSubmit} className="space-y-3">
       <div className="space-y-1">
         <Label htmlFor="email">E-mail</Label>
         <Input
@@ -70,9 +70,9 @@ export function SignInClientForm({ action }: SignInClientFormProps) {
         />
         Lembrar e-mail neste aparelho
       </label>
-      <Button type="submit" intent="neutral" appearance="solid" className="min-h-11 w-full">
+      <ActionSubmit pendingLabel="Entrando…" intent="neutral" appearance="solid" className="min-h-11 w-full">
         Entrar
-      </Button>
-    </form>
+      </ActionSubmit>
+    </ActionForm>
   )
 }

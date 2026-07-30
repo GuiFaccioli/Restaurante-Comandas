@@ -97,14 +97,14 @@ const actionSemantics = cva(
 )
 
 const buttonGeometry = cva(
-  'group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding text-sm font-medium leading-[1.3] whitespace-nowrap select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:cursor-not-allowed data-disabled:pointer-events-none data-disabled:cursor-not-allowed aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-busy:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4',
+  'group/button inline-flex shrink-0 items-center justify-center rounded-[var(--radius-button)] border border-transparent bg-clip-padding text-sm font-semibold leading-[1.3] whitespace-nowrap select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:cursor-not-allowed data-disabled:pointer-events-none data-disabled:cursor-not-allowed aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-busy:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4',
   {
     variants: {
       size: {
         default:
-          'h-10 gap-1.5 px-5 has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4',
+          'h-11 gap-1.5 px-[18px] has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4',
         xs: 'h-6 gap-1 rounded-md px-2 text-xs [&_svg:not([class*=size-])]:size-3',
-        sm: 'h-9 gap-1 rounded-full px-4 text-sm [&_svg:not([class*=size-])]:size-3.5',
+        sm: 'h-11 gap-1 rounded-[var(--radius-button)] px-4 text-sm [&_svg:not([class*=size-])]:size-3.5',
         lg: 'h-12 gap-1.5 px-6',
         icon: 'size-11',
         'icon-xs': 'size-11 rounded-md [&_svg:not([class*=size-])]:size-3',

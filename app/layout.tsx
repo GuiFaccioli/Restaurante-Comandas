@@ -3,13 +3,13 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Gestão de Pedidos",
-  description: "Sistema de gestão de pedidos para pizzaria",
+  title: "Agiliza Fluxo — Mais produtividade, menos papel",
+  description: "Do pedido ao estoque, tudo conectado.",
   manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#171717",
+  themeColor: "#1F7A4D",
 };
 
 export default function RootLayout({

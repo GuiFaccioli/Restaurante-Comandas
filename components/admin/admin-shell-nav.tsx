@@ -8,6 +8,7 @@ type AdminShellLink = {
   href: string
   label: string
   description?: string
+  future?: boolean
 }
 
 export function AdminShellNav({
@@ -31,11 +32,13 @@ export function AdminShellNav({
             aria-current={active ? 'page' : undefined}
             className={cn(
               variant === 'primary'
-                ? 'rounded-full border px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-                : 'block rounded-[var(--radius)] border px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-              active
-                ? 'border-foreground bg-foreground text-background'
-                : 'border-border bg-background text-foreground hover:bg-muted/70'
+                ? 'min-h-11 rounded-[var(--radius-button)] border px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+                : 'block min-h-11 rounded-[var(--radius-button)] border px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              link.future
+                ? 'border-[var(--error)]/35 bg-[var(--error-soft)] text-[var(--error)] hover:bg-[var(--error-soft)]'
+                : active
+                ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-active)]'
+                : 'border-transparent bg-transparent text-[var(--body)] hover:border-[var(--border)] hover:bg-[var(--surface-muted)]'
             )}
           >
             <span className="font-medium">{link.label}</span>
@@ -43,7 +46,7 @@ export function AdminShellNav({
               <span
                 className={cn(
                   'mt-0.5 block text-xs',
-                  active ? 'text-background/80' : 'text-muted-foreground'
+                  link.future ? 'text-[var(--error)]' : active ? 'text-[var(--primary-active)]' : 'text-[var(--muted)]'
                 )}
               >
                 {link.description}
