@@ -1,20 +1,15 @@
 'use server'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { runInDbTransaction } from '@/lib/db/index'
-import { itemPedido, pagamentoPedido, pedido } from '@/lib/db/schema'
-import * as sqliteSchema from '@/lib/db/schema-sqlite'
+import { atendimento, itemPedido, pagamentoPedido, pedido } from '@/lib/db/schema'
 import type { FormaPagamento, StatusPedido } from '@/lib/db/schema'
-import { notifyKitchen } from '@/lib/sse'
 import { requireAccess } from '@/lib/auth/access'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
 import {
   cancelOrderInPostgresTransaction,
-  cancelOrderInSqliteTransaction,
   createOrderInPostgresTransaction,
-  createOrderInSqliteTransaction,
   transitionOrderInPostgresTransaction,
-  transitionOrderInSqliteTransaction,
 } from '@/lib/stock/order-consumption'
 
 export type ConfirmarPedidoItem = {
@@ -25,10 +20,12 @@ export type ConfirmarPedidoItem = {
 
 export async function confirmarPedido(
   mesaId: string,
+  atendimentoId: string,
   items: ConfirmarPedidoItem[],
 ): Promise<{ id: string }> {
   const { usuarioId, tenantId } = await requireAccess('garcom')
   if (!mesaId) throw new Error('Mesa inválida')
+  if (!atendimentoId) throw new Error('Atendimento inválido')
   if (items.length === 0) throw new Error('Pedido vazio')
   if (items.some((item) => (
     !item.produtoId ||
@@ -42,29 +39,14 @@ export async function confirmarPedido(
     tenantId,
     usuarioId,
     mesaId,
+    atendimentoId,
     items,
   }
   const created = await runInDbTransaction({
-    sqliteOperation: (tx) => (
-      createOrderInSqliteTransaction(tx, transactionInput)
-    ),
     postgresOperation: (tx) => (
       createOrderInPostgresTransaction(tx, transactionInput)
     ),
   })
-
-  try {
-    notifyKitchen(tenantId, {
-      type: 'novo_pedido',
-      payload: {
-        pedidoId: created.id,
-        mesaNumero: created.mesaNumero,
-        itens: created.itens,
-      },
-    })
-  } catch (error) {
-    console.error('Failed to notify kitchen about new order', error)
-  }
 
   return { id: created.id }
 }
@@ -83,24 +65,11 @@ export async function atualizarStatus(
     pedidoId,
     targetStatus: status,
   }
-  const result = await runInDbTransaction({
-    sqliteOperation: (tx) => (
-      transitionOrderInSqliteTransaction(tx, transactionInput)
-    ),
+  await runInDbTransaction({
     postgresOperation: (tx) => (
       transitionOrderInPostgresTransaction(tx, transactionInput)
     ),
   })
-  if (!result.changed) return
-
-  try {
-    notifyKitchen(tenantId, {
-      type: 'status_atualizado',
-      payload: { pedidoId, status },
-    })
-  } catch (error) {
-    console.error('Failed to notify kitchen about status update', error)
-  }
 }
 
 export async function confirmarEntrega(pedidoId: string): Promise<void> {
@@ -111,53 +80,21 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
     pedidoId,
     targetStatus: 'entregue' as const,
   }
-  const result = await runInDbTransaction({
-    sqliteOperation: (tx) => (
-      transitionOrderInSqliteTransaction(tx, transactionInput)
-    ),
+  await runInDbTransaction({
     postgresOperation: (tx) => (
       transitionOrderInPostgresTransaction(tx, transactionInput)
     ),
   })
-  if (!result.changed) return
-
-  try {
-    notifyKitchen(tenantId, {
-      type: 'status_atualizado',
-      payload: { pedidoId, status: 'entregue' },
-    })
-  } catch (error) {
-    console.error(
-      'Failed to notify kitchen about delivery confirmation',
-      error,
-    )
-  }
 }
 
 export async function cancelarPedido(pedidoId: string): Promise<void> {
   const { tenantId } = await requireAccess('garcom')
   const transactionInput = { tenantId, pedidoId }
-  const result = await runInDbTransaction({
-    sqliteOperation: (tx) => (
-      cancelOrderInSqliteTransaction(tx, transactionInput)
-    ),
+  await runInDbTransaction({
     postgresOperation: (tx) => (
       cancelOrderInPostgresTransaction(tx, transactionInput)
     ),
   })
-  if (!result.changed) return
-
-  try {
-    notifyKitchen(tenantId, {
-      type: 'status_atualizado',
-      payload: { pedidoId, status: 'cancelado' },
-    })
-  } catch (error) {
-    console.error(
-      'Failed to notify kitchen about order cancellation',
-      error,
-    )
-  }
 }
 
 export type RegistrarPagamentoPedidoResult = {
@@ -239,15 +176,6 @@ function isRegisteredPaymentConflict(error: unknown): boolean {
     ) {
       return true
     }
-    if (
-      typeof candidate.code === 'string' &&
-      candidate.code.startsWith('SQLITE_CONSTRAINT') &&
-      typeof candidate.message === 'string' &&
-      candidate.message.includes('pagamento_pedido.tenant_id') &&
-      candidate.message.includes('pagamento_pedido.pedido_id')
-    ) {
-      return true
-    }
     current = candidate.cause
   }
 
@@ -275,67 +203,9 @@ export async function registrarPagamentoPedido(input: {
   try {
     return await runInDbTransaction(
       {
-        sqliteOperation: (tx) => {
-          const current = tx
-            .select({
-              id: sqliteSchema.pedido.id,
-              status: sqliteSchema.pedido.status,
-            })
-            .from(sqliteSchema.pedido)
-            .where(and(
-              eq(sqliteSchema.pedido.id, input.pedidoId),
-              eq(sqliteSchema.pedido.tenantId, tenantId),
-            ))
-            .get()
-
-          if (!current) throw new Error('Pedido não encontrado')
-          if (current.status !== 'entregue') {
-            throw new Error('Apenas pedidos entregues podem ser pagos')
-          }
-
-          const activePayment = tx
-            .select({ id: sqliteSchema.pagamentoPedido.id })
-            .from(sqliteSchema.pagamentoPedido)
-            .where(and(
-              eq(sqliteSchema.pagamentoPedido.tenantId, tenantId),
-              eq(sqliteSchema.pagamentoPedido.pedidoId, input.pedidoId),
-              eq(sqliteSchema.pagamentoPedido.status, 'registrado'),
-            ))
-            .get()
-          if (activePayment) return { status: 'ja_registrado' as const }
-
-          const items = tx
-            .select({
-              quantidade: sqliteSchema.itemPedido.quantidade,
-              precoUnitario: sqliteSchema.itemPedido.precoUnitario,
-            })
-            .from(sqliteSchema.itemPedido)
-            .where(and(
-              eq(sqliteSchema.itemPedido.tenantId, tenantId),
-              eq(sqliteSchema.itemPedido.pedidoId, input.pedidoId),
-            ))
-            .all()
-          const valor = validateExactPayment(informedValue, items)
-
-          tx.insert(sqliteSchema.pagamentoPedido)
-            .values({
-              id: crypto.randomUUID(),
-              tenantId,
-              pedidoId: input.pedidoId,
-              registradoPorUsuarioId: usuarioId,
-              formaPagamento: input.formaPagamento,
-              valor,
-              status: 'registrado',
-              observacao: input.observacao?.trim() || null,
-              registradoEm: new Date(),
-            })
-            .run()
-
-          return { status: 'registrado' as const }
-        },
         postgresOperation: async (tx) => {
           const [current] = await tx
-            .select({ id: pedido.id, status: pedido.status })
+            .select({ id: pedido.id, status: pedido.status, atendimentoId: pedido.atendimentoId })
             .from(pedido)
             .where(and(
               eq(pedido.id, input.pedidoId),
@@ -374,6 +244,7 @@ export async function registrarPagamentoPedido(input: {
             id: crypto.randomUUID(),
             tenantId,
             pedidoId: input.pedidoId,
+            atendimentoId: current.atendimentoId,
             registradoPorUsuarioId: usuarioId,
             formaPagamento: input.formaPagamento,
             valor,
@@ -384,8 +255,7 @@ export async function registrarPagamentoPedido(input: {
 
           return { status: 'registrado' as const }
         },
-      },
-      { sqliteMode: 'immediate' },
+      }
     )
   } catch (error) {
     if (isRegisteredPaymentConflict(error)) {
@@ -393,4 +263,56 @@ export async function registrarPagamentoPedido(input: {
     }
     throw error
   }
+}
+
+export async function registrarPagamentoAtendimento(input: {
+  atendimentoId: string
+  formaPagamento: FormaPagamento
+  valor: string
+  observacao?: string
+}): Promise<{ status: 'registrado' | 'ja_registrado'; atendimentoStatus: 'awaiting_payment' | 'paid' }> {
+  const { usuarioId, tenantId } = await requireAccess('caixa')
+  if (!PAYMENT_METHODS.includes(input.formaPagamento)) throw new Error('Forma de pagamento inválida')
+  let informedCents: number
+  try {
+    informedCents = decimalToCents(normalizeCurrencyToDecimal(input.valor))
+  } catch {
+    throw new Error('Valor de pagamento inválido')
+  }
+  if (informedCents <= 0) throw new Error('Valor de pagamento inválido')
+
+  return runInDbTransaction({
+    postgresOperation: async (tx) => {
+      const [current] = await tx
+        .select({ id: atendimento.id, status: atendimento.status })
+        .from(atendimento)
+        .where(and(eq(atendimento.id, input.atendimentoId), eq(atendimento.tenantId, tenantId)))
+        .for('update')
+      if (!current) throw new Error('Conta não encontrada')
+      if (current.status !== 'awaiting_payment') throw new Error('A conta ainda não está disponível para pagamento')
+
+      const orders = await tx
+        .select({ id: pedido.id, status: pedido.status })
+        .from(pedido)
+        .where(and(eq(pedido.tenantId, tenantId), eq(pedido.atendimentoId, input.atendimentoId)))
+      if (orders.some((order) => order.status !== 'entregue' && order.status !== 'cancelado')) throw new Error('A conta ainda possui pedidos em andamento')
+      const orderIds = orders.map((order) => order.id)
+      const items = orderIds.length > 0
+        ? await tx.select({ quantidade: itemPedido.quantidade, precoUnitario: itemPedido.precoUnitario }).from(itemPedido).where(and(eq(itemPedido.tenantId, tenantId), inArray(itemPedido.pedidoId, orderIds)))
+        : []
+      const totalCents = calculateOfficialTotalCents(items)
+      const payments = await tx.select({ valor: pagamentoPedido.valor }).from(pagamentoPedido).where(and(eq(pagamentoPedido.tenantId, tenantId), eq(pagamentoPedido.atendimentoId, input.atendimentoId), eq(pagamentoPedido.status, 'registrado')))
+      const paidCents = payments.reduce((sum, payment) => sum + decimalToCents(payment.valor), 0)
+      const balanceCents = totalCents - paidCents
+      if (balanceCents <= 0) {
+        await tx.update(atendimento).set({ status: 'paid', fechadoEm: new Date(), fechadoPorUsuarioId: usuarioId, atualizadoEm: new Date() }).where(and(eq(atendimento.id, input.atendimentoId), eq(atendimento.tenantId, tenantId)))
+        return { status: 'ja_registrado' as const, atendimentoStatus: 'paid' as const }
+      }
+      if (informedCents > balanceCents) throw new Error('O valor não pode ser maior que o saldo pendente')
+      await tx.insert(pagamentoPedido).values({ id: crypto.randomUUID(), tenantId, pedidoId: null, atendimentoId: input.atendimentoId, registradoPorUsuarioId: usuarioId, formaPagamento: input.formaPagamento, valor: centsToDecimal(informedCents), status: 'registrado', observacao: input.observacao?.trim() || null, registradoEm: new Date() })
+      const nextStatus = informedCents === balanceCents ? 'paid' : 'awaiting_payment'
+      if (nextStatus === 'paid') await tx.update(atendimento).set({ status: 'paid', fechadoEm: new Date(), fechadoPorUsuarioId: usuarioId, atualizadoEm: new Date() }).where(and(eq(atendimento.id, input.atendimentoId), eq(atendimento.tenantId, tenantId)))
+      return { status: 'registrado' as const, atendimentoStatus: nextStatus }
+    },
+  })
 }

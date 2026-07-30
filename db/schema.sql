@@ -14,6 +14,7 @@ CREATE TYPE forma_pagamento AS ENUM (
   'dinheiro', 'pix', 'credito', 'debito', 'outro'
 );
 CREATE TYPE status_pagamento AS ENUM ('registrado', 'estornado');
+CREATE TYPE status_atendimento AS ENUM ('open', 'awaiting_payment', 'paid', 'cancelled');
 
 CREATE TABLE tenant (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -81,10 +82,27 @@ CREATE TABLE insumo (
   UNIQUE (tenant_id, id)
 );
 
+CREATE TABLE atendimento (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id UUID NOT NULL REFERENCES tenant(id),
+  mesa_id UUID NOT NULL,
+  status status_atendimento NOT NULL DEFAULT 'open',
+  aberto_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  aguardando_pagamento_em TIMESTAMPTZ,
+  fechado_em TIMESTAMPTZ,
+  aberto_por_usuario_id UUID REFERENCES usuario(id) ON DELETE SET NULL,
+  fechado_por_usuario_id UUID REFERENCES usuario(id) ON DELETE SET NULL,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, mesa_id) REFERENCES mesa(tenant_id, id)
+);
+
 CREATE TABLE pedido (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id),
   mesa_id UUID NOT NULL,
+  atendimento_id UUID NOT NULL,
   created_by_user_id UUID REFERENCES usuario(id) ON DELETE SET NULL,
   status status_pedido NOT NULL DEFAULT 'novo',
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -92,7 +110,9 @@ CREATE TABLE pedido (
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, mesa_id)
-    REFERENCES mesa(tenant_id, id)
+    REFERENCES mesa(tenant_id, id),
+  FOREIGN KEY (tenant_id, atendimento_id)
+    REFERENCES atendimento(tenant_id, id)
 );
 
 CREATE TABLE item_pedido (
@@ -168,7 +188,8 @@ CREATE TABLE auth_session (
 CREATE TABLE pagamento_pedido (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id),
-  pedido_id UUID NOT NULL,
+  pedido_id UUID,
+  atendimento_id UUID NOT NULL,
   registrado_por_usuario_id UUID NOT NULL REFERENCES usuario(id),
   forma_pagamento forma_pagamento NOT NULL,
   valor NUMERIC(10,2) NOT NULL,
@@ -176,7 +197,9 @@ CREATE TABLE pagamento_pedido (
   observacao TEXT,
   registrado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id, pedido_id)
-    REFERENCES pedido(tenant_id, id) ON DELETE CASCADE
+    REFERENCES pedido(tenant_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id, atendimento_id)
+    REFERENCES atendimento(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE movimento_estoque (
@@ -217,6 +240,7 @@ CREATE INDEX idx_ficha_tecnica_produto_id
 CREATE INDEX idx_ficha_tecnica_insumo_id
   ON ficha_tecnica_item(insumo_id);
 CREATE INDEX idx_pedido_mesa_id ON pedido(mesa_id);
+CREATE INDEX idx_pedido_tenant_atendimento ON pedido(tenant_id, atendimento_id);
 CREATE INDEX idx_pedido_tenant_id ON pedido(tenant_id);
 CREATE INDEX idx_pedido_status ON pedido(status);
 CREATE INDEX idx_pedido_created_by_user_id
@@ -238,9 +262,11 @@ CREATE INDEX idx_pagamento_pedido_tenant_id
   ON pagamento_pedido(tenant_id);
 CREATE INDEX idx_pagamento_pedido_pedido_id
   ON pagamento_pedido(pedido_id);
-CREATE UNIQUE INDEX pagamento_pedido_tenant_pedido_registrado_unique
-  ON pagamento_pedido(tenant_id, pedido_id)
-  WHERE status = 'registrado';
+CREATE INDEX idx_pagamento_pedido_tenant_atendimento
+  ON pagamento_pedido(tenant_id, atendimento_id);
+CREATE UNIQUE INDEX atendimento_tenant_mesa_open_unique
+  ON atendimento(tenant_id, mesa_id)
+  WHERE status = 'open';
 CREATE INDEX idx_movimento_estoque_tenant_id
   ON movimento_estoque(tenant_id);
 CREATE INDEX idx_movimento_estoque_insumo_id

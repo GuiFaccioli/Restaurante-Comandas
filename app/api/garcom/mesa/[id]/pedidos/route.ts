@@ -9,7 +9,8 @@ export async function GET(
 ) {
   const { tenantId } = await requireAccess('garcom')
   const { id } = await params
-  const pedidos = await getTenantMesaOrders({ tenantId, mesaId: id })
+  const atendimentoId = new URL(_request.url).searchParams.get('atendimentoId') ?? undefined
+  const pedidos = await getTenantMesaOrders({ tenantId, mesaId: id, atendimentoId })
 
   return NextResponse.json({ pedidos })
 }

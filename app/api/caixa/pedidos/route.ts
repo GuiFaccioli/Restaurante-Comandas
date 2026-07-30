@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 
 import { requireAccess } from '@/lib/auth/access'
-import { getCashierOrders } from '@/lib/orders/queries'
+import { getCashierAccounts } from '@/lib/attendance/queries'
 
 export async function GET() {
   const { tenantId } = await requireAccess('caixa')
-  const pedidos = await getCashierOrders({ tenantId })
+  const contas = await getCashierAccounts({ tenantId })
 
-  return NextResponse.json({ pedidos })
+  return NextResponse.json({ contas })
 }

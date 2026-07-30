@@ -68,7 +68,7 @@ export function resolveTenantResponsible(
 }
 
 export function findRegisteredPayment<
-  T extends { pedidoId: string; status: StatusPagamento },
+  T extends { pedidoId: string | null; status: StatusPagamento },
 >(payments: T[], pedidoId: string): T | undefined {
   return payments.find(
     (payment) => payment.pedidoId === pedidoId && payment.status === 'registrado'
@@ -78,6 +78,7 @@ export function findRegisteredPayment<
 export async function getTenantMesaOrders(input: {
   tenantId: string
   mesaId: string
+  atendimentoId?: string
 }): Promise<TableOrder[]> {
   const orders = await db
     .select({
@@ -93,6 +94,7 @@ export async function getTenantMesaOrders(input: {
         eq(pedido.tenantId, input.tenantId),
         eq(mesa.tenantId, input.tenantId),
         eq(mesa.id, input.mesaId),
+        ...(input.atendimentoId ? [eq(pedido.atendimentoId, input.atendimentoId)] : []),
         ne(pedido.status, 'entregue'),
         ne(pedido.status, 'cancelado')
       )

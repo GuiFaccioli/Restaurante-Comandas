@@ -43,6 +43,12 @@ export const statusPagamentoEnum = pgEnum('status_pagamento', [
   'registrado',
   'estornado',
 ])
+export const statusAtendimentoEnum = pgEnum('status_atendimento', [
+  'open',
+  'awaiting_payment',
+  'paid',
+  'cancelled',
+])
 
 export type StatusPedido =
   | 'novo'
@@ -61,6 +67,11 @@ export type FormaPagamento =
   | 'debito'
   | 'outro'
 export type StatusPagamento = 'registrado' | 'estornado'
+export type StatusAtendimento =
+  | 'open'
+  | 'awaiting_payment'
+  | 'paid'
+  | 'cancelled'
 export type TipoMovimentoEstoque =
   | 'entrada'
   | 'perda'
@@ -188,6 +199,43 @@ export const insumo = pgTable(
   ],
 )
 
+export const atendimento = pgTable(
+  'atendimento',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id),
+    mesaId: uuid('mesa_id').notNull(),
+    status: statusAtendimentoEnum('status').notNull().default('open'),
+    abertoEm: timestamp('aberto_em', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    aguardandoPagamentoEm: timestamp('aguardando_pagamento_em', { withTimezone: true }),
+    fechadoEm: timestamp('fechado_em', { withTimezone: true }),
+    abertoPorUsuarioId: uuid('aberto_por_usuario_id').references(() => usuario.id, {
+      onDelete: 'set null',
+    }),
+    fechadoPorUsuarioId: uuid('fechado_por_usuario_id').references(() => usuario.id, {
+      onDelete: 'set null',
+    }),
+    criadoEm: timestamp('criado_em', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    atualizadoEm: timestamp('atualizado_em', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('atendimento_tenant_id_unique').on(table.tenantId, table.id),
+    foreignKey({
+      columns: [table.tenantId, table.mesaId],
+      foreignColumns: [mesa.tenantId, mesa.id],
+      name: 'atendimento_tenant_mesa_fkey',
+    }),
+  ],
+)
+
 export const pedido = pgTable(
   'pedido',
   {
@@ -196,6 +244,7 @@ export const pedido = pgTable(
       .notNull()
       .references(() => tenant.id),
     mesaId: uuid('mesa_id').notNull(),
+    atendimentoId: uuid('atendimento_id').notNull(),
     createdByUserId: uuid('created_by_user_id').references(() => usuario.id, {
       onDelete: 'set null',
     }),
@@ -214,6 +263,11 @@ export const pedido = pgTable(
       columns: [table.tenantId, table.mesaId],
       foreignColumns: [mesa.tenantId, mesa.id],
       name: 'pedido_tenant_mesa_fkey',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.atendimentoId],
+      foreignColumns: [atendimento.tenantId, atendimento.id],
+      name: 'pedido_tenant_atendimento_fkey',
     }),
   ],
 )
@@ -377,7 +431,8 @@ export const pagamentoPedido = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenant.id),
-    pedidoId: uuid('pedido_id').notNull(),
+    pedidoId: uuid('pedido_id'),
+    atendimentoId: uuid('atendimento_id').notNull(),
     registradoPorUsuarioId: uuid('registrado_por_usuario_id')
       .notNull()
       .references(() => usuario.id),
@@ -390,13 +445,15 @@ export const pagamentoPedido = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex('pagamento_pedido_tenant_pedido_registrado_unique')
-      .on(table.tenantId, table.pedidoId)
-      .where(sql`${table.status} = 'registrado'`),
     foreignKey({
       columns: [table.tenantId, table.pedidoId],
       foreignColumns: [pedido.tenantId, pedido.id],
       name: 'pagamento_pedido_tenant_pedido_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.tenantId, table.atendimentoId],
+      foreignColumns: [atendimento.tenantId, atendimento.id],
+      name: 'pagamento_pedido_tenant_atendimento_fkey',
     }).onDelete('cascade'),
   ],
 )
