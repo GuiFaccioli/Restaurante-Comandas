@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { AdminEmptyState, AdminPage, AdminPageHeader } from '@/components/admin/admin-page'
-import { Plus, Pencil } from 'lucide-react'
+import { Pencil, Plus, UtensilsCrossed } from 'lucide-react'
 import Link from 'next/link'
 import { CategoryManager } from '@/components/admin/category-manager'
 import { ProdutoForm } from '@/components/admin/produto-form'
@@ -194,7 +194,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                 >
                   <div className="flex min-w-0 gap-3">
                     <div className="relative flex h-12 w-12 shrink-0 select-none items-center justify-center overflow-hidden rounded-[var(--radius)] bg-muted text-xl">
-                      <span aria-hidden="true">🍕</span>
+                      <UtensilsCrossed aria-hidden="true" className="size-5 text-[var(--primary)]" />
                       {p.imagemUrl && !brokenImages[p.id] ? (
                         <img
                           src={p.imagemUrl}

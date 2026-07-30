@@ -1,8 +1,11 @@
 import { asc, eq } from 'drizzle-orm'
 
-import { atualizarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/actions/usuarios'
+import { atualizarUsuarioAdmin, cadastrarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/actions/usuarios'
 import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { Button } from '@/components/ui/button'
+import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
 import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
@@ -68,6 +71,42 @@ export default async function UsuariosAdminPage() {
       </AdminStatsGrid>
 
       <AdminPanel
+        title="Cadastrar usuário"
+        description="Crie um acesso vinculado somente à empresa atualmente selecionada."
+      >
+        <ActionForm action={cadastrarUsuarioAdmin} successMessage="Usuário cadastrado com sucesso." className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="novo-usuario-nome">Nome</Label>
+            <Input id="novo-usuario-nome" name="nome" required maxLength={120} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="novo-usuario-email">E-mail</Label>
+            <Input id="novo-usuario-email" name="email" type="email" required />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="novo-usuario-password">Senha</Label>
+            <Input id="novo-usuario-password" name="password" type="password" minLength={8} required />
+          </div>
+          <fieldset className="grid gap-2">
+            <legend className="text-sm font-medium">Permissões</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {ACCESS_OPTIONS.map((access) => (
+                <label key={access.value} className="flex min-h-11 items-center gap-3 rounded-[var(--radius)] border bg-card px-3 text-sm">
+                  <input type="checkbox" name="acessos" value={access.value} className="size-4 rounded border-input" />
+                  <span>{access.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="lg:col-span-2">
+            <ActionSubmit pendingLabel="Cadastrando…" intent="positive" appearance="solid" className="min-h-11">
+              Cadastrar usuário
+            </ActionSubmit>
+          </div>
+        </ActionForm>
+      </AdminPanel>
+
+      <AdminPanel
         title="Permissões por usuário"
         description="Salve os acessos de uma pessoa por vez. Remoção fica separada para evitar ação perigosa por engano."
       >
@@ -90,7 +129,7 @@ export default async function UsuariosAdminPage() {
                   key={user.tenantUserId}
                   className="grid gap-4 bg-background p-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_220px] lg:items-start"
                 >
-                  <form action={atualizarUsuarioAdmin} className="contents">
+                  <ActionForm action={atualizarUsuarioAdmin} successMessage="Acessos salvos com sucesso." className="contents">
                     <input type="hidden" name="usuarioId" value={user.id} />
 
                     <div className="min-w-0">
@@ -127,29 +166,29 @@ export default async function UsuariosAdminPage() {
                     </fieldset>
 
                     <div className="grid gap-2 lg:pt-7">
-                      <Button
-                        type="submit"
+                      <ActionSubmit
+                        pendingLabel="Salvando…"
                         intent="positive"
                         appearance="solid"
                         className="min-h-11 w-full"
                       >
                         Salvar acessos
-                      </Button>
+                      </ActionSubmit>
                     </div>
-                  </form>
+                  </ActionForm>
 
-                  <form action={removerUsuarioDoRestaurante} className="lg:col-start-3">
+                  <ActionForm action={removerUsuarioDoRestaurante} successMessage="Usuário removido da empresa." className="lg:col-start-3">
                     <input type="hidden" name="usuarioId" value={user.id} />
-                    <Button
-                      type="submit"
+                    <ActionSubmit
+                      pendingLabel="Removendo…"
                       intent="destructive"
                       appearance="soft"
                       className="min-h-11 w-full"
                       disabled={user.isCurrentUser}
                     >
                       Remover usuário
-                    </Button>
-                  </form>
+                    </ActionSubmit>
+                  </ActionForm>
                 </article>
               ))}
             </div>

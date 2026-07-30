@@ -12,12 +12,19 @@ type Mesa = { id: string; numero: number; ativa: boolean }
 export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
   const router = useRouter()
   const [novoNumero, setNovoNumero] = useState('')
+  const [creatingTable, setCreatingTable] = useState(false)
+  const [togglingTableId, setTogglingTableId] = useState<string | null>(null)
   const mesasAtivas = mesas.filter((mesa) => mesa.ativa).length
   const mesasInativas = mesas.length - mesasAtivas
 
   async function handleNovaMesa() {
     const n = parseInt(novoNumero)
-    if (!n) return
+    if (!n || n < 1) {
+      toast.error('Informe um número de mesa válido.')
+      return
+    }
+    if (creatingTable || togglingTableId) return
+    setCreatingTable(true)
     try {
       await criarMesa(n)
       setNovoNumero('')
@@ -25,17 +32,25 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
       toast.success('Mesa criada com sucesso.')
     } catch (error) {
       console.error('Failed to create table', error)
-      toast.error('Não foi possível criar a mesa.')
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar a mesa.')
+    } finally {
+      setCreatingTable(false)
     }
   }
 
   async function handleToggleMesa(mesaId: string) {
+    if (togglingTableId) return
+    setTogglingTableId(mesaId)
     try {
       await toggleAtiva(mesaId)
       router.refresh()
+      const mesa = mesas.find((item) => item.id === mesaId)
+      toast.success(`Mesa ${mesa?.ativa ? 'desativada' : 'ativada'} com sucesso.`)
     } catch (error) {
       console.error('Failed to toggle table availability', error)
       toast.error('Não foi possível atualizar a mesa.')
+    } finally {
+      setTogglingTableId(null)
     }
   }
 
@@ -64,10 +79,11 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
             placeholder="Ex.: 12"
             value={novoNumero}
             onChange={(e) => setNovoNumero(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleNovaMesa()}
+            disabled={creatingTable || togglingTableId !== null}
+            onKeyDown={(e) => e.key === 'Enter' && void handleNovaMesa()}
           />
-          <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11" onClick={handleNovaMesa}>
-            <Plus className="h-4 w-4 mr-1" /> Adicionar Mesa
+          <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11" aria-busy={creatingTable} disabled={creatingTable || togglingTableId !== null} onClick={handleNovaMesa}>
+            <Plus className="h-4 w-4 mr-1" /> {creatingTable ? 'Adicionando…' : 'Adicionar Mesa'}
           </Button>
         </div>
       </AdminPanel>
@@ -90,9 +106,11 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
                 appearance="soft"
                 className="min-h-11"
                 aria-pressed={m.ativa}
+                disabled={togglingTableId !== null}
+                aria-busy={togglingTableId === m.id}
                 onClick={() => handleToggleMesa(m.id)}
               >
-                {m.ativa ? 'Desativar' : 'Ativar'}
+                {togglingTableId === m.id ? 'Atualizando…' : m.ativa ? 'Desativar' : 'Ativar'}
               </Button>
             </div>
           ))
