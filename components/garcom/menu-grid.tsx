@@ -15,10 +15,15 @@ type Produto = {
 type Categoria = { id: string; nome: string; produtos: Produto[] }
 
 export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
+  const categoriasOrdenadas = categorias.map((categoria) => ({
+    ...categoria,
+    produtos: [...categoria.produtos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+  }))
+
   return (
-    <Tabs defaultValue={categorias[0]?.id} className="min-h-0 flex-1">
+    <Tabs defaultValue={categoriasOrdenadas[0]?.id} className="min-h-0 flex-1">
       <TabsList className="mb-4 grid !h-auto min-h-0 w-full shrink-0 grid-cols-3 gap-1 overflow-visible bg-background py-1 sm:grid-cols-3 lg:grid-cols-4">
-        {categorias.map((c) => (
+        {categoriasOrdenadas.map((c) => (
           <TabsTrigger
             key={c.id}
             value={c.id}
@@ -28,7 +33,7 @@ export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
           </TabsTrigger>
         ))}
       </TabsList>
-      {categorias.map((c) => (
+      {categoriasOrdenadas.map((c) => (
         <TabsContent key={c.id} value={c.id} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 pr-1">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {c.produtos.map((p) => (

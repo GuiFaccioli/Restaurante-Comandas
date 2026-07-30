@@ -16,7 +16,7 @@ export function CartFab({ onClick }: { onClick: () => void }) {
       appearance="solid"
       size="lg"
       aria-label="Abrir carrinho"
-      className="fixed right-4 bottom-4 z-50 min-h-11 h-14 w-14 rounded-full p-0 shadow-lg sm:right-6 sm:bottom-6"
+      className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 min-h-11 h-14 w-14 rounded-full p-0 shadow-lg sm:right-6 lg:bottom-6"
       onClick={onClick}
     >
       <ShoppingCart className="h-6 w-6" aria-hidden="true" />

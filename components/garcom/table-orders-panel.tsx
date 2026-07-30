@@ -8,6 +8,7 @@ import type { TableOrder } from '@/lib/orders/queries'
 
 type Props = {
   mesaId: string
+  atendimentoId?: string
   initialPedidos: TableOrder[]
 }
 
@@ -27,7 +28,7 @@ function formatOrderTime(value: string) {
   }).format(new Date(value))
 }
 
-export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
+export function TableOrdersPanel({ mesaId, atendimentoId, initialPedidos }: Props) {
   const [pedidos, setPedidos] = useState(initialPedidos)
   const [expandedIds, setExpandedIds] = useState<string[]>(
     initialPedidos[0]?.id ? [initialPedidos[0].id] : []
@@ -41,7 +42,7 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
   const [isPending, startTransition] = useTransition()
 
   const refreshPedidos = useCallback(async () => {
-    const response = await fetch(`/api/garcom/mesa/${mesaId}/pedidos`, {
+    const response = await fetch(`/api/garcom/mesa/${mesaId}/pedidos${atendimentoId ? `?atendimentoId=${atendimentoId}` : ''}`, {
       cache: 'no-store',
     })
 
@@ -154,7 +155,11 @@ export function TableOrdersPanel({ mesaId, initialPedidos }: Props) {
             const canceling = isPending && pendingId === pedido.id && pendingAction === 'cancelar'
             const confirming = isPending && pendingId === pedido.id && pendingAction === 'confirmar'
             const canCancel = pedido.status === 'novo'
-            const canDeliver = pedido.status === 'pronto'
+            const canDeliver = (
+              pedido.status === 'novo' ||
+              pedido.status === 'em_preparo' ||
+              pedido.status === 'pronto'
+            )
 
             return (
               <article key={pedido.id} className="order-card space-y-5 rounded-md border p-3">

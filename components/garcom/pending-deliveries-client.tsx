@@ -5,11 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { SseListener } from '@/components/cozinha/sse-listener'
 import { LiveElapsedTimer } from '@/components/live-elapsed-timer'
 import { confirmarEntrega } from '@/lib/actions/pedidos'
 import type { StatusPedido } from '@/lib/db/schema'
-import type { KitchenEvent } from '@/lib/sse'
 import { groupKitchenItemsByCategory, type KitchenOrderItem } from '@/lib/kitchen/order-items'
 
 type Pedido = {
@@ -97,12 +95,12 @@ function PendingDeliveryCard({
 export function PendingDeliveriesClient({ initialPedidos }: { initialPedidos: Pedido[] }) {
   const router = useRouter()
   const [pedidos, setPedidos] = useState(() =>
-    initialPedidos.filter((pedido) => pedido.status === 'pronto')
+    initialPedidos.filter((pedido) => pedido.status !== 'entregue' && pedido.status !== 'cancelado')
   )
   const [feedback, setFeedback] = useState<string | null>(null)
 
   useEffect(() => {
-    setPedidos(initialPedidos.filter((pedido) => pedido.status === 'pronto'))
+    setPedidos(initialPedidos.filter((pedido) => pedido.status !== 'entregue' && pedido.status !== 'cancelado'))
   }, [initialPedidos])
 
   const removePedido = useCallback((pedidoId: string) => {
@@ -117,24 +115,23 @@ export function PendingDeliveriesClient({ initialPedidos }: { initialPedidos: Pe
     [removePedido]
   )
 
-  const handleEvent = useCallback((event: KitchenEvent) => {
-    if (event.type !== 'status_atualizado') return
-
-    if (event.payload.status === 'pronto') {
-      router.refresh()
-    } else if (
-      event.payload.status === 'entregue' ||
-      event.payload.status === 'cancelado'
-    ) {
-      removePedido(event.payload.pedidoId)
+  useEffect(() => {
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') router.refresh()
     }
-  }, [removePedido, router])
+    const interval = window.setInterval(refreshIfVisible, 5000)
+    document.addEventListener('visibilitychange', refreshIfVisible)
+
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshIfVisible)
+    }
+  }, [router])
 
   return (
     <>
-      <SseListener onEvent={handleEvent} />
       {feedback && (
-        <p role="status" className="text-sm text-muted-foreground">
+        <p role="status" className="text-sm font-medium text-[var(--action-positive-foreground)]">
           {feedback}
         </p>
       )}

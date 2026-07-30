@@ -6,22 +6,23 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { confirmarPedido } from '@/lib/actions/pedidos'
 import { useCart } from '@/lib/store/cart'
-import { ObservacaoSheet } from './observacao-sheet'
 
 type Props = {
   open: boolean
   onClose: () => void
   mesaId: string
   mesaNumero: number
+  atendimentoId: string
 }
 
-export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
-  const { items, total, removeItem, addItem, decrementItem, clearCart } = useCart()
+export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId }: Props) {
+  const { items, total, removeItem, addItem, decrementItem, clearCart, setObservacao } = useCart()
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [obsItem, setObsItem] = useState<string | null>(null)
+  const [editingObservationItem, setEditingObservationItem] = useState<string | null>(null)
 
   async function handleConfirmar() {
     setSending(true)
@@ -29,6 +30,7 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
     try {
       await confirmarPedido(
         mesaId,
+        atendimentoId,
         items.map((item) => ({
           produtoId: item.produtoId,
           quantidade: item.quantidade,
@@ -73,10 +75,29 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
                     intent="informational"
                     appearance="link"
                     className="min-h-11 justify-start px-0 text-xs"
-                    onClick={() => setObsItem(item.produtoId)}
+                    onClick={() => setEditingObservationItem((current) => current === item.produtoId ? null : item.produtoId)}
                   >
-                    Editar observação
+                    {editingObservationItem === item.produtoId ? 'Fechar edição' : 'Editar observação'}
                   </Button>
+                  {editingObservationItem === item.produtoId ? (
+                    <div className="mt-2 space-y-2">
+                      <label htmlFor={`observacao-${item.produtoId}`} className="text-xs font-medium text-foreground">
+                        Observação para a cozinha
+                      </label>
+                      <Textarea
+                        id={`observacao-${item.produtoId}`}
+                        autoFocus
+                        className="min-h-24 resize-y text-sm"
+                        placeholder="Ex.: sem cebola, sem tomate"
+                        value={item.observacao ?? ''}
+                        onChange={(event) => setObservacao(item.produtoId, event.target.value)}
+                        rows={3}
+                      />
+                      <Button type="button" intent="positive" appearance="soft" size="sm" onClick={() => setEditingObservationItem(null)}>
+                        Salvar observação
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -152,9 +173,6 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero }: Props) {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
-      {obsItem && (
-        <ObservacaoSheet open={!!obsItem} produtoId={obsItem} onClose={() => setObsItem(null)} />
-      )}
     </>
   )
 }

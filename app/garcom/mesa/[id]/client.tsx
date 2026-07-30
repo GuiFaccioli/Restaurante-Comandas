@@ -1,5 +1,7 @@
 'use client'
-import { useLayoutEffect, useState } from 'react'
+import { useLayoutEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import { ArrowLeft, Bell, MoreVertical } from 'lucide-react'
 import { MenuGrid } from '@/components/garcom/menu-grid'
@@ -9,6 +11,9 @@ import { TableOrdersPanel } from '@/components/garcom/table-orders-panel'
 import { ScrollToTopButton } from '@/components/operational/scroll-to-top'
 import type { TableOrder } from '@/lib/orders/queries'
 import { useCart } from '@/lib/store/cart'
+import { MesaAtendimentoGate } from '@/components/garcom/mesa-atendimento-gate'
+import type { AtendimentoResumo } from '@/lib/attendance/queries'
+import { enviarAtendimentoParaPagamento } from '@/lib/actions/atendimentos'
 
 type Produto = {
   id: string
@@ -29,15 +34,20 @@ type CategoriaComProdutos = {
 type Props = {
   mesaNumero: number
   mesaId: string
+  atendimentoId?: string
+  attendances?: AtendimentoResumo[]
   categorias: CategoriaComProdutos[]
   initialPedidos: TableOrder[]
 }
 
-export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos }: Props) {
+export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attendances = [], categorias, initialPedidos }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [isSendingToPayment, startSendingToPayment] = useTransition()
+  const router = useRouter()
   const activeMesaId = useCart((state) => state.mesaId)
   const selectMesa = useCart((state) => state.selectMesa)
   const cartReady = activeMesaId === mesaId
+  const currentAttendance = attendances.find((attendance) => attendance.id === atendimentoId)
 
   useLayoutEffect(() => {
     selectMesa(mesaId)
@@ -64,17 +74,25 @@ export function MesaPageClient({ mesaNumero, mesaId, categorias, initialPedidos 
         </div>
       </div>
       <div className="shrink-0">
-        <TableOrdersPanel mesaId={mesaId} initialPedidos={initialPedidos} />
+        <TableOrdersPanel mesaId={mesaId} atendimentoId={atendimentoId} initialPedidos={initialPedidos} />
       </div>
-      {cartReady && (
+      {!atendimentoId ? <MesaAtendimentoGate mesaId={mesaId} mesaNumero={mesaNumero} attendances={attendances} /> : <section className="mt-3 flex min-h-0 flex-1 flex-col" aria-labelledby="garcom-cardapio-heading">
+        <div className="mb-3 shrink-0">
+          <h2 id="garcom-cardapio-heading" className="text-lg font-bold text-[var(--ink)]">Cardápio</h2>
+          <p className="text-sm text-[var(--muted)]">Escolha os itens para adicionar à comanda.</p>
+          {currentAttendance && currentAttendance.orderCount > 0 && currentAttendance.activeOrderCount === 0 ? <button type="button" className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-button)] border border-[var(--border)] px-4 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--surface-muted)] disabled:opacity-60 sm:w-auto" disabled={isSendingToPayment} onClick={() => startSendingToPayment(async () => { try { await enviarAtendimentoParaPagamento(atendimentoId); toast.success('Conta enviada para pagamento.'); router.refresh() } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível enviar a conta para pagamento.') } })}>{isSendingToPayment ? 'Enviando para pagamento...' : 'Enviar conta para pagamento'}</button> : null}
+        </div>
+        <MenuGrid categorias={categorias} />
+      </section>}
+      {cartReady && atendimentoId && (
         <>
-          <MenuGrid categorias={categorias} />
           <CartFab onClick={() => setDrawerOpen(true)} />
           <CartDrawer
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
             mesaId={mesaId}
             mesaNumero={mesaNumero}
+            atendimentoId={atendimentoId}
           />
         </>
       )}
