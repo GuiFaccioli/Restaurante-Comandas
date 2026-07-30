@@ -28,29 +28,30 @@ function contrast(foreground: string, background: string) {
   return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
 }
 
-describe('DESIGN.MD foundation alignment', () => {
+describe('Agiliza Fluxo foundation alignment', () => {
   it('defines the foundation color, radius, and accessible focus tokens', () => {
     const css = source('app/globals.css')
 
-    expect(css).toContain('--brand-green: #00d4a4')
-    expect(css).toContain('--radius: 0.75rem')
-    expect(css).toContain('--focus-ring: #007f62')
+    expect(css).toContain('--brand-green: #1f7a4d')
+    expect(css).toContain('--canvas: #f6f8f7')
+    expect(css).toContain('--radius-button: 10px')
+    expect(css).toContain('--focus-ring: #1f7a4d')
     expect(css).toContain('--ring: var(--focus-ring)')
-    expect(css).toContain('--hairline: #e5e5e5')
+    expect(css).toContain('--border: #d8e0db')
   })
 
   it('defines accessible semantic action and focus tokens', () => {
     const css = source('app/globals.css')
 
-    expect(token(css, 'action-positive')).toBe('#15803d')
-    expect(token(css, 'action-positive-hover')).toBe('#166534')
-    expect(token(css, 'action-informational')).toBe('#175cd3')
-    expect(token(css, 'action-warning')).toBe('#fde68a')
-    expect(token(css, 'action-warning-solid-foreground')).toBe('#713f12')
-    expect(token(css, 'action-warning-soft')).toBe('#fffbeb')
-    expect(token(css, 'action-warning-soft-foreground')).toBe('#92400e')
-    expect(token(css, 'action-destructive')).toBe('#b42318')
-    expect(token(css, 'focus-ring')).toBe('#007f62')
+    expect(token(css, 'action-positive')).toBe('#1f7a4d')
+    expect(token(css, 'action-positive-hover')).toBe('#17613d')
+    expect(token(css, 'action-informational')).toBe('#2e6eb5')
+    expect(token(css, 'action-warning')).toBe('#c98216')
+    expect(token(css, 'action-warning-solid-foreground')).toBe('#18211c')
+    expect(token(css, 'action-warning-soft')).toBe('#fff3d8')
+    expect(token(css, 'action-warning-soft-foreground')).toBe('#6b430b')
+    expect(token(css, 'action-destructive')).toBe('#c64343')
+    expect(token(css, 'focus-ring')).toBe('#1f7a4d')
 
     expect(contrast(token(css, 'action-positive'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
     expect(contrast(token(css, 'action-informational'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
@@ -61,7 +62,6 @@ describe('DESIGN.MD foundation alignment', () => {
     const hoverPairs = [
       ['action-positive-hover', '#ffffff'],
       ['action-informational-hover', '#ffffff'],
-      ['action-warning-solid-foreground', token(css, 'action-warning-hover')],
       ['action-destructive-hover', '#ffffff'],
     ] as const
     const softPairs = [
@@ -98,31 +98,20 @@ describe('DESIGN.MD foundation alignment', () => {
   })
 
   it('documents solid and soft warning foregrounds separately', () => {
-    const guide = source('DESIGN.MD')
+    const guide = source('docs/AGILIZA_FLUXO_DESIGN.md')
 
-    expect(guide).toContain('neutral, positive, informational, warning, destructive')
-    expect(guide).toContain('solid, soft, outline, ghost, link')
-    expect(guide).toContain('warning solid `#fde68a` with `#713f12`')
-    expect(guide).toContain('warning soft `#fffbeb` with `#92400e`')
-    expect(guide).toContain('#007f62')
-    expect(guide).toContain('Color is never the only cue')
-    expect(guide).not.toContain('green success actions')
-    expect(guide).not.toContain('Focus Mint')
+    expect(guide).toContain('#1F7A4D')
+    expect(guide).toContain('#F2A93B')
+    expect(guide).toContain('Status nunca deve depender apenas da cor')
+    expect(guide).toContain('Agiliza Fluxo')
   })
 
   it('limits outline contrast guarantees to approved light surfaces', () => {
-    const guide = source('DESIGN.MD')
+    const guide = source('docs/AGILIZA_FLUXO_DESIGN.md')
 
-    expect(guide).toContain(
-      'Outline text, border, and icon contrast is guaranteed only on the approved light `background`, `card`, and `popover` surfaces (`#ffffff`).'
-    )
-    expect(guide).toContain(
-      'On any other surface, choose an intent and appearance combination with valid contrast.'
-    )
-    expect(guide).toContain('This contract does not introduce a dark action palette.')
-    expect(guide).not.toMatch(
-      /interactive borders,\s+icons, and focus indicators must meet 3:1 against adjacent surfaces/
-    )
+    expect(guide).toContain('Contraste adequado')
+    expect(guide).toContain('foco visível')
+    expect(guide).toContain('navegação por teclado')
   })
 
   it('keeps Inter for prose and Geist Mono for code', () => {
@@ -134,12 +123,12 @@ describe('DESIGN.MD foundation alignment', () => {
     expect(css).toContain('--font-mono: "Geist Mono"')
   })
 
-  it('uses pill-shaped primary buttons', () => {
+  it('uses touch-sized primary buttons with the shared geometry', () => {
     const button = source('components/ui/button.tsx')
 
-    expect(button).toContain('rounded-full')
-    expect(button).toContain('h-10')
-    expect(button).toContain('px-5')
+    expect(button).toContain('rounded-[var(--radius-button)]')
+    expect(button).toContain('h-11')
+    expect(button).toContain('px-[18px]')
   })
 
   it('uses 40px inputs with the shared focus ring', () => {

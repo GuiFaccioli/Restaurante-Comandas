@@ -17,6 +17,9 @@ vi.mock('next/link', () => ({
   default: ({ children, href }: { children: ReactNode; href: string }) =>
     createElement('a', { href }, children),
 }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}))
 vi.mock('lucide-react', () => ({
   ArrowLeft: () => null,
   Bell: () => null,
@@ -24,6 +27,12 @@ vi.mock('lucide-react', () => ({
 }))
 vi.mock('@/components/garcom/menu-grid', () => ({
   MenuGrid: () => createElement('div', { 'data-testid': 'menu-grid' }),
+}))
+vi.mock('@/components/garcom/mesa-atendimento-gate', () => ({
+  MesaAtendimentoGate: () => createElement('div', { 'data-testid': 'attendance-gate' }),
+}))
+vi.mock('@/lib/actions/atendimentos', () => ({
+  enviarAtendimentoParaPagamento: vi.fn(),
 }))
 vi.mock('@/components/garcom/cart-fab', () => ({
   CartFab: () => createElement('div', { 'data-testid': 'cart-fab' }),
@@ -62,6 +71,8 @@ const mesaPage = (mesaId: string, mesaNumero: number) =>
   createElement(MesaPageClient, {
     mesaId,
     mesaNumero,
+    atendimentoId: `atendimento-${mesaId}`,
+    attendances: [],
     categorias: [],
     initialPedidos: [],
   })

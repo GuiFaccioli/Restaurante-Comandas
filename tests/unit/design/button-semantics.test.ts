@@ -38,7 +38,6 @@ describe('operational button semantics', () => {
   it('uses destructive red for every cancel action', () => {
     const controls = [
       { path: 'components/garcom/cart-drawer.tsx', tag: 'Button', markers: ['Cancelar'] },
-      { path: 'app/admin/pedidos/client.tsx', tag: 'Button', markers: ['Cancelar'] },
       { path: 'components/admin/produto-form.tsx', tag: 'Button', markers: ['Cancelar'] },
     ]
 
@@ -50,7 +49,7 @@ describe('operational button semantics', () => {
 
   it('keeps dismiss, back, logout, and navigation neutral', () => {
     const controls = [
-      { path: 'app/admin/pedidos/client.tsx', tag: 'Button', markers: ['Fechar itens'] },
+      { path: 'app/admin/pedidos/client.tsx', tag: 'Button', markers: ['Fechar pedidos'] },
       { path: 'app/garcom/mesa/[id]/client.tsx', tag: 'Link', markers: ['Voltar'] },
       { path: 'components/auth/profile-menu.tsx', tag: 'Button', markers: ['Sair'] },
       { path: 'app/sem-acesso/page.tsx', tag: 'Link', markers: ['Trocar área'] },

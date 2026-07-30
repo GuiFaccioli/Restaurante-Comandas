@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type TransactionOperations = {
-  sqliteOperation: (transaction: unknown) => unknown
   postgresOperation: (transaction: unknown) => Promise<unknown>
 }
 
@@ -13,17 +12,13 @@ const mocks = vi.hoisted(() => ({
     update: vi.fn(),
   },
   runInDbTransaction: vi.fn(),
-  notifyKitchen: vi.fn(),
   requireAccess: vi.fn(async () => ({
     usuarioId: 'user-1',
     tenantId: 'tenant-1',
     access: 'garcom',
   })),
-  createOrderInSqliteTransaction: vi.fn(),
   createOrderInPostgresTransaction: vi.fn(),
-  transitionOrderInSqliteTransaction: vi.fn(),
   transitionOrderInPostgresTransaction: vi.fn(),
-  cancelOrderInSqliteTransaction: vi.fn(),
   cancelOrderInPostgresTransaction: vi.fn(),
   and: vi.fn((...conditions: unknown[]) => conditions),
   eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
@@ -64,48 +59,14 @@ vi.mock('@/lib/db/schema', () => ({
   },
 }))
 
-vi.mock('@/lib/db/schema-sqlite', () => ({
-  pedido: {
-    id: 'sqlite_pedido.id',
-    tenantId: 'sqlite_pedido.tenant_id',
-    status: 'sqlite_pedido.status',
-  },
-  itemPedido: {
-    pedidoId: 'sqlite_item_pedido.pedido_id',
-    tenantId: 'sqlite_item_pedido.tenant_id',
-    quantidade: 'sqlite_item_pedido.quantidade',
-    precoUnitario: 'sqlite_item_pedido.preco_unitario',
-  },
-  pagamentoPedido: {
-    id: 'sqlite_pagamento_pedido.id',
-    tenantId: 'sqlite_pagamento_pedido.tenant_id',
-    pedidoId: 'sqlite_pagamento_pedido.pedido_id',
-    registradoPorUsuarioId:
-      'sqlite_pagamento_pedido.registrado_por_usuario_id',
-    formaPagamento: 'sqlite_pagamento_pedido.forma_pagamento',
-    valor: 'sqlite_pagamento_pedido.valor',
-    status: 'sqlite_pagamento_pedido.status',
-    observacao: 'sqlite_pagamento_pedido.observacao',
-    registradoEm: 'sqlite_pagamento_pedido.registrado_em',
-  },
-}))
-
-vi.mock('@/lib/sse', () => ({
-  notifyKitchen: mocks.notifyKitchen,
-}))
-
 vi.mock('@/lib/auth/access', () => ({
   requireAccess: mocks.requireAccess,
 }))
 
 vi.mock('@/lib/stock/order-consumption', () => ({
-  createOrderInSqliteTransaction: mocks.createOrderInSqliteTransaction,
   createOrderInPostgresTransaction: mocks.createOrderInPostgresTransaction,
-  transitionOrderInSqliteTransaction:
-    mocks.transitionOrderInSqliteTransaction,
   transitionOrderInPostgresTransaction:
     mocks.transitionOrderInPostgresTransaction,
-  cancelOrderInSqliteTransaction: mocks.cancelOrderInSqliteTransaction,
   cancelOrderInPostgresTransaction: mocks.cancelOrderInPostgresTransaction,
 }))
 
@@ -126,12 +87,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.runInDbTransaction.mockImplementation(
     (operations: TransactionOperations) => (
-      operations.sqliteOperation({ dialect: 'sqlite' })
+      operations.postgresOperation({ dialect: 'postgresql' })
     ),
   )
-  mocks.createOrderInSqliteTransaction.mockReturnValue(createdOrder())
+  mocks.createOrderInPostgresTransaction.mockReturnValue(createdOrder())
   mocks.createOrderInPostgresTransaction.mockResolvedValue(createdOrder())
-  mocks.transitionOrderInSqliteTransaction.mockReturnValue({
+  mocks.transitionOrderInPostgresTransaction.mockReturnValue({
     changed: true,
     status: 'em_preparo',
   })
@@ -139,7 +100,7 @@ beforeEach(() => {
     changed: true,
     status: 'em_preparo',
   })
-  mocks.cancelOrderInSqliteTransaction.mockReturnValue({
+  mocks.cancelOrderInPostgresTransaction.mockReturnValue({
     changed: true,
     status: 'cancelado',
   })
@@ -158,61 +119,36 @@ describe('confirmarPedido', () => {
       observacao: 'Sem cebola',
     }]
 
-    await expect(confirmarPedido('mesa-1', items)).resolves.toEqual({
+    await expect(confirmarPedido('mesa-1', 'atendimento-1', items)).resolves.toEqual({
       id: 'pedido-1',
     })
 
     expect(mocks.requireAccess).toHaveBeenCalledWith('garcom')
     expect(mocks.runInDbTransaction).toHaveBeenCalledTimes(1)
-    expect(mocks.createOrderInSqliteTransaction).toHaveBeenCalledWith(
-      { dialect: 'sqlite' },
+    expect(mocks.createOrderInPostgresTransaction).toHaveBeenCalledWith(
+      { dialect: 'postgresql' },
       {
         tenantId: 'tenant-1',
         usuarioId: 'user-1',
         mesaId: 'mesa-1',
+        atendimentoId: 'atendimento-1',
         items,
       },
     )
     expect(mocks.db.transaction).not.toHaveBeenCalled()
     expect(mocks.db.select).not.toHaveBeenCalled()
-    expect(mocks.notifyKitchen).toHaveBeenCalledWith('tenant-1', {
-      type: 'novo_pedido',
-      payload: {
-        pedidoId: 'pedido-1',
-        mesaNumero: 7,
-        itens: createdOrder().itens,
-      },
-    })
-    expect(
-      mocks.createOrderInSqliteTransaction.mock.invocationCallOrder[0],
-    ).toBeLessThan(mocks.notifyKitchen.mock.invocationCallOrder[0])
   })
 
-  it('does not emit SSE when the transaction fails', async () => {
+  it('propagates a transaction failure', async () => {
     const { confirmarPedido } = await import('@/lib/actions/pedidos')
     mocks.runInDbTransaction.mockImplementationOnce(() => {
       throw new Error('snapshot insert failed')
     })
 
-    await expect(confirmarPedido('mesa-1', [{
+    await expect(confirmarPedido('mesa-1', 'atendimento-1', [{
       produtoId: 'produto-1',
       quantidade: 1,
     }])).rejects.toThrow('snapshot insert failed')
-
-    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
-  })
-
-  it('returns the committed order even when the post-commit SSE effect fails', async () => {
-    const { confirmarPedido } = await import('@/lib/actions/pedidos')
-    mocks.notifyKitchen.mockImplementationOnce(() => {
-      throw new Error('sse unavailable')
-    })
-
-    await expect(confirmarPedido('mesa-1', [{
-      produtoId: 'produto-1',
-      quantidade: 2,
-      observacao: 'Sem cebola',
-    }])).resolves.toEqual({ id: 'pedido-1' })
   })
 
   it.each([
@@ -228,9 +164,8 @@ describe('confirmarPedido', () => {
   ) => {
     const { confirmarPedido } = await import('@/lib/actions/pedidos')
 
-    await expect(confirmarPedido(mesaId, items)).rejects.toThrow(message)
+    await expect(confirmarPedido(mesaId, 'atendimento-1', items)).rejects.toThrow(message)
     expect(mocks.runInDbTransaction).not.toHaveBeenCalled()
-    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
@@ -246,18 +181,17 @@ describe('atualizarStatus', () => {
 
       expect(mocks.requireAccess).toHaveBeenCalledWith('cozinha')
       expect(mocks.runInDbTransaction).not.toHaveBeenCalled()
-      expect(mocks.notifyKitchen).not.toHaveBeenCalled()
     },
   )
 
-  it('runs preparation consumption and status update in one transaction before SSE', async () => {
+  it('runs preparation consumption and status update in one transaction', async () => {
     const { atualizarStatus } = await import('@/lib/actions/pedidos')
 
     await atualizarStatus('pedido-1', 'em_preparo')
 
     expect(mocks.requireAccess).toHaveBeenCalledWith('cozinha')
-    expect(mocks.transitionOrderInSqliteTransaction).toHaveBeenCalledWith(
-      { dialect: 'sqlite' },
+    expect(mocks.transitionOrderInPostgresTransaction).toHaveBeenCalledWith(
+      { dialect: 'postgresql' },
       {
         tenantId: 'tenant-1',
         usuarioId: 'user-1',
@@ -266,18 +200,11 @@ describe('atualizarStatus', () => {
       },
     )
     expect(mocks.db.transaction).not.toHaveBeenCalled()
-    expect(
-      mocks.transitionOrderInSqliteTransaction.mock.invocationCallOrder[0],
-    ).toBeLessThan(mocks.notifyKitchen.mock.invocationCallOrder[0])
-    expect(mocks.notifyKitchen).toHaveBeenCalledWith('tenant-1', {
-      type: 'status_atualizado',
-      payload: { pedidoId: 'pedido-1', status: 'em_preparo' },
-    })
   })
 
-  it('returns success without another movement or SSE on a target-status retry', async () => {
+  it('returns success without another movement on a target-status retry', async () => {
     const { atualizarStatus } = await import('@/lib/actions/pedidos')
-    mocks.transitionOrderInSqliteTransaction.mockReturnValueOnce({
+    mocks.transitionOrderInPostgresTransaction.mockReturnValueOnce({
       changed: false,
       status: 'em_preparo',
     })
@@ -287,27 +214,24 @@ describe('atualizarStatus', () => {
     ).resolves.toBeUndefined()
 
     expect(mocks.runInDbTransaction).toHaveBeenCalledTimes(1)
-    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
   })
 
-  it('does not emit a status update when consumption rolls back', async () => {
+  it('propagates the rollback when preparation consumption fails', async () => {
     const { atualizarStatus } = await import('@/lib/actions/pedidos')
-    mocks.transitionOrderInSqliteTransaction.mockImplementationOnce(() => {
+    mocks.transitionOrderInPostgresTransaction.mockImplementationOnce(() => {
       throw new Error('Não há estoque suficiente para Cheese')
     })
 
     await expect(
       atualizarStatus('pedido-1', 'em_preparo'),
     ).rejects.toThrow('Não há estoque suficiente para Cheese')
-
-    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
 describe('confirmarEntrega', () => {
   it('uses the official pronto-to-entregue transition without a separate stock action', async () => {
     const { confirmarEntrega } = await import('@/lib/actions/pedidos')
-    mocks.transitionOrderInSqliteTransaction.mockReturnValueOnce({
+    mocks.transitionOrderInPostgresTransaction.mockReturnValueOnce({
       changed: true,
       status: 'entregue',
     })
@@ -315,8 +239,8 @@ describe('confirmarEntrega', () => {
     await confirmarEntrega('pedido-1')
 
     expect(mocks.requireAccess).toHaveBeenCalledWith('garcom')
-    expect(mocks.transitionOrderInSqliteTransaction).toHaveBeenCalledWith(
-      { dialect: 'sqlite' },
+    expect(mocks.transitionOrderInPostgresTransaction).toHaveBeenCalledWith(
+      { dialect: 'postgresql' },
       {
         tenantId: 'tenant-1',
         usuarioId: 'user-1',
@@ -324,23 +248,16 @@ describe('confirmarEntrega', () => {
         targetStatus: 'entregue',
       },
     )
-    expect(mocks.notifyKitchen).toHaveBeenCalledWith('tenant-1', {
-      type: 'status_atualizado',
-      payload: { pedidoId: 'pedido-1', status: 'entregue' },
-    })
   })
 
-  it('rejects direct novo-to-entregue delivery and emits nothing', async () => {
+  it('allows direct delivery for active orders through the tenant-scoped transition', async () => {
     const { confirmarEntrega } = await import('@/lib/actions/pedidos')
-    mocks.transitionOrderInSqliteTransaction.mockImplementationOnce(() => {
-      throw new Error('Transição inválida: novo → entregue')
-    })
 
-    await expect(confirmarEntrega('pedido-1')).rejects.toThrow(
-      'Transição inválida: novo → entregue',
+    await expect(confirmarEntrega('pedido-1')).resolves.toBeUndefined()
+    expect(mocks.transitionOrderInPostgresTransaction).toHaveBeenCalledWith(
+      { dialect: 'postgresql' },
+      expect.objectContaining({ targetStatus: 'entregue', tenantId: 'tenant-1' }),
     )
-
-    expect(mocks.notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
@@ -351,17 +268,13 @@ describe('cancelarPedido', () => {
     await cancelarPedido('pedido-1')
 
     expect(mocks.requireAccess).toHaveBeenCalledWith('garcom')
-    expect(mocks.cancelOrderInSqliteTransaction).toHaveBeenCalledWith(
-      { dialect: 'sqlite' },
+    expect(mocks.cancelOrderInPostgresTransaction).toHaveBeenCalledWith(
+      { dialect: 'postgresql' },
       {
         tenantId: 'tenant-1',
         pedidoId: 'pedido-1',
       },
     )
-    expect(mocks.notifyKitchen).toHaveBeenCalledWith('tenant-1', {
-      type: 'status_atualizado',
-      payload: { pedidoId: 'pedido-1', status: 'cancelado' },
-    })
   })
 })
 
@@ -369,35 +282,6 @@ type PaymentFixture = {
   order?: { id: string; status: 'entregue' | 'pronto' } | null
   activePayment?: { id: string }
   items?: Array<{ quantidade: number; precoUnitario: string }>
-}
-
-function createSqlitePaymentTransaction({
-  order = { id: 'pedido-1', status: 'entregue' },
-  activePayment,
-  items = [{ quantidade: 1, precoUnitario: '48.00' }],
-}: PaymentFixture = {}) {
-  const insertedValues = vi.fn()
-  const insertRun = vi.fn()
-  let selectionIndex = 0
-  const rows = [order ? [order] : [], activePayment ? [activePayment] : [], items]
-  const transaction = {
-    select: vi.fn(() => {
-      const currentRows = rows[selectionIndex++] ?? []
-      return {
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            get: vi.fn(() => currentRows[0]),
-            all: vi.fn(() => currentRows),
-          })),
-        })),
-      }
-    }),
-    insert: vi.fn(() => ({
-      values: insertedValues.mockReturnValue({ run: insertRun }),
-    })),
-  }
-
-  return { transaction, insertedValues, insertRun }
 }
 
 function createPostgresPaymentTransaction({
@@ -451,134 +335,6 @@ describe('registrarPagamentoPedido', () => {
     })).rejects.toThrow('Forma de pagamento inválida')
 
     expect(mocks.runInDbTransaction).not.toHaveBeenCalled()
-  })
-
-  it('registers the exact official total for two units inside the SQLite transaction', async () => {
-    const { registrarPagamentoPedido } = await import('@/lib/actions/pedidos')
-    const fixture = createSqlitePaymentTransaction({
-      items: [{ quantidade: 2, precoUnitario: '12.35' }],
-    })
-    mocks.runInDbTransaction.mockImplementationOnce(
-      (operations: TransactionOperations) => (
-        operations.sqliteOperation(fixture.transaction)
-      ),
-    )
-
-    await expect(registrarPagamentoPedido({
-      pedidoId: 'pedido-1',
-      formaPagamento: 'pix',
-      valor: '24,70',
-    })).resolves.toEqual({ status: 'registrado' })
-
-    expect(mocks.requireAccess).toHaveBeenCalledWith('caixa')
-    expect(mocks.runInDbTransaction).toHaveBeenCalledTimes(1)
-    expect(mocks.runInDbTransaction).toHaveBeenCalledWith(
-      expect.any(Object),
-      { sqliteMode: 'immediate' },
-    )
-    expect(mocks.eq).toHaveBeenCalledWith(
-      'sqlite_item_pedido.tenant_id',
-      'tenant-1',
-    )
-    expect(fixture.insertedValues).toHaveBeenCalledWith({
-      id: expect.any(String),
-      tenantId: 'tenant-1',
-      pedidoId: 'pedido-1',
-      registradoPorUsuarioId: 'caixa-1',
-      formaPagamento: 'pix',
-      valor: '24.70',
-      status: 'registrado',
-      observacao: null,
-      registradoEm: expect.any(Date),
-    })
-    expect(fixture.insertRun).toHaveBeenCalledTimes(1)
-  })
-
-  it.each(['24,69', '24,71'])(
-    'rejects a partial or excess value (%s) against the official total',
-    async (valor) => {
-      const { registrarPagamentoPedido } = await import('@/lib/actions/pedidos')
-      const fixture = createSqlitePaymentTransaction({
-        items: [{ quantidade: 2, precoUnitario: '12.35' }],
-      })
-      mocks.runInDbTransaction.mockImplementationOnce(
-        (operations: TransactionOperations) => (
-          operations.sqliteOperation(fixture.transaction)
-        ),
-      )
-
-      await expect(registrarPagamentoPedido({
-        pedidoId: 'pedido-1',
-        formaPagamento: 'pix',
-        valor,
-      })).rejects.toThrow('O valor deve ser exatamente o total pendente')
-
-      expect(fixture.transaction.insert).not.toHaveBeenCalled()
-    },
-  )
-
-  it('treats an active registered payment retry as an idempotent success', async () => {
-    const { registrarPagamentoPedido } = await import('@/lib/actions/pedidos')
-    const fixture = createSqlitePaymentTransaction({
-      activePayment: { id: 'pagamento-1' },
-    })
-    mocks.runInDbTransaction.mockImplementationOnce(
-      (operations: TransactionOperations) => (
-        operations.sqliteOperation(fixture.transaction)
-      ),
-    )
-
-    await expect(registrarPagamentoPedido({
-      pedidoId: 'pedido-1',
-      formaPagamento: 'pix',
-      valor: '48,00',
-    })).resolves.toEqual({ status: 'ja_registrado' })
-
-    expect(fixture.transaction.insert).not.toHaveBeenCalled()
-  })
-
-  it('allows a new full payment when the previous payment is estornado', async () => {
-    const { registrarPagamentoPedido } = await import('@/lib/actions/pedidos')
-    const fixture = createSqlitePaymentTransaction()
-    mocks.runInDbTransaction.mockImplementationOnce(
-      (operations: TransactionOperations) => (
-        operations.sqliteOperation(fixture.transaction)
-      ),
-    )
-
-    await expect(registrarPagamentoPedido({
-      pedidoId: 'pedido-1',
-      formaPagamento: 'dinheiro',
-      valor: '48,00',
-    })).resolves.toEqual({ status: 'registrado' })
-
-    expect(mocks.eq).toHaveBeenCalledWith(
-      'sqlite_pagamento_pedido.status',
-      'registrado',
-    )
-    expect(fixture.transaction.insert).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not find or mutate an order from another tenant', async () => {
-    const { registrarPagamentoPedido } = await import('@/lib/actions/pedidos')
-    const fixture = createSqlitePaymentTransaction({ order: null })
-    mocks.runInDbTransaction.mockImplementationOnce(
-      (operations: TransactionOperations) => (
-        operations.sqliteOperation(fixture.transaction)
-      ),
-    )
-
-    await expect(registrarPagamentoPedido({
-      pedidoId: 'pedido-2',
-      formaPagamento: 'pix',
-      valor: '48,00',
-    })).rejects.toThrow('Pedido não encontrado')
-
-    expect(mocks.eq).toHaveBeenCalledWith(
-      'sqlite_pedido.tenant_id',
-      'tenant-1',
-    )
-    expect(fixture.transaction.insert).not.toHaveBeenCalled()
   })
 
   it('locks the tenant-scoped order in PostgreSQL before checking payment state', async () => {
@@ -644,16 +400,9 @@ describe('registrarPagamentoPedido', () => {
   })
 
   it.each([
-    Object.assign(
-      new Error(
-        'UNIQUE constraint failed: pagamento_pedido.tenant_id, pagamento_pedido.pedido_id',
-      ),
-      { code: 'SQLITE_CONSTRAINT_UNIQUE' },
-    ),
     Object.assign(new Error('duplicate key value violates unique constraint'), {
       code: '23505',
-      constraint:
-        'pagamento_pedido_tenant_pedido_registrado_unique',
+      constraint: 'pagamento_pedido_tenant_pedido_registrado_unique',
     }),
   ])(
     'converts the registered-payment unique conflict into an idempotent result',

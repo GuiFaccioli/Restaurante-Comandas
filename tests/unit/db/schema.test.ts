@@ -134,30 +134,6 @@ describe('Drizzle schema', () => {
     })
   })
 
-  describe('sqlite schema source', () => {
-    it('maps pedido.entregueEm to the entregue_em column', () => {
-      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
-
-      expect(sqliteSchema).toContain("entregueEm: integer('entregue_em'")
-    })
-
-    it('mirrors tenant-scoped operational schema', () => {
-      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
-
-      expect(sqliteSchema).toContain("export const tenant = sqliteTable('tenant'")
-      expect(sqliteSchema).toContain("export const tenantUser = sqliteTable('tenant_user'")
-      expect(sqliteSchema).toContain("tenantId: text('tenant_id')")
-      expect(sqliteSchema).toContain("selectedTenantId: text('selected_tenant_id')")
-    })
-
-    it('mirrors nullable order creator identity in SQLite', () => {
-      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
-
-      expect(sqliteSchema).toContain("createdByUserId: text('created_by_user_id')")
-      expect(sqliteSchema).not.toMatch(/createdByUserId:[\s\S]{0,100}\.notNull\(\)/)
-    })
-  })
-
   describe('schema reference files', () => {
     it('keeps db/schema.sql aligned with delivered timestamp and first-party auth tables', () => {
       const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
@@ -294,6 +270,7 @@ describe('Drizzle schema', () => {
       expect(Object.keys(pagamentoPedido)).toContain('id')
       expect(Object.keys(pagamentoPedido)).toContain('tenantId')
       expect(Object.keys(pagamentoPedido)).toContain('pedidoId')
+      expect(Object.keys(pagamentoPedido)).toContain('atendimentoId')
       expect(Object.keys(pagamentoPedido)).toContain('registradoPorUsuarioId')
       expect(Object.keys(pagamentoPedido)).toContain('formaPagamento')
       expect(Object.keys(pagamentoPedido)).toContain('valor')
@@ -301,13 +278,9 @@ describe('Drizzle schema', () => {
       expect(Object.keys(pagamentoPedido)).toContain('registradoEm')
     })
 
-    it('keeps only one registered payment per tenant order', () => {
+    it('stores payments at attendance level instead of enforcing one payment per order', () => {
       const pgSchema = readFileSync(
         join(process.cwd(), 'lib/db/schema.ts'),
-        'utf8',
-      )
-      const sqliteSchema = readFileSync(
-        join(process.cwd(), 'lib/db/schema-sqlite.ts'),
         'utf8',
       )
       const sqlSchema = readFileSync(
@@ -315,15 +288,12 @@ describe('Drizzle schema', () => {
         'utf8',
       )
 
-      for (const source of [pgSchema, sqliteSchema, sqlSchema]) {
-        expect(source).toContain(
-          'pagamento_pedido_tenant_pedido_registrado_unique',
-        )
+      for (const source of [pgSchema, sqlSchema]) {
+        expect(source).toContain('atendimento')
+        expect(source).not.toContain('pagamento_pedido_tenant_pedido_registrado_unique')
         expect(source).toMatch(/status[\s\S]{0,80}registrado/)
       }
-      expect(sqlSchema).toMatch(
-        /ON pagamento_pedido\s*\(tenant_id,\s*pedido_id\)\s*WHERE status = 'registrado'/i,
-      )
+      expect(sqlSchema).toContain('idx_pagamento_pedido_tenant_atendimento')
     })
   })
 
@@ -335,7 +305,6 @@ describe('Drizzle schema', () => {
 
     it('supports canceled orders as a first-class status', () => {
       const pgSchema = readFileSync(join(process.cwd(), 'lib/db/schema.ts'), 'utf8')
-      const sqliteSchema = readFileSync(join(process.cwd(), 'lib/db/schema-sqlite.ts'), 'utf8')
       const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
       const migration = readFileSync(
         join(process.cwd(), 'db/migrations/202607071018_add_cancelado_status.sql'),
@@ -343,7 +312,6 @@ describe('Drizzle schema', () => {
       )
 
       expect(pgSchema).toContain("'cancelado'")
-      expect(sqliteSchema).toContain("'cancelado'")
       expect(sqlSchema).toContain("'cancelado'")
       expect(migration).toContain("ADD VALUE IF NOT EXISTS 'cancelado'")
     })

@@ -32,52 +32,42 @@ function findOpeningTag(source: string, tag: string, marker: string) {
 
 describe('cashier order control', () => {
   it('uses a tenant-scoped cashier query with item details, totals, and payment status', () => {
-    const queries = readProjectFile('lib/orders/queries.ts')
+    const queries = readProjectFile('lib/attendance/queries.ts')
     const page = readProjectFile('app/admin/pedidos/page.tsx')
 
-    expect(queries).toContain('getCashierOrders')
+    expect(queries).toContain('getCashierAccounts')
     expect(queries).toContain('pagamentoPedido')
-    expect(queries).toContain('pagamentoStatus')
+    expect(queries).toContain('saldoPendente')
     expect(queries).toContain('precoUnitario')
     expect(queries).toContain('calculateOrderTotal')
-    expect(page).toContain('getCashierOrders')
+    expect(page).toContain('getCashierAccounts')
     expect(page).toContain('initialPedidos')
   })
 
   it('renders expandable cashier details and safe polling without losing UI state', () => {
     const client = readProjectFile('app/admin/pedidos/client.tsx')
-    const paymentOpen = findJsxBlock(client, 'Button', [
-      'onClick={() => openPaymentForm(pedido)}',
-    ])
-    const paymentSubmit = findJsxBlock(client, 'Button', ['type="submit"', 'Registrar pagamento'])
-    const paymentDismiss = findJsxBlock(client, 'Button', [
-      'onClick={closePaymentForm}',
-      'Cancelar',
-    ])
-    const paymentFormOpeningTag = findOpeningTag(
-      client,
-      'form',
-      'onSubmit={(event) => handlePaymentSubmit(event, pedido)}'
-    )
+    const paymentOpen = findJsxBlock(client, 'Button', ['Receber pagamento'])
+    const paymentSubmit = findJsxBlock(client, 'Button', ['type="submit"', 'Confirmar pagamento'])
+    const paymentDismiss = findJsxBlock(client, 'Button', ['Cancelar'])
+    const paymentFormOpeningTag = findOpeningTag(client, 'form', 'handlePaymentSubmit(event, account)')
 
-    expect(client).toContain('Itens do pedido')
-    expect(client).toContain('Total')
-    expect(client).toContain('Registrar pagamento')
+    expect(client).toContain('Pedidos desta conta')
+    expect(client).toContain('Saldo pendente')
+    expect(client).toContain('Confirmar pagamento')
     expect(paymentOpen).toContain('intent="positive"')
     expect(paymentOpen).toContain('appearance="solid"')
     expect(paymentSubmit).toContain('intent="positive"')
     expect(paymentSubmit).toContain('appearance="solid"')
     expect(paymentSubmit).toContain('aria-busy={isPending}')
     expect(paymentSubmit).toContain('disabled={isPending}')
-    expect(paymentDismiss).toContain('intent="destructive"')
+    expect(paymentDismiss).toContain('intent="neutral"')
     expect(paymentDismiss).toContain('appearance="outline"')
-    expect(paymentDismiss).not.toContain('intent="neutral"')
+    expect(paymentDismiss).toContain('intent="neutral"')
     expect(paymentFormOpeningTag).toContain('aria-busy={isPending}')
     expect(client).toContain('/api/caixa/pedidos')
     expect(client).toContain('5000')
     expect(client).toContain('expandedId')
-    expect(client).toContain('paymentFormPedidoId')
-    expect(client).toContain("setPaymentAmount('')")
+    expect(client).toContain('paymentAccountId')
   })
 
   it('uses the shared semantic utility for the native stat disclosure', () => {
@@ -95,14 +85,14 @@ describe('cashier order control', () => {
   it('preserves the user choice to keep cashier order items collapsed during polling', () => {
     const client = readProjectFile('app/admin/pedidos/client.tsx')
 
-    expect(client).toContain('if (current === null) return null')
+    expect(client).toContain('setExpandedId((current) =>')
   })
 
   it('keeps canceled orders out of cashier receivables', () => {
-    const queries = readProjectFile('lib/orders/queries.ts')
+    const queries = readProjectFile('lib/attendance/queries.ts')
 
-    expect(queries).toContain('getCashierOrders')
-    expect(queries).toContain("ne(pedido.status, 'cancelado')")
+    expect(queries).toContain('getCashierAccounts')
+    expect(queries).toContain("order.status !== 'cancelado'")
   })
 
   it('returns optional order creator and registered payment metadata', () => {

@@ -22,14 +22,14 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('CartDrawer')
   })
 
-  test('garcom screens filter sqlite booleans without binding raw true', () => {
+  test('garcom screens filter PostgreSQL booleans natively', () => {
     const mesasSource = source('app/garcom/mesas/page.tsx')
     const menuSource = source('app/garcom/mesa/[id]/page.tsx')
 
-    expect(mesasSource).toContain('= 1')
-    expect(menuSource).toContain('= 1')
-    expect(mesasSource).not.toContain('eq(mesa.ativa, true)')
-    expect(menuSource).not.toContain('eq(produto.disponivel, true)')
+    expect(mesasSource).toContain('getTenantMesaOperationalSummaries')
+    expect(menuSource).toContain('eq(produto.disponivel, true)')
+    expect(mesasSource).not.toContain('= 1')
+    expect(menuSource).not.toContain('= 1')
   })
 
   test('garcom confirms the full cart in one official business action', () => {
@@ -51,7 +51,8 @@ describe('pedido business flow', () => {
   })
 
   test('kitchen and admin persisted-order surfaces read persisted pedidos instead of cart state', () => {
-    const kitchenSource = source('app/cozinha/dashboard/page.tsx')
+    const kitchenPageSource = source('app/cozinha/dashboard/page.tsx')
+    const kitchenQuerySource = source('lib/kitchen/queries.ts')
     const adminPedidosPath = 'app/admin/pedidos/page.tsx'
     const adminClient = source('app/admin/pedidos/client.tsx')
 
@@ -60,19 +61,32 @@ describe('pedido business flow', () => {
 
     const adminSource = source(adminPedidosPath)
 
-    expect(kitchenSource).toContain('from(pedido)')
-    expect(adminSource).toContain('getCashierOrders')
+    expect(kitchenPageSource).toContain('getKitchenOrders')
+    expect(kitchenQuerySource).toContain('from(pedido)')
+    expect(adminSource).toContain('getCashierAccounts')
     expect(source('lib/orders/queries.ts')).toContain('from(pedido)')
-    expect(adminClient).toContain('SseListener')
-    expect(adminClient).toContain('Pedido recebido da Mesa')
-    expect(kitchenSource).not.toContain('useCart')
+    expect(adminClient).toContain("fetch('/api/caixa/pedidos'")
+    expect(adminClient).toContain('window.setInterval')
+    expect(adminClient).toContain("document.visibilityState === 'visible'")
+    expect(adminClient).not.toContain('SseListener')
+    expect(adminClient).not.toContain('KitchenEvent')
+    expect(kitchenPageSource).not.toContain('useCart')
     expect(adminSource).not.toContain('useCart')
   })
 
+  test('order actions persist state without publishing in-memory SSE events', () => {
+    const orderActions = source('lib/actions/pedidos.ts')
+
+    expect(orderActions).not.toContain("from '@/lib/sse'")
+    expect(orderActions).not.toContain('notifyKitchen')
+  })
   test('kitchen query keeps every official active preparation state visible', () => {
-    const kitchenSource = source('app/cozinha/dashboard/page.tsx')
+    const kitchenSource = source('lib/kitchen/queries.ts')
 
     expect(kitchenSource).toContain("inArray(pedido.status, ['novo', 'em_preparo', 'pronto'])")
+    expect(kitchenSource).toContain('eq(pedido.tenantId, tenantId)')
+    expect(kitchenSource).toContain('eq(itemPedido.tenantId, tenantId)')
+    expect(kitchenSource).toContain("'novo', 'em_preparo', 'pronto'")
   })
 
   test('waiter pending deliveries page is the first waiter workflow screen', () => {
@@ -82,7 +96,7 @@ describe('pedido business flow', () => {
     expect(accessSource).toContain("garcom: '/garcom/pedidos'")
     expect(pageSource).toContain("requireAccess('garcom')")
     expect(pageSource).toContain('from(pedido)')
-    expect(pageSource).toContain("eq(pedido.status, 'pronto')")
+    expect(pageSource).toContain("inArray(pedido.status, ['novo', 'em_preparo', 'pronto'])")
     expect(pageSource).toContain('PendingDeliveriesClient')
     expect(pageSource).not.toContain("redirect('/garcom/mesas')")
     expect(pageSource).not.toContain('href="/garcom/mesas"')
@@ -110,7 +124,6 @@ describe('pedido business flow', () => {
     expect(mesasSource).toContain('mx-auto')
     expect(mesasSource).toContain('max-w-4xl')
     expect(mesasSource).toContain('focus-visible:ring-2')
-    expect(mesasSource).toContain('text-pretty')
 
     expect(kitchenSource).toContain('min-h-[calc(100dvh-4rem)]')
     expect(kitchenSource).toContain('text-pretty')
@@ -157,7 +170,7 @@ describe('pedido business flow', () => {
     expect(garcomLayoutSource).toContain('GarcomProfileSlot')
     expect(profileSlotSource).toContain("pathname.startsWith('/garcom/mesa/')")
     expect(profileSlotSource).toContain("pathname === '/garcom/mesas'")
-    expect(mesasPageSource).toContain('<ProfileMenu currentAccess="garcom" />')
+    expect(mesasPageSource).toContain('Escolha uma mesa')
     expect(menuSource).not.toContain('overflow-x-auto')
     expect(clientSource).toContain('<ScrollToTopButton />')
     expect(deliveriesPageSource).toContain('<ScrollToTopButton />')
@@ -166,7 +179,7 @@ describe('pedido business flow', () => {
     expect(scrollSource).not.toContain('setTimeout')
 
     expect(itemSource).toContain('bg-card')
-    expect(itemSource).toContain('rounded-3xl')
+    expect(itemSource).toContain('rounded-[var(--radius-card)]')
     expect(itemSource).toContain('min-w-0')
     expect(itemSource).toContain('break-words')
     expect(itemSource).toContain('Indisponível')
@@ -186,7 +199,7 @@ describe('pedido business flow', () => {
     expect(tableOrdersSource).not.toContain('setExpandedId(expanded ? null : pedido.id)')
 
     expect(fabSource).toContain('aria-label="Abrir carrinho"')
-    expect(fabSource).toContain('bottom-4')
+    expect(fabSource).toContain('bottom-[calc(5rem+env(safe-area-inset-bottom))]')
   })
 
   test('cashier order management keeps readable payment UI', () => {
@@ -194,17 +207,15 @@ describe('pedido business flow', () => {
     const pageSource = source('app/admin/pedidos/page.tsx')
     const clientSource = source('app/admin/pedidos/client.tsx')
 
-    expect(layoutSource).toContain('Painel admin')
-    expect(layoutSource).toContain('bg-[var(--admin-canvas)]')
-    expect(layoutSource).toContain('lg:grid-cols-[292px_minmax(0,1fr)]')
+    expect(layoutSource).toContain('Agiliza Fluxo')
+    expect(layoutSource).toContain('bg-[var(--canvas)]')
+    expect(layoutSource).toContain('lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]')
     expect(layoutSource).toContain('max-w-[1600px]')
     expect(layoutSource).toContain('AdminShellNav')
     expect(layoutSource).toContain('lg:h-dvh')
-    expect(layoutSource).toContain('Interface otimizada para uso em computador.')
-    expect(layoutSource).toContain('Relatórios')
-    expect(layoutSource).toContain('Usuários cadastrados')
-    expect(layoutSource).toContain('Configurações')
-    expect(layoutSource).toContain('Gestão')
+    expect(layoutSource).toContain('Tudo no fluxo certo.')
+    expect(layoutSource).toContain('Equipe')
+    expect(layoutSource).toContain('Administração')
 
     expect(pageSource).toContain('AdminPage')
     expect(pageSource).toContain('AdminPageHeader')
@@ -214,13 +225,13 @@ describe('pedido business flow', () => {
     expect(clientSource).toContain('Débito')
     expect(clientSource).toContain('Não foi possível registrar o pagamento.')
     expect(clientSource).not.toContain('AdminStatsGrid')
-    expect(clientSource).toContain('Fila do caixa')
+    expect(clientSource).toContain('Contas aguardando pagamento')
     expect(clientSource).toContain('min-w-0')
     expect(clientSource).toContain('break-words')
     expect(clientSource).toContain('min-h-11')
     expect(clientSource).toContain(' · ')
-    expect(clientSource).toContain('const firstPaymentPedido = initialPedidos.find(isAwaitingPayment)')
-    expect(clientSource).toContain('title="Pagamentos aguardando baixa"')
+    expect(clientSource).toContain('const firstPayment = initialPedidos.find(canReceivePayment)')
+    expect(clientSource).toContain('title="Contas aguardando pagamento"')
     expect(clientSource).not.toContain("'Abrir pedido'")
   })
 
@@ -257,11 +268,9 @@ describe('pedido business flow', () => {
     expect(mesasSource).toContain('Nenhuma mesa cadastrada')
     expect(mesasSource).toContain('min-h-11')
 
-    expect(menuSource).toContain('lg:grid-cols-[220px_minmax(0,1fr)]')
-    expect(menuSource).toContain('Ações')
-    expect(menuSource).toContain('Ativo')
-    expect(menuSource).toContain('Inativo')
-    expect(menuSource).toContain('min-h-11')
+    expect(menuSource).toContain('AdminPageHeader')
+    expect(menuSource).toContain('CategoryManager')
+    expect(menuSource).toContain('Novo produto')
 
     expect(productFormSource).toContain('Descrição')
     expect(productFormSource).toContain('Preço (R$)')
@@ -286,15 +295,14 @@ describe('pedido business flow', () => {
     expect(signUpSource).toContain('Já tem conta?')
     expect(signUpSource).toContain('min-h-11')
 
-    expect(areaSource).toContain('Selecionar área')
-    expect(areaSource).toContain('você')
-    expect(areaSource).toContain('text-pretty')
+    expect(areaSource).toContain('Por onde você quer começar?')
+    expect(areaSource).toContain('Agiliza Fluxo')
+    expect(areaSource).toContain('af-surface')
     expect(areaSource).toContain('focus-visible:ring-2')
 
-    expect(companySource).toContain('Selecionar empresa')
-    expect(companySource).toContain('você')
-    expect(companySource).toContain('text-pretty')
-    expect(companySource).toContain('appearance="outline"')
+    expect(companySource).toContain('Escolha o restaurante')
+    expect(companySource).toContain('Selecione onde você vai trabalhar agora.')
+    expect(companySource).toContain('af-surface')
 
     expect(deniedSource).toContain('Seu usuário não tem permissão')
     expect(deniedSource).toContain('Trocar área')

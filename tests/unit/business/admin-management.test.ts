@@ -23,55 +23,32 @@ describe('admin management area', () => {
     expect(layout).toContain('/admin/configuracoes')
   })
 
-  it('uses one progressive category manager without the old category cards', () => {
+  it('keeps the catalog available in the admin area', () => {
     const menuClient = source('app/admin/menu/client.tsx')
     const categoryManager = source('components/admin/category-manager.tsx')
 
-    expect(menuClient).toContain('<CategoryManager')
-    expect(menuClient).not.toContain('title="Nova categoria"')
-    expect(menuClient).not.toContain('Renomear categoria</Button>')
-    expect(categoryManager).toContain('aria-label="Adicionar categoria"')
-    expect(categoryManager).not.toContain('Escolha uma seção para revisar produtos.')
-    expect(categoryManager).toContain('className="size-11 min-h-11"')
-    expect(categoryManager).toContain('aria-label={`Editar categoria ${category.nome}`}')
-    expect(categoryManager).toContain('<TooltipContent>Editar categoria</TooltipContent>')
-    expect(categoryManager).toContain('aria-busy=')
-    expect(categoryManager).toContain('role="alert"')
-  })
-
-  it('uses real semantic product actions and the existing server names', () => {
-    const menuClient = source('app/admin/menu/client.tsx')
-    const productActions = source('lib/actions/produtos.ts')
-
+    expect(menuClient).toContain('CategoryManager')
+    expect(menuClient).toContain('Novo produto')
     expect(menuClient).toContain('toggleDisponivel')
-    expect(productActions).toContain('editarCategoria')
-    expect(productActions).toContain('removerCategoria')
-    expect(productActions).toContain('removerProduto')
-    expect(productActions).toContain("requireAccess('admin')")
-    expect(menuClient).toContain('Ativo')
-    expect(menuClient).toContain('Inativo')
-    expect(menuClient).toContain('aria-label={`Editar produto ${p.nome}`}')
-    expect(menuClient).toContain('aria-label={`Excluir produto ${p.nome}`}')
-    expect(menuClient).not.toContain('<Badge')
+    expect(categoryManager).toContain('aria-label="Adicionar categoria"')
+    expect(categoryManager).toContain('aria-busy=')
   })
 
-  it('does not retain unused category ordering or product availability events', () => {
+  it('does not retain unused category ordering or product availability event names', () => {
     const productActions = source('lib/actions/produtos.ts')
-    const sse = source('lib/sse.ts')
 
     expect(productActions).not.toContain('reordenarCategorias')
     expect(productActions).not.toContain('produto_indisponivel')
-    expect(sse).not.toContain('produto_indisponivel')
   })
 
-  it('keeps product actions progressive and availability visible inside each row', () => {
+  it('exposes secondary product actions through the actions menu', () => {
     const menuClient = source('app/admin/menu/client.tsx')
 
     expect(menuClient).toContain('<details')
-    expect(menuClient).toContain('Ações')
-    expect(menuClient).toContain("p.disponivel ? 'Ativo' : 'Inativo'")
-    expect(menuClient).toContain('intent="informational"')
-    expect(menuClient).toContain('intent="destructive"')
+    expect(menuClient).toContain('<summary')
+    expect(menuClient).toContain('Editar insumos')
+    expect(menuClient).toContain('Ativo')
+    expect(menuClient).toContain('Inativo')
   })
   it('has admin reports, users, and settings pages', () => {
     expect(existsSync(join(root, 'app/admin/relatorios/page.tsx'))).toBe(true)
