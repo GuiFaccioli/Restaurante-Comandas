@@ -22,10 +22,11 @@ describe('permission boundaries', () => {
     expect(source('app/cozinha/layout.tsx')).toContain("requireAccess('cozinha')")
   })
 
-  it('does not retain process-local SSE infrastructure', () => {
-    expect(existsSync(join(root, 'app/api/events/route.ts'))).toBe(false)
+  it('keeps tenant-scoped realtime events without retaining the old kitchen-only SSE client', () => {
+    expect(existsSync(join(root, 'app/api/events/route.ts'))).toBe(true)
     expect(existsSync(join(root, 'components/cozinha/sse-listener.tsx'))).toBe(false)
     expect(existsSync(join(root, 'lib/sse.ts'))).toBe(false)
+    expect(readFileSync(join(root, 'app/api/events/route.ts'), 'utf8')).toContain('requireAnyAccess')
   })
 
   it('waiter UI and order confirmation require garcom access', () => {

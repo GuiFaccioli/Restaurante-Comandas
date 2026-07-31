@@ -1,7 +1,5 @@
 'use client'
-import { useLayoutEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Bell, MoreVertical } from 'lucide-react'
 import { MenuGrid } from '@/components/garcom/menu-grid'
@@ -13,7 +11,6 @@ import type { TableOrder } from '@/lib/orders/queries'
 import { useCart } from '@/lib/store/cart'
 import { MesaAtendimentoGate } from '@/components/garcom/mesa-atendimento-gate'
 import type { AtendimentoResumo } from '@/lib/attendance/queries'
-import { enviarAtendimentoParaPagamento } from '@/lib/actions/atendimentos'
 
 type Produto = {
   id: string
@@ -42,12 +39,9 @@ type Props = {
 
 export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attendances = [], categorias, initialPedidos }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [isSendingToPayment, startSendingToPayment] = useTransition()
-  const router = useRouter()
   const activeMesaId = useCart((state) => state.mesaId)
   const selectMesa = useCart((state) => state.selectMesa)
   const cartReady = activeMesaId === mesaId
-  const currentAttendance = attendances.find((attendance) => attendance.id === atendimentoId)
 
   useLayoutEffect(() => {
     selectMesa(mesaId)
@@ -80,7 +74,6 @@ export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attenda
         <div className="mb-3 shrink-0">
           <h2 id="garcom-cardapio-heading" className="text-lg font-bold text-[var(--ink)]">Cardápio</h2>
           <p className="text-sm text-[var(--muted)]">Escolha os itens para adicionar à comanda.</p>
-          {currentAttendance && currentAttendance.orderCount > 0 && currentAttendance.activeOrderCount === 0 ? <button type="button" className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-button)] border border-[var(--border)] px-4 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--surface-muted)] disabled:opacity-60 sm:w-auto" disabled={isSendingToPayment} onClick={() => startSendingToPayment(async () => { try { await enviarAtendimentoParaPagamento(atendimentoId); toast.success('Conta enviada para pagamento.'); router.refresh() } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível enviar a conta para pagamento.') } })}>{isSendingToPayment ? 'Enviando para pagamento...' : 'Enviar conta para pagamento'}</button> : null}
         </div>
         <MenuGrid categorias={categorias} />
       </section>}

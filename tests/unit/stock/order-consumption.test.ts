@@ -163,6 +163,71 @@ describe('PostgreSQL order consumption', () => {
     expect(effects).toEqual(['consume-snapshot', 'update-status'])
   })
 
+  it('makes the attendance available to the cashier when its last order is delivered', async () => {
+    const current = lockedQuery([{ status: 'pronto' as const, atendimentoId: 'atendimento-1' }])
+    const attendanceOrders = {
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{ status: 'entregue' as const }]),
+      })),
+    }
+    const updateValues: unknown[] = []
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(current)
+        .mockReturnValueOnce(attendanceOrders),
+      update: vi.fn(() => ({
+        set: vi.fn((values: unknown) => {
+          updateValues.push(values)
+          return { where: vi.fn(async () => undefined) }
+        }),
+      })),
+    }
+
+    await expect(transitionOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', pedidoId: 'pedido-1',
+      targetStatus: 'entregue',
+    })).resolves.toEqual({ changed: true, status: 'entregue' })
+
+    expect(updateValues).toHaveLength(2)
+    expect(updateValues[1]).toEqual(expect.objectContaining({
+      status: 'awaiting_payment',
+    }))
+  })
+
+  it('reopens an awaiting attendance when the waiter adds another order to it', async () => {
+    const table = lockedQuery([{ numero: 7 }])
+    const attendance = lockedQuery([{
+      id: 'atendimento-1', mesaId: 'mesa-1', status: 'awaiting_payment' as const,
+    }])
+    const product = lockedQuery([{
+      nome: 'Pizza', preco: '42.00', categoriaNome: 'Pratos', controleEstoque: false,
+    }])
+    const updateValues: unknown[] = []
+    const insert = vi.fn(() => ({ values: vi.fn(async () => undefined) }))
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(table)
+        .mockReturnValueOnce(attendance)
+        .mockReturnValueOnce(product),
+      update: vi.fn(() => ({
+        set: vi.fn((values: unknown) => {
+          updateValues.push(values)
+          return { where: vi.fn(async () => undefined) }
+        }),
+      })),
+      insert,
+    }
+
+    await expect(createOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', mesaId: 'mesa-1',
+      atendimentoId: 'atendimento-1', items: [{ produtoId: 'produto-1', quantidade: 1 }],
+    })).resolves.toMatchObject({ mesaNumero: 7 })
+
+    expect(updateValues[0]).toEqual(expect.objectContaining({
+      status: 'open', aguardandoPagamentoEm: null,
+    }))
+  })
+
   it('keeps a repeated PostgreSQL status transition idempotent', async () => {
     const current = lockedQuery([{ status: 'em_preparo' as const }])
     const tx = {

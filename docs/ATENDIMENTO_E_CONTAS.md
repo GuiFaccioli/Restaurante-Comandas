@@ -16,7 +16,7 @@ Um atendimento possui vários pedidos e cada pedido pertence a exatamente um ate
 - `PAID`: saldo quitado e atendimento encerrado.
 - `CANCELLED`: atendimento cancelado por uma permissão administrativa.
 
-`OPEN` vai para `AWAITING_PAYMENT` quando o garçom envia a conta. Uma conta pendente pode voltar a `OPEN` em **Continuar atendimento**. **Iniciar novo atendimento** preserva a conta anterior e cria outra `OPEN`. O pagamento move somente a conta selecionada para `PAID`.
+`OPEN` vai para `AWAITING_PAYMENT` automaticamente quando todos os pedidos do atendimento forem entregues ou cancelados. Nao existe uma etapa de aprovacao do garcom para liberar a conta. Se um novo pedido for adicionado ao mesmo atendimento, ele volta automaticamente para `OPEN` e permanece agrupado na mesma conta. Uma conta pendente tambem pode ser retomada em **Continuar atendimento**. **Iniciar novo atendimento** preserva a conta anterior e cria outra `OPEN`. O pagamento move somente a conta selecionada para `PAID`.
 
 O status do atendimento não substitui o status do pedido. Um pedido entregue continua compondo a conta.
 
@@ -24,7 +24,7 @@ O status do atendimento não substitui o status do pedido. Um pedido entregue co
 
 Ao abrir uma mesa sem atendimento ativo ou conta pendente, o sistema cria um atendimento `OPEN`. Se já houver um atendimento `OPEN`, ele é aberto diretamente. Se houver uma ou mais contas pendentes, o garçom escolhe explicitamente qual deseja continuar ou inicia um novo atendimento.
 
-Quando há mais de uma conta pendente, nenhuma é escolhida automaticamente. A conta retomada sai temporariamente da fila principal do caixa até ser enviada novamente para pagamento.
+Quando ha mais de uma conta pendente, nenhuma e escolhida automaticamente. A conta retomada volta para `OPEN` enquanto novos pedidos estao sendo consumidos e retorna automaticamente para a fila de pagamento quando todos forem entregues ou cancelados.
 
 ## Caixa
 
@@ -51,7 +51,7 @@ Pedidos legados não são agrupados por `tableId`. Como não existe uma chave hi
 
 ## Casos-limite
 
-- pedido enviado, em preparo ou pronto impede enviar o atendimento para pagamento;
+- pedido enviado, em preparo ou pronto mantem o atendimento em consumo;
 - pedido entregue continua no total;
 - conta parcialmente paga permanece pendente;
 - pagamento de uma conta não altera outro atendimento da mesa;

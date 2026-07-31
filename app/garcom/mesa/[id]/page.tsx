@@ -20,7 +20,7 @@ export default async function MesaPage({ params, searchParams }: { params: Promi
   const { atendimentoId: requestedAttendanceId } = await searchParams
   const attendances = await getMesaAtendimentos({ tenantId, mesaId: m.id })
   const openAttendance = attendances.find((item) => item.status === 'open')
-  const atendimentoId = requestedAttendanceId && attendances.some((item) => item.id === requestedAttendanceId && item.status === 'open')
+  const atendimentoId = requestedAttendanceId && attendances.some((item) => item.id === requestedAttendanceId && (item.status === 'open' || item.status === 'awaiting_payment'))
     ? requestedAttendanceId
     : openAttendance?.id ?? ''
 

@@ -2,7 +2,7 @@
 
 import { and, eq } from 'drizzle-orm'
 
-import { atendimento, mesa, pedido } from '@/lib/db/schema'
+import { atendimento, mesa } from '@/lib/db/schema'
 import type { StatusAtendimento } from '@/lib/db/schema'
 import { db, runInDbTransaction } from '@/lib/db/index'
 import { requireAccess } from '@/lib/auth/access'
@@ -93,30 +93,6 @@ export async function continuarAtendimento(atendimentoId: string): Promise<{ id:
 
 export async function iniciarNovoAtendimento(mesaId: string): Promise<{ id: string }> {
   return iniciarAtendimento(mesaId)
-}
-
-export async function enviarAtendimentoParaPagamento(atendimentoId: string): Promise<void> {
-  const { tenantId, usuarioId } = await requireAccess('garcom')
-  await runInDbTransaction({
-    postgresOperation: async (tx) => {
-      const [current] = await tx
-        .select({ id: atendimento.id, status: atendimento.status })
-        .from(atendimento)
-        .where(and(eq(atendimento.id, atendimentoId), eq(atendimento.tenantId, tenantId)))
-        .for('update')
-      if (!current) throw new Error('Atendimento não encontrado')
-      if (current.status !== 'open') throw new Error('Este atendimento não está em consumo')
-      const orders = await tx
-        .select({ status: pedido.status })
-        .from(pedido)
-        .where(and(eq(pedido.tenantId, tenantId), eq(pedido.atendimentoId, atendimentoId)))
-      if (orders.length === 0) throw new Error('O atendimento ainda não possui pedidos')
-      if (orders.some((order) => order.status !== 'entregue' && order.status !== 'cancelado')) {
-        throw new Error('Aguarde todos os pedidos serem entregues')
-      }
-      await tx.update(atendimento).set({ status: 'awaiting_payment', aguardandoPagamentoEm: new Date(), atualizadoEm: new Date(), fechadoPorUsuarioId: usuarioId }).where(and(eq(atendimento.id, atendimentoId), eq(atendimento.tenantId, tenantId)))
-    },
-  })
 }
 
 export async function atualizarStatusAtendimento(

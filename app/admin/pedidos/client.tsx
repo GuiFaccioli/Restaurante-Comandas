@@ -9,6 +9,8 @@ import { formatPedidoCriadoEm } from '@/lib/date-format'
 import { registrarPagamentoAtendimento } from '@/lib/actions/pedidos'
 import type { FormaPagamento, StatusAtendimento } from '@/lib/db/schema'
 import type { AtendimentoResumo } from '@/lib/attendance/queries'
+import { TenantEventListener } from '@/components/tenant-event-listener'
+import type { TenantEvent } from '@/lib/tenant-events'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -71,6 +73,10 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
     setPaymentAccountId((current) => current && data.contas.some((account) => account.id === current && canReceivePayment(account)) ? current : data.contas.find(canReceivePayment)?.id ?? null)
   }, [])
 
+  const handleTenantEvent = useCallback((event: TenantEvent) => {
+    if (event.type === 'attendance_updated') void refreshContas()
+  }, [refreshContas])
+
   useEffect(() => {
     const account = latest.current.find((item) => item.id === paymentAccountId)
     setPaymentAmount(account?.saldoPendente.toFixed(2).replace('.', ',') ?? '')
@@ -98,6 +104,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
   }
 
   return <div className="flex flex-col gap-6">
+    <TenantEventListener onEvent={handleTenantEvent} />
     <AdminPanel title="Contas aguardando pagamento" description="As cobranças são agrupadas por atendimento, não apenas pela mesa.">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-end">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar contas">
@@ -110,7 +117,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
       </div>
     </AdminPanel>
 
-    {contas.length === 0 ? <AdminEmptyState title="Nenhuma conta encontrada" description="Quando um atendimento for enviado para pagamento, ele aparecerá aqui." /> : <AdminPanel title="Contas do restaurante" description={`${visibleContas.length} conta(s) exibida(s) pelo filtro atual.`}>
+    {contas.length === 0 ? <AdminEmptyState title="Nenhuma conta encontrada" description="Quando todos os pedidos de um atendimento forem entregues, a conta aparecera aqui automaticamente." /> : <AdminPanel title="Contas do restaurante" description={`${visibleContas.length} conta(s) exibida(s) pelo filtro atual.`}>
       {visibleContas.length === 0 ? <AdminEmptyState title="Nenhuma conta corresponde aos filtros" description="Tente outro filtro ou limpe a busca." /> : <div className="grid gap-3">{visibleContas.map((account) => {
         const expanded = expandedId === account.id
         const paymentOpen = paymentAccountId === account.id

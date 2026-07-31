@@ -227,8 +227,23 @@ export async function createOrderInPostgresTransaction(
       eq(pgSchema.atendimento.mesaId, input.mesaId),
     ))
     .for('update')
-  if (!currentAttendance || currentAttendance.status !== 'open') {
+  if (!currentAttendance || !['open', 'awaiting_payment'].includes(currentAttendance.status)) {
     throw new Error('Atendimento não está aberto')
+  }
+  if (currentAttendance.status === 'awaiting_payment') {
+    await tx
+      .update(pgSchema.atendimento)
+      .set({
+        status: 'open',
+        aguardandoPagamentoEm: null,
+        fechadoEm: null,
+        fechadoPorUsuarioId: null,
+        atualizadoEm: new Date(),
+      })
+      .where(and(
+        eq(pgSchema.atendimento.id, input.atendimentoId),
+        eq(pgSchema.atendimento.tenantId, input.tenantId),
+      ))
   }
 
   const products = new Map<string, ProductForOrder>()
@@ -450,7 +465,7 @@ export async function transitionOrderInPostgresTransaction(
   input: TransitionOrderInput,
 ): Promise<OrderTransitionResult> {
   const [current] = await tx
-    .select({ status: pgSchema.pedido.status })
+    .select({ status: pgSchema.pedido.status, atendimentoId: pgSchema.pedido.atendimentoId })
     .from(pgSchema.pedido)
     .where(and(
       eq(pgSchema.pedido.id, input.pedidoId),
@@ -480,7 +495,34 @@ export async function transitionOrderInPostgresTransaction(
       eq(pgSchema.pedido.id, input.pedidoId),
       eq(pgSchema.pedido.tenantId, input.tenantId),
     ))
+  await syncAttendancePaymentStatus(tx, input.tenantId, current.atendimentoId, input.targetStatus)
   return { changed: true, status: input.targetStatus }
+}
+
+async function syncAttendancePaymentStatus(
+  tx: PostgresStockTransaction,
+  tenantId: string,
+  atendimentoId: string | undefined,
+  orderStatus: StatusPedido,
+): Promise<void> {
+  if (!atendimentoId || (orderStatus !== 'entregue' && orderStatus !== 'cancelado')) return
+
+  const orders = await tx
+    .select({ status: pgSchema.pedido.status })
+    .from(pgSchema.pedido)
+    .where(and(
+      eq(pgSchema.pedido.tenantId, tenantId),
+      eq(pgSchema.pedido.atendimentoId, atendimentoId),
+    ))
+  if (orders.some((order) => order.status !== 'entregue' && order.status !== 'cancelado')) return
+
+  await tx
+    .update(pgSchema.atendimento)
+    .set({ status: 'awaiting_payment', aguardandoPagamentoEm: new Date(), atualizadoEm: new Date() })
+    .where(and(
+      eq(pgSchema.atendimento.id, atendimentoId),
+      eq(pgSchema.atendimento.tenantId, tenantId),
+    ))
 }
 
 export async function cancelOrderInPostgresTransaction(
@@ -488,7 +530,7 @@ export async function cancelOrderInPostgresTransaction(
   input: CancelOrderInput,
 ): Promise<OrderTransitionResult> {
   const [current] = await tx
-    .select({ status: pgSchema.pedido.status })
+    .select({ status: pgSchema.pedido.status, atendimentoId: pgSchema.pedido.atendimentoId })
     .from(pgSchema.pedido)
     .where(and(
       eq(pgSchema.pedido.id, input.pedidoId),
@@ -511,5 +553,6 @@ export async function cancelOrderInPostgresTransaction(
       eq(pgSchema.pedido.id, input.pedidoId),
       eq(pgSchema.pedido.tenantId, input.tenantId),
     ))
+  await syncAttendancePaymentStatus(tx, input.tenantId, current.atendimentoId, 'cancelado')
   return { changed: true, status: 'cancelado' }
 }

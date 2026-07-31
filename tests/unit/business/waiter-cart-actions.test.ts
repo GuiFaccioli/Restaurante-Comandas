@@ -31,9 +31,6 @@ vi.mock('@/components/garcom/menu-grid', () => ({
 vi.mock('@/components/garcom/mesa-atendimento-gate', () => ({
   MesaAtendimentoGate: () => createElement('div', { 'data-testid': 'attendance-gate' }),
 }))
-vi.mock('@/lib/actions/atendimentos', () => ({
-  enviarAtendimentoParaPagamento: vi.fn(),
-}))
 vi.mock('@/components/garcom/cart-fab', () => ({
   CartFab: () => createElement('div', { 'data-testid': 'cart-fab' }),
 }))

@@ -5,6 +5,7 @@ import { runInDbTransaction } from '@/lib/db/index'
 import { atendimento, itemPedido, pagamentoPedido, pedido } from '@/lib/db/schema'
 import type { FormaPagamento, StatusPedido } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
+import { notifyTenant } from '@/lib/tenant-events'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
 import {
   cancelOrderInPostgresTransaction,
@@ -48,6 +49,10 @@ export async function confirmarPedido(
     ),
   })
 
+  notifyTenant(tenantId, {
+    type: 'attendance_updated',
+  })
+
   return { id: created.id }
 }
 
@@ -70,6 +75,9 @@ export async function atualizarStatus(
       transitionOrderInPostgresTransaction(tx, transactionInput)
     ),
   })
+  notifyTenant(tenantId, {
+    type: 'attendance_updated',
+  })
 }
 
 export async function confirmarEntrega(pedidoId: string): Promise<void> {
@@ -85,6 +93,9 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
       transitionOrderInPostgresTransaction(tx, transactionInput)
     ),
   })
+  notifyTenant(tenantId, {
+    type: 'attendance_updated',
+  })
 }
 
 export async function cancelarPedido(pedidoId: string): Promise<void> {
@@ -94,6 +105,9 @@ export async function cancelarPedido(pedidoId: string): Promise<void> {
     postgresOperation: (tx) => (
       cancelOrderInPostgresTransaction(tx, transactionInput)
     ),
+  })
+  notifyTenant(tenantId, {
+    type: 'attendance_updated',
   })
 }
 
@@ -281,7 +295,7 @@ export async function registrarPagamentoAtendimento(input: {
   }
   if (informedCents <= 0) throw new Error('Valor de pagamento inválido')
 
-  return runInDbTransaction({
+  const result = await runInDbTransaction({
     postgresOperation: async (tx) => {
       const [current] = await tx
         .select({ id: atendimento.id, status: atendimento.status })
@@ -310,9 +324,13 @@ export async function registrarPagamentoAtendimento(input: {
       }
       if (informedCents > balanceCents) throw new Error('O valor não pode ser maior que o saldo pendente')
       await tx.insert(pagamentoPedido).values({ id: crypto.randomUUID(), tenantId, pedidoId: null, atendimentoId: input.atendimentoId, registradoPorUsuarioId: usuarioId, formaPagamento: input.formaPagamento, valor: centsToDecimal(informedCents), status: 'registrado', observacao: input.observacao?.trim() || null, registradoEm: new Date() })
-      const nextStatus = informedCents === balanceCents ? 'paid' : 'awaiting_payment'
+      const nextStatus: 'awaiting_payment' | 'paid' = informedCents === balanceCents ? 'paid' : 'awaiting_payment'
       if (nextStatus === 'paid') await tx.update(atendimento).set({ status: 'paid', fechadoEm: new Date(), fechadoPorUsuarioId: usuarioId, atualizadoEm: new Date() }).where(and(eq(atendimento.id, input.atendimentoId), eq(atendimento.tenantId, tenantId)))
       return { status: 'registrado' as const, atendimentoStatus: nextStatus }
     },
   })
+  notifyTenant(tenantId, {
+    type: 'attendance_updated',
+  })
+  return result
 }
