@@ -1,164 +1,192 @@
 /**
- * Seed the local SQLite dev database with test data.
- * Run with: npm run db:seed
+ * Seed an explicitly selected PostgreSQL development database.
+ *
+ * Run with:
+ *   SEED_DATABASE_URL=postgresql://... ALLOW_DEV_SEED=true npm run db:seed
+ *
+ * DATABASE_URL is intentionally not used: seeding requires a separate explicit
+ * target and acknowledgement so a normal development/production connection is
+ * never modified by accident.
  */
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import * as schema from '../lib/db/schema-sqlite'
+import { loadEnvConfig } from '@next/env'
+import { Pool, neonConfig } from '@neondatabase/serverless'
+import { and, eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/neon-serverless'
+import WebSocket from 'ws'
+import * as schema from '../lib/db/schema'
+import { resolveRuntimeDatabaseUrl } from '../lib/db/database-url'
 import { hashPassword } from '../lib/auth/password'
 import { DEV_TEST_PASSWORD, DEV_TEST_USERS } from '../lib/dev/test-users'
 import { DEFAULT_MENU_CATEGORIES } from '../lib/menu/default-menu'
-import { migrateSqliteDatabase } from '../lib/db/sqlite-migrations'
-import { sqlitePathFromDatabaseUrl } from '../lib/db/database-url'
 
-const url = process.env.DATABASE_URL
-if (!url) throw new Error('DATABASE_URL is required for db:seed.')
-const dbPath = sqlitePathFromDatabaseUrl(url)
-
-const sqlite = new Database(dbPath)
-sqlite.pragma('journal_mode = WAL')
-sqlite.pragma('foreign_keys = ON')
-migrateSqliteDatabase(sqlite)
-
-const db = drizzle(sqlite, { schema })
 const DEV_TENANT_ID = '00000000-0000-4000-8000-000000000001'
+const DEV_USER_ID_PREFIX = '00000000-0000-4000-8000-0000000000'
+const DEV_TENANT_USER_ID_PREFIX = '00000000-0000-4000-8000-0000000001'
+
+function devUuid(prefix: string, index: number): string {
+  return `${prefix}${String(index).padStart(2, '0')}`
+}
+
+function resolveSeedDatabaseUrl(): string {
+  loadEnvConfig(process.cwd())
+
+  if (process.env.ALLOW_DEV_SEED !== 'true') {
+    throw new Error('Set ALLOW_DEV_SEED=true to acknowledge this development seed.')
+  }
+  if (!process.env.SEED_DATABASE_URL) {
+    throw new Error('SEED_DATABASE_URL is required for db:seed.')
+  }
+
+  return resolveRuntimeDatabaseUrl(process.env.SEED_DATABASE_URL)
+}
 
 async function seed() {
-  console.log('Seeding dev database at', dbPath, '...')
+  const databaseUrl = resolveSeedDatabaseUrl()
+  if (!neonConfig.webSocketConstructor) neonConfig.webSocketConstructor = WebSocket
 
-  sqlite
-    .prepare(
-      `
-      INSERT INTO tenant (id, nome, slug, status, created_at, updated_at)
-      VALUES (?, ?, ?, 'active', ?, ?)
-      ON CONFLICT(slug) DO UPDATE SET
-        nome = excluded.nome,
-        status = excluded.status,
-        updated_at = excluded.updated_at
-    `
-    )
-    .run(DEV_TENANT_ID, 'Restaurante Dev', 'restaurante-dev', Date.now(), Date.now())
-
-  const upsertUser = sqlite.prepare(`
-    INSERT INTO usuario (id, nome, email, role, password_hash, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(email) DO UPDATE SET
-      nome = excluded.nome,
-      role = excluded.role,
-      password_hash = excluded.password_hash,
-      updated_at = excluded.updated_at
-  `)
-  const deleteAccesses = sqlite.prepare('DELETE FROM usuario_acesso WHERE usuario_id = ?')
-  const upsertTenantUser = sqlite.prepare(`
-    INSERT INTO tenant_user (id, tenant_id, usuario_id, status, created_at, updated_at)
-    VALUES (?, ?, ?, 'active', ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      status = excluded.status,
-      updated_at = excluded.updated_at
-  `)
-  const insertAccess = sqlite.prepare(`
-    INSERT INTO usuario_acesso (id, tenant_user_id, usuario_id, acesso)
-    VALUES (?, ?, ?, ?)
-  `)
+  const pool = new Pool({ connectionString: databaseUrl })
+  const db = drizzle({ client: pool, schema })
   const passwordHash = await hashPassword(DEV_TEST_PASSWORD)
-  const now = Date.now()
 
-  for (const user of DEV_TEST_USERS) {
-    const tenantUserId = `tu-${user.id}`
-    upsertUser.run(user.id, user.name, user.email, user.access, passwordHash, now, now)
-    upsertTenantUser.run(tenantUserId, DEV_TENANT_ID, user.id, now, now)
-    deleteAccesses.run(user.id)
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(schema.tenant)
+        .values({ id: DEV_TENANT_ID, nome: 'Restaurante Dev', slug: 'restaurante-dev' })
+        .onConflictDoUpdate({
+          target: schema.tenant.slug,
+          set: { nome: 'Restaurante Dev', status: 'active', updatedAt: new Date() },
+        })
 
-    for (const access of user.accesses) {
-      insertAccess.run(crypto.randomUUID(), tenantUserId, user.id, access)
-    }
-  }
+      for (const [index, user] of DEV_TEST_USERS.entries()) {
+        const userId = devUuid(DEV_USER_ID_PREFIX, index + 1)
+        const tenantUserId = devUuid(DEV_TENANT_USER_ID_PREFIX, index + 1)
 
-  // 10 mesas
-  for (let i = 1; i <= 10; i++) {
-    db.insert(schema.mesa).values({ tenantId: DEV_TENANT_ID, numero: i }).onConflictDoNothing().run()
-  }
+        await tx
+          .insert(schema.usuario)
+          .values({
+            id: userId,
+            nome: user.name,
+            email: user.email,
+            role: user.access === 'admin' ? 'admin' : 'garcom',
+            passwordHash,
+          })
+          .onConflictDoUpdate({
+            target: schema.usuario.email,
+            set: {
+              nome: user.name,
+              role: user.access === 'admin' ? 'admin' : 'garcom',
+              passwordHash,
+              updatedAt: new Date(),
+            },
+          })
 
-  const categoryIdsByName = new Map<string, string>()
-  const existingCategories = db.select().from(schema.categoria).all()
-  const updateCategoryOrder = sqlite.prepare('UPDATE categoria SET ordem = ? WHERE id = ? AND tenant_id = ?')
+        await tx
+          .insert(schema.tenantUser)
+          .values({ id: tenantUserId, tenantId: DEV_TENANT_ID, usuarioId: userId })
+          .onConflictDoUpdate({
+            target: schema.tenantUser.id,
+            set: { tenantId: DEV_TENANT_ID, usuarioId: userId, status: 'active', updatedAt: new Date() },
+          })
 
-  for (const category of DEFAULT_MENU_CATEGORIES) {
-    const existingCategory = existingCategories.find(
-      (item) => item.nome === category.nome && item.tenantId === DEV_TENANT_ID
-    )
-
-    if (existingCategory) {
-      updateCategoryOrder.run(category.ordem, existingCategory.id, DEV_TENANT_ID)
-      categoryIdsByName.set(category.nome, existingCategory.id)
-      continue
-    }
-
-    const id = crypto.randomUUID()
-    db.insert(schema.categoria)
-      .values({ id, tenantId: DEV_TENANT_ID, nome: category.nome, ordem: category.ordem })
-      .run()
-    categoryIdsByName.set(category.nome, id)
-  }
-
-  // Insert products only if they don't exist by name and category (idempotent).
-  const insertProduct = sqlite.prepare(`
-    INSERT INTO produto (id, tenant_id, categoria_id, nome, descricao, preco, imagem_url, disponivel)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-    ON CONFLICT DO NOTHING
-  `)
-  const updateProduct = sqlite.prepare(`
-    UPDATE produto SET imagem_url = ?, descricao = ?, preco = ? WHERE nome = ? AND categoria_id = ? AND tenant_id = ?
-  `)
-  const findProduct = sqlite.prepare('SELECT id FROM produto WHERE nome = ? AND categoria_id = ? AND tenant_id = ?')
-
-  for (const category of DEFAULT_MENU_CATEGORIES) {
-    const categoryId = categoryIdsByName.get(category.nome)
-    if (!categoryId) throw new Error(`Missing category id for ${category.nome}`)
-
-    for (const product of category.produtos) {
-      const existingProduct = findProduct.get(product.nome, categoryId, DEV_TENANT_ID)
-
-      if (!existingProduct) {
-        insertProduct.run(
-          crypto.randomUUID(),
-          DEV_TENANT_ID,
-          categoryId,
-          product.nome,
-          product.descricao,
-          product.preco,
-          product.imagemUrl
+        await tx.delete(schema.usuarioAcesso).where(eq(schema.usuarioAcesso.usuarioId, userId))
+        await tx.insert(schema.usuarioAcesso).values(
+          user.accesses.map((access) => ({
+            id: crypto.randomUUID(),
+            tenantUserId,
+            usuarioId: userId,
+            acesso: access,
+          })),
         )
-        continue
       }
 
-      updateProduct.run(
-        product.imagemUrl,
-        product.descricao,
-        product.preco,
-        product.nome,
-        categoryId,
-        DEV_TENANT_ID
-      )
-    }
+      for (let numero = 1; numero <= 10; numero += 1) {
+        await tx
+          .insert(schema.mesa)
+          .values({ tenantId: DEV_TENANT_ID, numero })
+          .onConflictDoNothing()
+      }
+
+      const categoryIdsByName = new Map<string, string>()
+      for (const category of DEFAULT_MENU_CATEGORIES) {
+        const [existingCategory] = await tx
+          .select({ id: schema.categoria.id })
+          .from(schema.categoria)
+          .where(and(eq(schema.categoria.tenantId, DEV_TENANT_ID), eq(schema.categoria.nome, category.nome)))
+
+        const categoryId = existingCategory?.id ?? crypto.randomUUID()
+        if (existingCategory) {
+          await tx
+            .update(schema.categoria)
+            .set({ ordem: category.ordem })
+            .where(eq(schema.categoria.id, categoryId))
+        } else {
+          await tx.insert(schema.categoria).values({
+            id: categoryId,
+            tenantId: DEV_TENANT_ID,
+            nome: category.nome,
+            ordem: category.ordem,
+          })
+        }
+        categoryIdsByName.set(category.nome, categoryId)
+      }
+
+      for (const category of DEFAULT_MENU_CATEGORIES) {
+        const categoryId = categoryIdsByName.get(category.nome)
+        if (!categoryId) throw new Error(`Missing category id for ${category.nome}`)
+
+        for (const product of category.produtos) {
+          const [existingProduct] = await tx
+            .select({ id: schema.produto.id })
+            .from(schema.produto)
+            .where(and(
+              eq(schema.produto.tenantId, DEV_TENANT_ID),
+              eq(schema.produto.categoriaId, categoryId),
+              eq(schema.produto.nome, product.nome),
+            ))
+
+          if (existingProduct) {
+            await tx
+              .update(schema.produto)
+              .set({
+                descricao: product.descricao,
+                preco: product.preco,
+                imagemUrl: product.imagemUrl,
+                disponivel: true,
+              })
+              .where(eq(schema.produto.id, existingProduct.id))
+          } else {
+            await tx.insert(schema.produto).values({
+              id: crypto.randomUUID(),
+              tenantId: DEV_TENANT_ID,
+              categoriaId: categoryId,
+              nome: product.nome,
+              descricao: product.descricao,
+              preco: product.preco,
+              imagemUrl: product.imagemUrl,
+              disponivel: true,
+            })
+          }
+        }
+      }
+    })
+  } finally {
+    await pool.end()
   }
 
   const productCount = DEFAULT_MENU_CATEGORIES.reduce(
     (total, category) => total + category.produtos.length,
-    0
+    0,
   )
-
-  console.log('Done! Database seeded successfully.')
+  console.log('Development PostgreSQL database seeded successfully.')
   console.log(`  - ${DEV_TEST_USERS.length} dev users (${DEV_TEST_USERS.map((user) => user.email).join(', ')})`)
   console.log(`  - Dev password: ${DEV_TEST_PASSWORD}`)
   console.log('  - 10 mesas')
-  console.log(`  - ${DEFAULT_MENU_CATEGORIES.length} categorias (${DEFAULT_MENU_CATEGORIES.map((category) => category.nome).join(', ')})`)
+  console.log(`  - ${DEFAULT_MENU_CATEGORIES.length} categorias`)
   console.log(`  - ${productCount} produtos`)
-
-  sqlite.close()
 }
 
-seed().catch((err) => {
-  console.error('Seed failed:', err)
-  process.exit(1)
+seed().catch((error) => {
+  console.error('Seed failed:', error)
+  process.exitCode = 1
 })

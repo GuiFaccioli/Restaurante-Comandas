@@ -4,12 +4,6 @@ import { and, eq } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { db, runInDbTransaction } from '@/lib/db/index'
 import { tenant, tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
-import {
-  tenant as sqliteTenant,
-  tenantUser as sqliteTenantUser,
-  usuario as sqliteUsuario,
-  usuarioAcesso as sqliteUsuarioAcesso,
-} from '@/lib/db/schema-sqlite'
 import { assertValidEmail, hashPassword, verifyPassword } from '@/lib/auth/password'
 import {
   createAuthSession,
@@ -31,10 +25,7 @@ function isUniqueConstraintError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
 
   const code = 'code' in error ? String(error.code) : ''
-  if (code === '23505' || code === 'SQLITE_CONSTRAINT_UNIQUE') return true
-
-  const message = error instanceof Error ? error.message : ''
-  return code === 'SQLITE_CONSTRAINT' && message.includes('UNIQUE constraint failed')
+  return code === '23505'
 }
 
 function slugifyTenantName(name: string): string {
@@ -114,20 +105,6 @@ export async function signUpOwner(
 
   try {
     await runInDbTransaction({
-      sqliteOperation: (tx) => {
-        const existing = tx
-          .select({ id: sqliteUsuario.id })
-          .from(sqliteUsuario)
-          .where(eq(sqliteUsuario.email, email))
-          .get()
-
-        if (existing) throw new Error(SIGN_UP_ERROR_MESSAGE)
-
-        tx.insert(sqliteUsuario).values(usuarioValues).run()
-        tx.insert(sqliteTenant).values(tenantValues).run()
-        tx.insert(sqliteTenantUser).values(tenantUserValues).run()
-        tx.insert(sqliteUsuarioAcesso).values(acessoValues).run()
-      },
       postgresOperation: async (tx) => {
         const [existing] = await tx
           .select({ id: usuario.id })

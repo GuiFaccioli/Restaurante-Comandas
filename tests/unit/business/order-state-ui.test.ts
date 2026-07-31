@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createElement } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { KitchenEvent } from '@/lib/sse'
 
 const actions = vi.hoisted(() => ({
   atualizarStatus: vi.fn(),
@@ -22,21 +23,7 @@ import { KanbanBoard } from '@/components/cozinha/kanban-board'
 import { PendingDeliveriesClient } from '@/components/garcom/pending-deliveries-client'
 import { TableOrdersPanel } from '@/components/garcom/table-orders-panel'
 
-const eventSources: FakeEventSource[] = []
-
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null
-  onerror: (() => void) | null = null
-  close = vi.fn()
-
-  constructor(readonly url: string) {
-    eventSources.push(this)
-  }
-
-  emit(event: KitchenEvent) {
-    this.onmessage?.({ data: JSON.stringify(event) })
-  }
-}
+const root = process.cwd()
 
 const kitchenItems = [
   {
@@ -77,12 +64,10 @@ function tableOrder(id: string, status: 'novo' | 'pronto') {
 
 describe('official order state machine in the UI', () => {
   beforeEach(() => {
-    eventSources.length = 0
     vi.clearAllMocks()
     actions.atualizarStatus.mockResolvedValue(undefined)
     actions.confirmarEntrega.mockResolvedValue(undefined)
     actions.cancelarPedido.mockResolvedValue(undefined)
-    vi.stubGlobal('EventSource', FakeEventSource)
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -96,119 +81,35 @@ describe('official order state machine in the UI', () => {
     vi.useRealTimers()
   })
 
-  it('deduplicates repeated novo_pedido events by pedidoId', () => {
-    render(createElement(KanbanBoard, { initialPedidos: [] }))
-    const event: KitchenEvent = {
-      type: 'novo_pedido',
-      payload: {
-        pedidoId: 'pedido-sse',
-        mesaNumero: 4,
-        itens: kitchenItems,
-      },
-    }
+  it('uses tenant-authenticated polling instead of a kitchen SSE subscription', () => {
+    const source = readFileSync(join(root, 'components/cozinha/kanban-board.tsx'), 'utf8')
 
-    act(() => eventSources[0].emit(event))
-    act(() => eventSources[0].emit(event))
-
-    expect(screen.getByRole('heading', { name: 'Comandas abertas (1)' })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Iniciar preparo' })).toHaveLength(1)
+    expect(source).toContain("fetch('/api/cozinha/pedidos'")
+    expect(source).not.toContain('SseListener')
   })
 
-  it('keeps the same Kanban order while SSE advances it through preparation', () => {
-    render(createElement(KanbanBoard, { initialPedidos: [] }))
+  it('keeps the kitchen board strictly view-only', () => {
+    const source = readFileSync(join(root, 'components/cozinha/pedido-card.tsx'), 'utf8')
 
-    act(() => {
-      eventSources[0].emit({
-        type: 'novo_pedido',
-        payload: {
-          pedidoId: 'pedido-ciclo',
-          mesaNumero: 5,
-          itens: kitchenItems,
-        },
-      })
-    })
-    expect(screen.getByRole('button', { name: 'Iniciar preparo' })).toBeEnabled()
+    render(createElement(PedidoCard, { pedido: kitchenOrder('novo') }))
 
-    act(() => {
-      eventSources[0].emit({
-        type: 'status_atualizado',
-        payload: { pedidoId: 'pedido-ciclo', status: 'em_preparo' },
-      })
-    })
-    expect(screen.queryByRole('button', { name: 'Iniciar preparo' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Marcar pronto' })).toBeEnabled()
-
-    act(() => {
-      eventSources[0].emit({
-        type: 'status_atualizado',
-        payload: { pedidoId: 'pedido-ciclo', status: 'pronto' },
-      })
-    })
-    expect(screen.queryByRole('button', { name: 'Marcar pronto' })).not.toBeInTheDocument()
-    expect(screen.getByText('Pronto')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Comandas abertas (1)' })).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(source).not.toContain('atualizarStatus')
+    expect(source).not.toContain('useTransition')
+    expect(source).not.toContain('onStatusChange')
   })
 
-  it('moves a kitchen order from novo to em_preparo and then to pronto', async () => {
-    const onStatusChange = vi.fn()
-    const view = render(
-      createElement(PedidoCard, {
-        pedido: kitchenOrder('novo'),
-        onStatusChange,
-      })
-    )
+  it('refreshes waiter pending deliveries every five seconds while the tab is visible', async () => {
+    const source = readFileSync(join(root, 'components/garcom/pending-deliveries-client.tsx'), 'utf8')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Iniciar preparo' }))
-
-    await waitFor(() => {
-      expect(actions.atualizarStatus).toHaveBeenCalledWith('pedido-novo', 'em_preparo')
-      expect(onStatusChange).toHaveBeenCalledWith('pedido-novo', 'em_preparo')
-    })
-    expect(screen.getByRole('status')).toHaveTextContent('Preparo iniciado.')
-
-    view.rerender(
-      createElement(PedidoCard, {
-        pedido: kitchenOrder('em_preparo'),
-        onStatusChange,
-      })
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Marcar pronto' }))
-
-    await waitFor(() => {
-      expect(actions.atualizarStatus).toHaveBeenLastCalledWith('pedido-em_preparo', 'pronto')
-      expect(onStatusChange).toHaveBeenLastCalledWith('pedido-em_preparo', 'pronto')
-    })
-    expect(screen.getByRole('status')).toHaveTextContent('Pedido pronto.')
+    expect(source).toContain('window.setInterval')
+    expect(source).toContain('5000')
+    expect(source).toContain("document.visibilityState === 'visible'")
+    expect(source).toContain('router.refresh()')
+    expect(source).not.toContain('SseListener')
+    expect(source).not.toContain('KitchenEvent')
   })
-
-  it('keeps kitchen actions disabled while pending and reports an action error', async () => {
-    let rejectAction: ((reason?: unknown) => void) | undefined
-    actions.atualizarStatus.mockImplementation(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectAction = reject
-        })
-    )
-
-    render(
-      createElement(PedidoCard, {
-        pedido: kitchenOrder('novo'),
-        onStatusChange: vi.fn(),
-      })
-    )
-
-    const action = screen.getByRole('button', { name: 'Iniciar preparo' })
-    fireEvent.click(action)
-
-    await waitFor(() => expect(action).toBeDisabled())
-    rejectAction?.(new Error('failure'))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível atualizar.')
-    expect(action).toBeEnabled()
-  })
-
-  it('offers waiter delivery only for pronto and confirms it successfully', async () => {
+  it('offers waiter delivery for every active order and confirms it successfully', async () => {
     render(
       createElement(PendingDeliveriesClient, {
         initialPedidos: [
@@ -218,17 +119,17 @@ describe('official order state machine in the UI', () => {
       })
     )
 
-    expect(screen.queryByText('Mesa 1')).not.toBeInTheDocument()
+    expect(screen.getByText('Mesa 1')).toBeInTheDocument()
     expect(screen.getByText('Mesa 2')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar entrega' }))
+    fireEvent.click(within(screen.getByText('Mesa 1').closest('article')!).getByRole('button', { name: 'Confirmar entrega' }))
 
-    await waitFor(() => expect(actions.confirmarEntrega).toHaveBeenCalledWith('pronto'))
+    await waitFor(() => expect(actions.confirmarEntrega).toHaveBeenCalledWith('novo'))
     expect(screen.getByRole('status')).toHaveTextContent('Entrega confirmada.')
-    expect(screen.queryByText('Mesa 2')).not.toBeInTheDocument()
+    expect(screen.queryByText('Mesa 1')).not.toBeInTheDocument()
   })
 
-  it('never enables table delivery for novo and enables it for pronto', () => {
+  it('enables table delivery for every active order', () => {
     render(
       createElement(TableOrdersPanel, {
         mesaId: 'mesa-1',
@@ -240,7 +141,7 @@ describe('official order state machine in the UI', () => {
     )
 
     const cards = screen.getAllByRole('article')
-    expect(within(cards[0]).getByRole('button', { name: 'Entregue' })).toBeDisabled()
+    expect(within(cards[0]).getByRole('button', { name: 'Entregue' })).toBeEnabled()
     expect(within(cards[1]).getByRole('button', { name: 'Entregue' })).toBeEnabled()
   })
 

@@ -4,7 +4,6 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, produto } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
-import { dbBoolean } from '@/lib/db/compat'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
 
 type NovoProduto = {
@@ -142,7 +141,7 @@ export async function criarProduto(data: NovoProduto): Promise<{ id: string }> {
       nome: data.nome,
       descricao: data.descricao ?? null,
       preco: normalizeCurrencyToDecimal(data.preco),
-      disponivel: dbBoolean(true) as boolean,
+      disponivel: true,
       imagemUrl: data.imagemUrl ?? null,
     })
     .returning({ id: produto.id })
@@ -187,7 +186,7 @@ export async function toggleDisponivel(id: string): Promise<void> {
   const novoEstado = !Boolean(prod.disponivel)
   await db
     .update(produto)
-    .set({ disponivel: dbBoolean(novoEstado) as boolean })
+    .set({ disponivel: novoEstado })
     .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
 
 }

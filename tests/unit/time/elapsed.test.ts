@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it, vi } from 'vitest'
+import { LiveElapsedTimer } from '@/components/live-elapsed-timer'
 import { formatElapsedDuration } from '@/lib/time/elapsed'
 
 describe('formatElapsedDuration', () => {
@@ -26,5 +29,17 @@ describe('formatElapsedDuration', () => {
         new Date('2026-07-01T10:00:00.000Z')
       )
     ).toBe('00:00')
+  })
+})
+
+describe('LiveElapsedTimer hydration', () => {
+  it('renders a deterministic elapsed value during server rendering', () => {
+    vi.setSystemTime(new Date('2026-07-01T10:02:34.000Z'))
+
+    expect(renderToStaticMarkup(createElement(LiveElapsedTimer, {
+      startedAt: new Date('2026-07-01T10:00:00.000Z'),
+    }))).toBe('<span>00:00</span>')
+
+    vi.useRealTimers()
   })
 })

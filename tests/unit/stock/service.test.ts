@@ -1,14 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-type Backend = 'sqlite' | 'postgresql'
-
 type StockState = {
   estoqueAtual: string
   movementKeys: string[]
 }
 
 type TransactionOperations = {
-  sqliteOperation: (transaction: unknown) => unknown
   postgresOperation: (transaction: unknown) => Promise<unknown>
 }
 
@@ -24,7 +21,6 @@ vi.mock('@/lib/db/index', () => ({
 import { applyStockMovement } from '@/lib/stock/service'
 
 function installTransactionHarness(
-  backend: Backend,
   initialState: StockState,
   failOnMovementInsert = false,
 ) {
@@ -34,54 +30,6 @@ function installTransactionHarness(
     (operations: TransactionOperations) => {
       const pendingState = structuredClone(committedState)
       let selectCount = 0
-
-      if (backend === 'sqlite') {
-        const transaction = {
-          select: vi.fn(() => ({
-            from: vi.fn(() => ({
-              where: vi.fn(() => ({
-                get: vi.fn(() => {
-                  selectCount += 1
-                  if (selectCount === 1) {
-                    return pendingState.movementKeys.includes('movement-1')
-                      ? { id: 'existing-movement' }
-                      : undefined
-                  }
-                  return {
-                    id: 'ingredient-1',
-                    nome: 'Cheese',
-                    estoqueAtual: pendingState.estoqueAtual,
-                    custoUnitario: '2.0000',
-                  }
-                }),
-              })),
-            })),
-          })),
-          update: vi.fn(() => ({
-            set: vi.fn((values: { estoqueAtual: string }) => ({
-              where: vi.fn(() => ({
-                run: vi.fn(() => {
-                  pendingState.estoqueAtual = values.estoqueAtual
-                }),
-              })),
-            })),
-          })),
-          insert: vi.fn(() => ({
-            values: vi.fn((values: { chaveIdempotencia: string }) => ({
-              run: vi.fn(() => {
-                if (failOnMovementInsert) {
-                  throw new Error('movement insert failed')
-                }
-                pendingState.movementKeys.push(values.chaveIdempotencia)
-              }),
-            })),
-          })),
-        }
-
-        const result = operations.sqliteOperation(transaction)
-        committedState = pendingState
-        return result
-      }
 
       const transaction = {
         select: vi.fn(() => {
@@ -156,11 +104,8 @@ beforeEach(() => {
 })
 
 describe('applyStockMovement transaction boundary', () => {
-  it.each(['sqlite', 'postgresql'] as const)(
-    'rolls back the stock update when the %s movement insert fails',
-    async (backend) => {
+  it('rolls back the stock update when the movement insert fails', async () => {
       const readState = installTransactionHarness(
-        backend,
         { estoqueAtual: '10.000', movementKeys: [] },
         true,
       )
@@ -174,13 +119,10 @@ describe('applyStockMovement transaction boundary', () => {
         movementKeys: [],
       })
       expect(runInDbTransactionMock).toHaveBeenCalledTimes(1)
-    },
-  )
+  })
 
-  it.each(['sqlite', 'postgresql'] as const)(
-    'keeps an existing %s idempotency key from publishing another change',
-    async (backend) => {
-      const readState = installTransactionHarness(backend, {
+  it('keeps an existing idempotency key from publishing another change', async () => {
+      const readState = installTransactionHarness({
         estoqueAtual: '10.000',
         movementKeys: ['movement-1'],
       })
@@ -197,12 +139,11 @@ describe('applyStockMovement transaction boundary', () => {
         movementKeys: ['movement-1'],
       })
       expect(runInDbTransactionMock).toHaveBeenCalledTimes(1)
-    },
-  )
+  })
 })
 
 describe('applyStockMovement concurrency and physical counts', () => {
-  function installMovementCaptureHarness(backend: Backend) {
+  function installMovementCaptureHarness() {
     const events: string[] = []
     let insertedMovement:
       | {
@@ -222,45 +163,6 @@ describe('applyStockMovement concurrency and physical counts', () => {
 
     runInDbTransactionMock.mockImplementationOnce(
       (operations: TransactionOperations) => {
-        if (backend === 'sqlite') {
-          let selectCount = 0
-          const transaction = {
-            select: vi.fn(() => ({
-              from: vi.fn(() => ({
-                where: vi.fn(() => ({
-                  get: vi.fn(() => {
-                    selectCount += 1
-                    if (selectCount === 1) return undefined
-                    return {
-                      nome: 'Cheese',
-                      estoqueAtual: '10.000',
-                      custoUnitario: '2.0000',
-                    }
-                  }),
-                })),
-              })),
-            })),
-            update: vi.fn(() => ({
-              set: vi.fn(() => ({
-                where: vi.fn(() => ({
-                  run: vi.fn(() => {
-                    events.push('update')
-                  }),
-                })),
-              })),
-            })),
-            insert: vi.fn(() => ({
-              values: vi.fn((values: typeof insertedMovement) => ({
-                run: vi.fn(() => {
-                  insertedMovement = values
-                  events.push('insert')
-                }),
-              })),
-            })),
-          }
-          return operations.sqliteOperation(transaction)
-        }
-
         let selectCount = 0
         const transaction = {
           select: vi.fn(() => {
@@ -318,7 +220,7 @@ describe('applyStockMovement concurrency and physical counts', () => {
   }
 
   it('locks the tenant-scoped PostgreSQL stock row and rechecks idempotency before writing', async () => {
-    const harness = installMovementCaptureHarness('postgresql')
+    const harness = installMovementCaptureHarness()
 
     await applyStockMovement(movementInput())
 
@@ -332,10 +234,8 @@ describe('applyStockMovement concurrency and physical counts', () => {
     ])
   })
 
-  it.each(['sqlite', 'postgresql'] as const)(
-    'calculates a signed physical-count movement from the locked %s balance',
-    async (backend) => {
-      const harness = installMovementCaptureHarness(backend)
+  it('calculates a signed physical-count movement from the locked balance', async () => {
+      const harness = installMovementCaptureHarness()
 
       await expect(applyStockMovement({
         tenantId: 'tenant-1',
@@ -355,6 +255,5 @@ describe('applyStockMovement concurrency and physical counts', () => {
         saldoAnterior: '10.000',
         saldoResultante: '7.000',
       }))
-    },
-  )
+  })
 })

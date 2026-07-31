@@ -1,5 +1,8 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 const state = vi.hoisted(() => ({
   schema: (() => {
     const column = (table: string, name: string) => ({ table, name })
@@ -30,36 +33,6 @@ const state = vi.hoisted(() => ({
       },
     }
   })(),
-  sqliteSchema: (() => {
-    const column = (table: string, name: string) => ({ dialect: 'sqlite', table, name })
-    return {
-      usuario: {
-        id: column('usuario', 'id'),
-        nome: column('usuario', 'nome'),
-        email: column('usuario', 'email'),
-        passwordHash: column('usuario', 'password_hash'),
-        role: column('usuario', 'role'),
-      },
-      usuarioAcesso: {
-        usuarioId: column('usuario_acesso', 'usuario_id'),
-        tenantUserId: column('usuario_acesso', 'tenant_user_id'),
-        acesso: column('usuario_acesso', 'acesso'),
-      },
-      tenant: {
-        id: column('tenant', 'id'),
-        nome: column('tenant', 'nome'),
-        slug: column('tenant', 'slug'),
-        status: column('tenant', 'status'),
-      },
-      tenantUser: {
-        id: column('tenant_user', 'id'),
-        tenantId: column('tenant_user', 'tenant_id'),
-        usuarioId: column('tenant_user', 'usuario_id'),
-        status: column('tenant_user', 'status'),
-      },
-    }
-  })(),
-  transactionBackend: 'postgresql' as 'sqlite' | 'postgresql',
   selectResults: [] as Array<
     | unknown[]
     | ((query: {
@@ -118,10 +91,6 @@ vi.mock('@/lib/auth/session', () => ({
 
 vi.mock('@/lib/db/schema', () => ({
   ...state.schema,
-}))
-
-vi.mock('@/lib/db/schema-sqlite', () => ({
-  ...state.sqliteSchema,
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -203,78 +172,13 @@ vi.mock('@/lib/db/index', () => ({
       })),
     })
 
-    const createSqliteClient = (pendingInserts: unknown[]) => ({
-      select: vi.fn((selection) => {
-        const query = {
-          selection,
-          from: undefined as unknown,
-          joins: [] as Array<{ table: unknown; on: unknown }>,
-          where: undefined as unknown,
-        }
-        state.queries.push(query)
-
-        const builder: {
-          from: ReturnType<typeof vi.fn>
-          innerJoin: ReturnType<typeof vi.fn>
-          where: ReturnType<typeof vi.fn>
-          get: ReturnType<typeof vi.fn>
-          all: ReturnType<typeof vi.fn>
-        } = {
-          from: vi.fn(),
-          innerJoin: vi.fn(),
-          where: vi.fn(),
-          get: vi.fn(),
-          all: vi.fn(),
-        }
-        builder.from.mockImplementation((table) => {
-          query.from = table
-          return builder
-        })
-        builder.innerJoin.mockImplementation((table, on) => {
-          query.joins.push({ table, on })
-          return builder
-        })
-        builder.where.mockImplementation((condition) => {
-          query.where = condition
-          return builder
-        })
-        builder.get.mockImplementation(() => nextSelectResult(query)[0])
-        builder.all.mockImplementation(() => nextSelectResult(query))
-
-        return builder
-      }),
-      insert: vi.fn(() => ({
-        values: vi.fn((value) => ({
-          run: vi.fn(() => {
-            recordInsert(value, pendingInserts)
-          }),
-        })),
-      })),
-    })
-
     const client = createPostgresClient()
     state.runInDbTransactionMock.mockImplementation(
       (operations: {
-        sqliteOperation: (tx: ReturnType<typeof createSqliteClient>) => unknown
         postgresOperation: (tx: ReturnType<typeof createPostgresClient>) => Promise<unknown>
       }) => {
-        state.events.push(`transaction:${state.transactionBackend}:start`)
+        state.events.push('transaction:postgresql:start')
         const pendingInserts: unknown[] = []
-
-        if (state.transactionBackend === 'sqlite') {
-          try {
-            const result = operations.sqliteOperation(createSqliteClient(pendingInserts))
-            if (result && typeof result === 'object' && 'then' in result) {
-              throw new TypeError('SQLite transaction operations must be synchronous')
-            }
-            state.insertValues.push(...pendingInserts)
-            state.events.push('transaction:commit')
-            return result
-          } catch (error) {
-            state.events.push('transaction:rollback')
-            throw error
-          }
-        }
 
         let result: Promise<unknown>
         try {
@@ -405,7 +309,6 @@ beforeEach(() => {
   state.insertFailureAt = null
   state.insertFailure = null
   state.events = []
-  state.transactionBackend = 'postgresql'
   state.queries = []
   state.currentSession = null
   state.createAuthSessionMock.mockImplementation(async () => {
@@ -414,10 +317,13 @@ beforeEach(() => {
 })
 
 describe('auth actions', () => {
-  it.each(['sqlite', 'postgresql'] as const)(
-    'rejects an existing e-mail without creating tenant data or a session on %s',
-    async (backend) => {
-      state.transactionBackend = backend
+  it('uses only PostgreSQL schema and unique-constraint handling during signup', () => {
+    const source = readFileSync(join(process.cwd(), 'lib/actions/auth.ts'), 'utf8')
+
+    expect(source).not.toMatch(/schema-sqlite|sqliteOperation|SQLITE_CONSTRAINT/)
+  })
+
+  it('rejects an existing e-mail without creating tenant data or a session', async () => {
       state.selectResults = [[{ id: 'existing-user' }]]
 
       await expect(
@@ -433,13 +339,9 @@ describe('auth actions', () => {
       expect(state.runInDbTransactionMock).toHaveBeenCalledTimes(1)
       expect(state.createAuthSessionMock).not.toHaveBeenCalled()
       expect(state.redirectMock).not.toHaveBeenCalled()
-    }
-  )
+  })
 
-  it.each(['sqlite', 'postgresql'] as const)(
-    'creates owner tenant membership with hashed password and admin access on %s',
-    async (backend) => {
-      state.transactionBackend = backend
+  it('creates owner tenant membership with hashed password and admin access', async () => {
       state.selectResults = [[]]
 
       await expect(
@@ -485,20 +387,14 @@ describe('auth actions', () => {
         expect.any(String)
       )
       expect(state.runInDbTransactionMock).toHaveBeenCalledTimes(1)
-      expect(state.queries[0].from).toBe(
-        backend === 'sqlite' ? state.sqliteSchema.usuario : state.schema.usuario
-      )
-      expect(state.events).toContain(`transaction:${backend}:start`)
+      expect(state.queries[0].from).toBe(state.schema.usuario)
+      expect(state.events).toContain('transaction:postgresql:start')
       expect(state.events.indexOf('transaction:commit')).toBeLessThan(
         state.events.indexOf('session')
       )
-    }
-  )
+  })
 
-  it.each(['sqlite', 'postgresql'] as const)(
-    'rolls back all signup writes on an intermediate %s failure',
-    async (backend) => {
-      state.transactionBackend = backend
+  it('rolls back all signup writes on an intermediate failure', async () => {
       state.selectResults = [[]]
       state.insertFailureAt = 2
       state.insertFailure = new Error('tenant insert failed')
@@ -517,24 +413,15 @@ describe('auth actions', () => {
       expect(state.events).toContain('transaction:rollback')
       expect(state.createAuthSessionMock).not.toHaveBeenCalled()
       expect(state.redirectMock).not.toHaveBeenCalled()
-    }
-  )
+  })
 
-  it.each(['sqlite', 'postgresql'] as const)(
-    'normalizes a concurrent %s e-mail uniqueness conflict without creating a session',
-    async (backend) => {
-      state.transactionBackend = backend
+  it('normalizes a concurrent e-mail uniqueness conflict without creating a session', async () => {
       state.selectResults = [[]]
       state.insertFailureAt = 1
-      state.insertFailure =
-        backend === 'sqlite'
-          ? Object.assign(new Error('UNIQUE constraint failed: usuario.email'), {
-              code: 'SQLITE_CONSTRAINT_UNIQUE',
-            })
-          : Object.assign(
-              new Error('duplicate key value violates unique constraint "usuario_email_unique"'),
-              { code: '23505', constraint: 'usuario_email_unique' }
-            )
+      state.insertFailure = Object.assign(
+        new Error('duplicate key value violates unique constraint "usuario_email_unique"'),
+        { code: '23505', constraint: 'usuario_email_unique' }
+      )
 
       await expect(
         signUpOwner({
@@ -549,8 +436,7 @@ describe('auth actions', () => {
       expect(state.events).toContain('transaction:rollback')
       expect(state.createAuthSessionMock).not.toHaveBeenCalled()
       expect(state.redirectMock).not.toHaveBeenCalled()
-    }
-  )
+  })
 
   it('rejects invalid login credentials', async () => {
     state.selectResults = [[{ id: 'user-1', passwordHash: 'hashed-password' }]]

@@ -1,9 +1,7 @@
 import { and, eq } from 'drizzle-orm'
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import type { NeonDatabase } from 'drizzle-orm/neon-serverless'
 import { runInDbTransaction } from '@/lib/db/index'
 import * as pgSchema from '@/lib/db/schema'
-import * as sqliteSchema from '@/lib/db/schema-sqlite'
 import { calcularCustoMedioPonderado } from '@/lib/stock/costing'
 import type { TipoMovimentoEstoque } from '@/lib/db/schema'
 
@@ -27,12 +25,6 @@ export type AppliedStockMovement = {
   saldoResultante: number
   custoUnitario: number | null
 }
-
-export type SQLiteStockTransaction = Parameters<
-  Parameters<
-    BetterSQLite3Database<typeof sqliteSchema>['transaction']
-  >[0]
->[0]
 
 export type PostgresStockTransaction = Parameters<
   Parameters<
@@ -234,27 +226,6 @@ function appliedResult(
   }
 }
 
-export function readStockItemInSqliteTransaction(
-  tx: SQLiteStockTransaction,
-  tenantId: string,
-  insumoId: string,
-): LockedStockItem {
-  const item = tx
-    .select({
-      nome: sqliteSchema.insumo.nome,
-      estoqueAtual: sqliteSchema.insumo.estoqueAtual,
-      custoUnitario: sqliteSchema.insumo.custoUnitario,
-    })
-    .from(sqliteSchema.insumo)
-    .where(and(
-      eq(sqliteSchema.insumo.id, insumoId),
-      eq(sqliteSchema.insumo.tenantId, tenantId),
-    ))
-    .get()
-  if (!item) throw new Error('Insumo não encontrado')
-  return item
-}
-
 export async function lockStockItemInPostgresTransaction(
   tx: PostgresStockTransaction,
   tenantId: string,
@@ -274,44 +245,6 @@ export async function lockStockItemInPostgresTransaction(
     .for('update')
   if (!item) throw new Error('Insumo não encontrado')
   return item
-}
-
-export function applyStockMovementInSqliteTransaction(
-  tx: SQLiteStockTransaction,
-  input: ApplyStockMovementInput,
-): AppliedStockMovement {
-  validateInput(input)
-
-  const existing = tx
-    .select({ id: sqliteSchema.movimentoEstoque.id })
-    .from(sqliteSchema.movimentoEstoque)
-    .where(and(
-      eq(sqliteSchema.movimentoEstoque.tenantId, input.tenantId),
-      eq(
-        sqliteSchema.movimentoEstoque.chaveIdempotencia,
-        input.chaveIdempotencia,
-      ),
-    ))
-    .get()
-  if (existing) return idempotentResult()
-
-  const values = buildMovementValues(
-    input,
-    readStockItemInSqliteTransaction(tx, input.tenantId, input.insumoId),
-  )
-  tx
-    .update(sqliteSchema.insumo)
-    .set(values.stockUpdate)
-    .where(and(
-      eq(sqliteSchema.insumo.id, input.insumoId),
-      eq(sqliteSchema.insumo.tenantId, input.tenantId),
-    ))
-    .run()
-  tx
-    .insert(sqliteSchema.movimentoEstoque)
-    .values(values.movementValues)
-    .run()
-  return appliedResult(values)
 }
 
 export async function applyStockMovementInPostgresTransaction(
@@ -368,9 +301,6 @@ export async function applyStockMovement(
   validateInput(input)
 
   return await runInDbTransaction({
-    sqliteOperation: (tx) => (
-      applyStockMovementInSqliteTransaction(tx, input)
-    ),
     postgresOperation: (tx) => (
       applyStockMovementInPostgresTransaction(tx, input)
     ),

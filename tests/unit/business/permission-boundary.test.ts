@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -22,13 +22,10 @@ describe('permission boundaries', () => {
     expect(source('app/cozinha/layout.tsx')).toContain("requireAccess('cozinha')")
   })
 
-  it('operational SSE endpoint allows kitchen, waiter, and cashier subscribers', () => {
-    const eventsRoute = source('app/api/events/route.ts')
-
-    expect(eventsRoute).toContain('requireAnyAccess')
-    expect(eventsRoute).toContain("'cozinha'")
-    expect(eventsRoute).toContain("'garcom'")
-    expect(eventsRoute).toContain("'caixa'")
+  it('does not retain process-local SSE infrastructure', () => {
+    expect(existsSync(join(root, 'app/api/events/route.ts'))).toBe(false)
+    expect(existsSync(join(root, 'components/cozinha/sse-listener.tsx'))).toBe(false)
+    expect(existsSync(join(root, 'lib/sse.ts'))).toBe(false)
   })
 
   it('waiter UI and order confirmation require garcom access', () => {

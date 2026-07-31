@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type TransactionOperations = {
-  sqliteOperation: (transaction: unknown) => unknown
   postgresOperation: (transaction: unknown) => Promise<unknown>
 }
 
@@ -33,8 +32,6 @@ vi.mock('@/lib/stock/service', () => ({
 
 import { db } from '@/lib/db/index'
 import { insumo, produto as postgresProduto } from '@/lib/db/schema'
-import { insumo as sqliteInsumo } from '@/lib/db/schema-sqlite'
-import { dbBoolean } from '@/lib/db/compat'
 import { normalizarQuantidadeBase, UNIDADES_BASE } from '@/lib/stock/units'
 import { produtoTemEstoque } from '@/lib/stock/availability'
 import {
@@ -345,72 +342,6 @@ describe('physical stock counts', () => {
   })
 })
 
-describe('removerInsumo', () => {
-  function mockSqliteRemovalTransaction(recipeUsage: Array<{ id: string }>, movementUsage: Array<{ id: string }>) {
-    const updateRun = vi.fn()
-    const updateWhere = vi.fn().mockReturnValue({ run: updateRun })
-    const updateSet = vi.fn().mockReturnValue({ where: updateWhere })
-    const deleteRun = vi.fn()
-    const deleteWhere = vi.fn().mockReturnValue({ run: deleteRun })
-    const tx = {
-      select: vi.fn()
-        .mockReturnValueOnce({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({ get: vi.fn().mockReturnValue({ nome: 'Batata' }) }),
-          }),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({ get: vi.fn().mockReturnValue(recipeUsage[0]) }),
-          }),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({ get: vi.fn().mockReturnValue(movementUsage[0]) }),
-          }),
-        }),
-      update: vi.fn().mockReturnValue({ set: updateSet }),
-      delete: vi.fn().mockReturnValue({ where: deleteWhere }),
-    }
-    runInDbTransactionMock.mockImplementationOnce(
-      (operations: TransactionOperations) => operations.sqliteOperation(tx),
-    )
-    return { tx, updateSet, updateRun, deleteRun }
-  }
-
-  it('bloqueia a exclusão enquanto o insumo está em uma ficha técnica', async () => {
-    const { tx } = mockSqliteRemovalTransaction([{ id: 'ficha-1' }], [])
-
-    await expect(removerInsumo('insumo-1', 'Batata')).rejects.toThrow(
-      'Remova este insumo das fichas técnicas antes de excluí-lo'
-    )
-
-    expect(tx.update).not.toHaveBeenCalled()
-    expect(tx.delete).not.toHaveBeenCalled()
-  })
-
-  it('inativa o insumo quando existe histórico, mas não existe ficha técnica', async () => {
-    const { tx, updateSet, updateRun } = mockSqliteRemovalTransaction([], [{ id: 'movimento-1' }])
-
-    await expect(removerInsumo('insumo-1', 'Batata')).resolves.toBeUndefined()
-
-    expect(runInDbTransactionMock).toHaveBeenCalledTimes(1)
-    expect(updateSet).toHaveBeenCalledWith({ ativo: false })
-    expect(updateRun).toHaveBeenCalledTimes(1)
-    expect(tx.delete).not.toHaveBeenCalled()
-  })
-
-  it('exclui fisicamente quando não existe ficha técnica nem histórico', async () => {
-    const { tx, deleteRun } = mockSqliteRemovalTransaction([], [])
-
-    await expect(removerInsumo('insumo-1', 'Batata')).resolves.toBeUndefined()
-
-    expect(tx.update).not.toHaveBeenCalled()
-    expect(tx.delete).toHaveBeenCalledWith(sqliteInsumo)
-    expect(deleteRun).toHaveBeenCalledTimes(1)
-  })
-})
-
 describe('salvarFichaTecnica', () => {
   type FichaState = {
     recipes: Array<{ insumoId: string; quantidade: string }>
@@ -418,7 +349,7 @@ describe('salvarFichaTecnica', () => {
   }
 
   function installFichaTransaction(
-    backend: 'sqlite' | 'postgresql',
+    backend: 'postgresql',
     initialState: FichaState,
     failOnFlagUpdate: boolean,
   ) {
@@ -427,58 +358,6 @@ describe('salvarFichaTecnica', () => {
     runInDbTransactionMock.mockImplementationOnce(
       (operations: TransactionOperations) => {
         const pendingState = structuredClone(committedState)
-
-        if (backend === 'sqlite') {
-          let selectCount = 0
-          const transaction = {
-            select: vi.fn(() => ({
-              from: vi.fn(() => ({
-                where: vi.fn(() => ({
-                  get: vi.fn(() => {
-                    selectCount += 1
-                    return selectCount === 1
-                      ? { id: 'produto-1' }
-                      : { id: 'insumo-1', ativo: true }
-                  }),
-                })),
-              })),
-            })),
-            delete: vi.fn(() => ({
-              where: vi.fn(() => ({
-                run: vi.fn(() => {
-                  pendingState.recipes = []
-                }),
-              })),
-            })),
-            insert: vi.fn(() => ({
-              values: vi.fn((
-                values: Array<{ insumoId: string; quantidade: string }>,
-              ) => ({
-                run: vi.fn(() => {
-                  pendingState.recipes = values.map(
-                    ({ insumoId, quantidade }) => ({ insumoId, quantidade }),
-                  )
-                }),
-              })),
-            })),
-            update: vi.fn(() => ({
-              set: vi.fn((values: { controleEstoque: boolean }) => ({
-                where: vi.fn(() => ({
-                  run: vi.fn(() => {
-                    if (failOnFlagUpdate) {
-                      throw new Error('flag update failed')
-                    }
-                    pendingState.controleEstoque = values.controleEstoque
-                  }),
-                })),
-              })),
-            })),
-          }
-
-          const result = operations.sqliteOperation(transaction)
-          committedState = pendingState
-          return result
-        }
 
         let selectCount = 0
         const transaction = {
@@ -603,32 +482,7 @@ describe('salvarFichaTecnica', () => {
     ])
   })
 
-  it('rejeita insumo inativo mesmo quando ele pertence ao tenant', async () => {
-    runInDbTransactionMock.mockImplementationOnce(
-      (operations: TransactionOperations) => {
-        let selectCount = 0
-        return operations.sqliteOperation({
-          select: vi.fn(() => ({
-            from: vi.fn(() => ({
-              where: vi.fn(() => ({
-                get: vi.fn(() => {
-                  selectCount += 1
-                  return selectCount === 1
-                    ? { id: 'produto-1' }
-                    : { id: 'insumo-inativo', ativo: false }
-                }),
-              })),
-            })),
-          })),
-        })
-      },
-    )
-    await expect(salvarFichaTecnica('produto-1', [
-      { insumoId: 'insumo-inativo', quantidade: '30' },
-    ])).rejects.toThrow('Insumo inválido')
-  })
-
-  it.each(['sqlite', 'postgresql'] as const)(
+  it.each(['postgresql'] as const)(
     'rolls back the %s recipe when the stock-control flag update fails',
     async (backend) => {
       const readState = installFichaTransaction(
@@ -652,7 +506,7 @@ describe('salvarFichaTecnica', () => {
     },
   )
 
-  it.each(['sqlite', 'postgresql'] as const)(
+  it.each(['postgresql'] as const)(
     'commits the %s recipe and stock-control flag together',
     async (backend) => {
       const readState = installFichaTransaction(
@@ -695,25 +549,7 @@ describe('produtoTemEstoque', () => {
   })
 })
 
-describe('dbBoolean', () => {
-  it.each([
-    { databaseUrl: '', expected: 0, backend: 'SQLite' },
-    { databaseUrl: 'postgresql://localhost/test', expected: false, backend: 'PostgreSQL' },
-  ])('representa false corretamente no modo $backend', async ({ databaseUrl, expected }) => {
-    const originalDatabaseUrl = process.env.DATABASE_URL
-    process.env.DATABASE_URL = databaseUrl
-    vi.resetModules()
-
-    try {
-      const compat = await import('@/lib/db/compat')
-      expect(compat.dbBoolean(false)).toBe(expected)
-    } finally {
-      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL
-      else process.env.DATABASE_URL = originalDatabaseUrl
-      vi.resetModules()
-    }
-  })
-
+describe('removerInsumo PostgreSQL', () => {
   it('executa o soft delete no caminho PostgreSQL simulado', async () => {
     const originalDatabaseUrl = process.env.DATABASE_URL
     process.env.DATABASE_URL = 'postgresql://localhost/test'

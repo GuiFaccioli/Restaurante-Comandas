@@ -3,14 +3,7 @@
 import { and, eq } from 'drizzle-orm'
 import { db, runInDbTransaction } from '@/lib/db/index'
 import { fichaTecnicaItem, insumo, movimentoEstoque, produto } from '@/lib/db/schema'
-import {
-  fichaTecnicaItem as sqliteFichaTecnicaItem,
-  insumo as sqliteInsumo,
-  movimentoEstoque as sqliteMovimentoEstoque,
-  produto as sqliteProduto,
-} from '@/lib/db/schema-sqlite'
 import { requireAccess } from '@/lib/auth/access'
-import { dbBoolean } from '@/lib/db/compat'
 import { fatorCompraParaBase, normalizarQuantidadeBase, parsePositiveDecimal, type UnidadeBase, type UnidadeCompra } from '@/lib/stock/units'
 import { applyStockMovement } from '@/lib/stock/service'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
@@ -65,13 +58,13 @@ export async function criarInsumo(input: CriarInsumoInput): Promise<{ id: string
   const custoInformado = input.custoPorUnidade?.trim() ? Number(normalizeCurrencyToDecimal(input.custoPorUnidade)) : null
   if (custoInformado !== null && (!Number.isFinite(custoInformado) || custoInformado < 0)) throw new Error('Informe um custo por unidade válido')
   const custoUnitario = custoInformado === null ? null : (custoInformado / fator).toFixed(4)
-  const [created] = await db.insert(insumo).values({ id: crypto.randomUUID(), tenantId, nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueAtual: '0.000', estoqueIdeal, estoqueMinimo, custoUnitario, ativo: dbBoolean(true) as boolean }).returning({ id: insumo.id })
+  const [created] = await db.insert(insumo).values({ id: crypto.randomUUID(), tenantId, nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueAtual: '0.000', estoqueIdeal, estoqueMinimo, custoUnitario, ativo: true }).returning({ id: insumo.id })
   return { id: created.id }
 }
 export async function registrarEntradaEstoque(id: string, quantidadeCompra: string, chaveIdempotencia: string, custoTotalCompra?: string): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('admin')
   const chave = validarChaveIdempotente(chaveIdempotencia)
-  const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, dbBoolean(true) as boolean)))
+  const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
   const quantidade = Number(normalizarQuantidadeBase(quantidadeCompra, item.unidadeCompra, item.unidadeBase))
   const custoTotal = custoTotalCompra?.trim() ? Number(parsePositiveDecimal(custoTotalCompra, 'Custo total')) : null
@@ -83,7 +76,7 @@ export async function ajustarEstoqueAtual(id: string, quantidadeBase: string, ch
   const chave = validarChaveIdempotente(chaveIdempotencia)
   const quantidade = Number(quantidadeBase.replace(',', '.'))
   if (!Number.isFinite(quantidade) || quantidade < 0) throw new Error('Informe uma quantidade válida')
-  const [item] = await db.select({ id: insumo.id }).from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, dbBoolean(true) as boolean)))
+  const [item] = await db.select({ id: insumo.id }).from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'contagem', quantidade, chaveIdempotencia: chave, motivo: 'Contagem física', observacao: 'Contagem manual do estoque' })
 }
@@ -91,7 +84,7 @@ export async function ajustarEstoqueAtual(id: string, quantidadeBase: string, ch
 export async function registrarPerdaEstoque(id: string, quantidadeCompra: string, motivo: string, chaveIdempotencia: string, observacao?: string): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('admin')
   const chave = validarChaveIdempotente(chaveIdempotencia)
-  const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, dbBoolean(true) as boolean)))
+  const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
   if (!motivo.trim()) throw new Error('Informe o motivo da perda')
   const quantidade = Number(normalizarQuantidadeBase(quantidadeCompra, item.unidadeCompra, item.unidadeBase))
@@ -105,7 +98,7 @@ export async function realizarContagemEstoque(id: string, quantidadeEncontradaCo
     id: insumo.id,
     unidadeCompra: insumo.unidadeCompra,
     unidadeBase: insumo.unidadeBase,
-  }).from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, dbBoolean(true) as boolean)))
+  }).from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
   const encontrada = Number(normalizarQuantidadeBase(quantidadeEncontradaCompra, item.unidadeCompra, item.unidadeBase))
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'contagem', quantidade: encontrada, chaveIdempotencia: chave, motivo: 'Contagem física', observacao: observacao ?? null })
@@ -128,7 +121,7 @@ export async function editarInsumo(id: string, input: EditarInsumoInput): Promis
   const fator = Number(fatorCompraParaBase(purchaseUnit, baseUnit))
   const custoInformado = input.custoPorUnidade?.trim() ? Number(normalizeCurrencyToDecimal(input.custoPorUnidade)) : null
   if (custoInformado !== null && (!Number.isFinite(custoInformado) || custoInformado < 0)) throw new Error('Informe um custo por unidade válido')
-  await db.update(insumo).set({ nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueIdeal, estoqueMinimo, ...(custoInformado === null ? {} : { custoUnitario: (custoInformado / fator).toFixed(4) }) }).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, dbBoolean(true) as boolean)))
+  await db.update(insumo).set({ nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueIdeal, estoqueMinimo, ...(custoInformado === null ? {} : { custoUnitario: (custoInformado / fator).toFixed(4) }) }).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
 }
 
 export async function removerInsumo(id: string, nomeConfirmacao: string): Promise<void> {
@@ -140,50 +133,6 @@ export async function removerInsumo(id: string, nomeConfirmacao: string): Promis
   }
 
   await runInDbTransaction({
-    sqliteOperation: (tx) => {
-      const activeIngredient = and(
-        eq(sqliteInsumo.id, id),
-        eq(sqliteInsumo.tenantId, tenantId),
-        eq(sqliteInsumo.ativo, true),
-      )
-      const item = tx
-        .select({ nome: sqliteInsumo.nome })
-        .from(sqliteInsumo)
-        .where(activeIngredient)
-        .get()
-      validate(item)
-
-      const recipeUsage = tx
-        .select({ id: sqliteFichaTecnicaItem.id })
-        .from(sqliteFichaTecnicaItem)
-        .where(and(
-          eq(sqliteFichaTecnicaItem.insumoId, id),
-          eq(sqliteFichaTecnicaItem.tenantId, tenantId),
-        ))
-        .get()
-      if (recipeUsage) {
-        throw new Error('Remova este insumo das fichas técnicas antes de excluí-lo')
-      }
-
-      const movementUsage = tx
-        .select({ id: sqliteMovimentoEstoque.id })
-        .from(sqliteMovimentoEstoque)
-        .where(and(
-          eq(sqliteMovimentoEstoque.insumoId, id),
-          eq(sqliteMovimentoEstoque.tenantId, tenantId),
-        ))
-        .get()
-      if (movementUsage) {
-        tx
-          .update(sqliteInsumo)
-          .set({ ativo: false })
-          .where(activeIngredient)
-          .run()
-        return
-      }
-
-      tx.delete(sqliteInsumo).where(activeIngredient).run()
-    },
     postgresOperation: async (tx) => {
       const activeIngredient = and(
         eq(insumo.id, id),
@@ -245,51 +194,6 @@ export async function salvarFichaTecnica(produtoId: string, itens: FichaTecnicaI
   const controleEstoque = itens.length > 0
 
   await runInDbTransaction({
-    sqliteOperation: (tx) => {
-      const product = tx
-        .select({ id: sqliteProduto.id })
-        .from(sqliteProduto)
-        .where(and(
-          eq(sqliteProduto.id, produtoId),
-          eq(sqliteProduto.tenantId, tenantId),
-        ))
-        .get()
-      if (!product) throw new Error('Produto não encontrado')
-
-      for (const ingredientId of sortedIds) {
-        const ingredient = tx
-          .select({ id: sqliteInsumo.id, ativo: sqliteInsumo.ativo })
-          .from(sqliteInsumo)
-          .where(and(
-            eq(sqliteInsumo.id, ingredientId),
-            eq(sqliteInsumo.tenantId, tenantId),
-            eq(sqliteInsumo.ativo, true),
-          ))
-          .get()
-        if (!ingredient || !ingredient.ativo) {
-          throw new Error('Insumo inválido')
-        }
-      }
-
-      tx
-        .delete(sqliteFichaTecnicaItem)
-        .where(and(
-          eq(sqliteFichaTecnicaItem.produtoId, produtoId),
-          eq(sqliteFichaTecnicaItem.tenantId, tenantId),
-        ))
-        .run()
-      if (recipeValues.length > 0) {
-        tx.insert(sqliteFichaTecnicaItem).values(recipeValues).run()
-      }
-      tx
-        .update(sqliteProduto)
-        .set({ controleEstoque })
-        .where(and(
-          eq(sqliteProduto.id, produtoId),
-          eq(sqliteProduto.tenantId, tenantId),
-        ))
-        .run()
-    },
     postgresOperation: async (tx) => {
       const [product] = await tx
         .select({ id: produto.id })

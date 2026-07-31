@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const drizzleExpressions = vi.hoisted(() => ({
   and: vi.fn((...conditions: unknown[]) => ({ kind: 'and', conditions })),
@@ -30,7 +30,6 @@ vi.mock('@/lib/db/index', () => ({
     from: vi.fn().mockReturnThis(),
   },
 }))
-vi.mock('@/lib/sse', () => ({ notifyKitchen: vi.fn() }))
 vi.mock('@/lib/auth/access', () => ({
   requireAccess: vi.fn(async () => ({ usuarioId: 'user-1', tenantId: 'tenant-1', access: 'admin' })),
 }))
@@ -41,7 +40,6 @@ vi.mock('@vercel/blob', () => ({
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
 import { categoria, mesa, produto } from '@/lib/db/schema'
-import { notifyKitchen } from '@/lib/sse'
 import { put } from '@vercel/blob'
 import {
   criarProduto,
@@ -171,7 +169,7 @@ describe('criarProduto', () => {
       nome: 'Margherita',
       descricao: null,
       preco: '32.00',
-      disponivel: 1,
+      disponivel: true,
       imagemUrl: null,
     })
   })
@@ -191,7 +189,6 @@ describe('criarProduto', () => {
     expect(eq).toHaveBeenCalledWith(categoria.tenantId, 'tenant-1')
     expect(db.insert).not.toHaveBeenCalled()
     expect(db.update).not.toHaveBeenCalled()
-    expect(notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
@@ -235,7 +232,6 @@ describe('editarProduto', () => {
     )
     expect(db.insert).not.toHaveBeenCalled()
     expect(db.update).not.toHaveBeenCalled()
-    expect(notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
@@ -275,7 +271,6 @@ describe('toggleDisponivel', () => {
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
     })
     await toggleDisponivel('prod-1')
-    expect(notifyKitchen).not.toHaveBeenCalled()
   })
 })
 
@@ -292,7 +287,7 @@ describe('criarMesa', () => {
       id: expect.any(String),
       tenantId: 'tenant-1',
       numero: 5,
-      ativa: 1,
+      ativa: true,
     })
   })
 })
@@ -336,6 +331,5 @@ describe('toggleAtiva', () => {
     )
     expect(returning).toHaveBeenCalledWith({ id: mesa.id })
     expect(db.insert).not.toHaveBeenCalled()
-    expect(notifyKitchen).not.toHaveBeenCalled()
   })
 })

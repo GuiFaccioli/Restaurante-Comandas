@@ -64,7 +64,7 @@ beforeEach(() => {
 })
 
 describe('auth session', () => {
-  it('inserts all generated session values explicitly for SQLite compatibility', async () => {
+  it('inserts all generated session values explicitly for PostgreSQL sessions', async () => {
     await createAuthSession('user-1')
 
     expect(state.insertValues).toHaveLength(1)
