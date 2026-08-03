@@ -95,6 +95,7 @@ export const tenant = pgTable('tenant', {
 
 export const usuario = pgTable('usuario', {
   id: uuid('id').primaryKey(),
+  authUserId: text('auth_user_id').unique(),
   nome: text('nome').notNull(),
   email: text('email').notNull().unique(),
   role: roleUsuarioEnum('role').notNull().default('garcom'),

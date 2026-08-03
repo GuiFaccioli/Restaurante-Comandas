@@ -12,7 +12,7 @@ describe('build script', () => {
 
     expect(packageJson.scripts.build).toBe('next build')
     expect(packageJson.dependencies).toHaveProperty('@neondatabase/serverless')
-    expect(packageJson.dependencies).not.toHaveProperty('@neondatabase/auth')
+    expect(packageJson.dependencies).toHaveProperty('@neondatabase/auth')
     expect(packageJson.dependencies).not.toHaveProperty('next-pwa')
     expect(packageJson.dependencies).not.toHaveProperty('@prisma/client')
     expect(packageJson.devDependencies).not.toHaveProperty('prisma')

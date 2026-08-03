@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
     return {
       usuario: {
         id: column('usuario', 'id'),
+        authUserId: column('usuario', 'auth_user_id'),
         nome: column('usuario', 'nome'),
         email: column('usuario', 'email'),
         passwordHash: column('usuario', 'password_hash'),
@@ -64,6 +65,22 @@ const state = vi.hoisted(() => ({
   destroyCurrentSessionMock: vi.fn(),
   setSelectedTenantMock: vi.fn(),
   currentSession: null as { usuarioId: string; email: string; nome: string; selectedTenantId?: string | null } | null,
+  neonAuth: {
+    signUp: {
+      email: vi.fn(async ({ email, name }: { email: string; name: string }) => ({
+        data: { user: { id: 'auth-user-1', email, name } },
+        error: null,
+      })),
+    },
+    signIn: {
+      email: vi.fn(async ({ password }: { password: string }) =>
+        password === 'senha-certa'
+          ? { data: { user: { id: 'auth-user-1' } }, error: null }
+          : { data: null, error: new Error('invalid credentials') }
+      ),
+    },
+    signOut: vi.fn(async () => ({ data: null, error: null })),
+  },
 }))
 
 vi.mock('next/navigation', () => ({
@@ -87,6 +104,11 @@ vi.mock('@/lib/auth/session', () => ({
   destroyCurrentSession: state.destroyCurrentSessionMock,
   setSelectedTenant: state.setSelectedTenantMock,
   getCurrentSession: vi.fn(async () => state.currentSession),
+}))
+
+vi.mock('@/lib/auth/server', () => ({
+  getNeonAuth: vi.fn(async () => state.neonAuth),
+  isNeonAuthEnabled: vi.fn(() => true),
 }))
 
 vi.mock('@/lib/db/schema', () => ({
@@ -336,12 +358,12 @@ describe('auth actions', () => {
       ).rejects.toThrow('Não foi possível criar a conta')
 
       expect(state.insertValues).toEqual([])
-      expect(state.runInDbTransactionMock).toHaveBeenCalledTimes(1)
+      expect(state.runInDbTransactionMock).not.toHaveBeenCalled()
       expect(state.createAuthSessionMock).not.toHaveBeenCalled()
       expect(state.redirectMock).not.toHaveBeenCalled()
   })
 
-  it('creates owner tenant membership with hashed password and admin access', async () => {
+  it('creates owner tenant membership with Neon Auth identity and admin access', async () => {
       state.selectResults = [[]]
 
       await expect(
@@ -358,7 +380,8 @@ describe('auth actions', () => {
           expect.objectContaining({
             nome: 'Ana',
             email: 'ana@example.com',
-            passwordHash: 'hashed-password',
+            authUserId: 'auth-user-1',
+            passwordHash: null,
             role: 'admin',
             createdAt: expect.any(Date),
             updatedAt: expect.any(Date),

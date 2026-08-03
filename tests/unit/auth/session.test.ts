@@ -5,6 +5,10 @@ const state = vi.hoisted(() => ({
   cookieSet: vi.fn(),
   cookieGet: vi.fn(),
   cookieDelete: vi.fn(),
+  selectResults: [] as unknown[][],
+  neonAuth: {
+    getSession: vi.fn(async () => ({ data: { user: { id: 'auth-user-1' } }, error: null })),
+  },
 }))
 
 vi.mock('next/headers', () => ({
@@ -26,6 +30,7 @@ vi.mock('@/lib/db/schema', () => ({
   },
   usuario: {
     id: 'usuario.id',
+    authUserId: 'usuario.auth_user_id',
     email: 'usuario.email',
     nome: 'usuario.nome',
   },
@@ -47,7 +52,7 @@ vi.mock('@/lib/db/index', () => ({
     })),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
-        where: vi.fn(async () => []),
+        where: vi.fn(async () => state.selectResults.shift() ?? []),
       })),
     })),
     delete: vi.fn(() => ({
@@ -56,11 +61,19 @@ vi.mock('@/lib/db/index', () => ({
   },
 }))
 
+vi.mock('@/lib/auth/server', () => ({
+  getNeonAuth: vi.fn(async () => state.neonAuth),
+  isNeonAuthEnabled: vi.fn(() => true),
+  isNeonAuthConfigured: vi.fn(() => true),
+}))
+
 import { createAuthSession } from '@/lib/auth/session'
+import { getCurrentSession } from '@/lib/auth/session'
 
 beforeEach(() => {
   vi.clearAllMocks()
   state.insertValues = []
+  state.selectResults = []
 })
 
 describe('auth session', () => {
@@ -79,5 +92,17 @@ describe('auth session', () => {
       })
     )
     expect(state.cookieSet).toHaveBeenCalled()
+  })
+
+  it('resolves the business user from the immutable Neon Auth identity', async () => {
+    state.selectResults = [[{ id: 'user-1', email: 'ana@example.com', nome: 'Ana' }]]
+    state.cookieGet.mockReturnValue(undefined)
+
+    await expect(getCurrentSession()).resolves.toEqual({
+      usuarioId: 'user-1',
+      email: 'ana@example.com',
+      nome: 'Ana',
+      selectedTenantId: null,
+    })
   })
 })

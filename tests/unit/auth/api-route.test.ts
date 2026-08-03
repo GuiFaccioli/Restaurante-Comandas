@@ -9,12 +9,12 @@ function source(path: string) {
 }
 
 describe('auth API route', () => {
-  it('does not instantiate legacy Neon Auth during build', () => {
+  it('delegates auth requests to the configured Neon Auth handler', () => {
     const route = source('app/api/auth/[...path]/route.ts')
 
-    expect(route).not.toContain('@/lib/auth/server')
-    expect(route).not.toContain('auth.handler')
-    expect(route).not.toContain('@neondatabase/auth')
-    expect(route).toContain('First-party auth uses Server Actions')
+    expect(route).toContain("@/lib/auth/server")
+    expect(route).toContain('.handler()')
+    expect(route).toContain('export async function GET')
+    expect(route).toContain('export async function POST')
   })
 })
