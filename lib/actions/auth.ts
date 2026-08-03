@@ -39,6 +39,20 @@ function isUniqueConstraintError(error: unknown): boolean {
   return code === '23505'
 }
 
+function logNeonSignupError(error: unknown, hasUserId: boolean): void {
+  const details = error && typeof error === 'object' ? error as Record<string, unknown> : {}
+  const stringValue = (value: unknown): string | undefined =>
+    typeof value === 'string' ? value.slice(0, 300) : undefined
+
+  console.error('[auth] Neon Auth signup rejected', {
+    code: stringValue(details.code),
+    status: typeof details.status === 'number' ? details.status : undefined,
+    statusCode: typeof details.statusCode === 'number' ? details.statusCode : undefined,
+    message: stringValue(details.message),
+    hasUserId,
+  })
+}
+
 function slugifyTenantName(name: string): string {
   const base = name
     .normalize('NFD')
@@ -93,6 +107,7 @@ export async function signUpOwner(
       })
     : null
   if (neonAuth && (authResult?.error || !authResult?.data?.user?.id)) {
+    logNeonSignupError(authResult?.error, Boolean(authResult?.data?.user?.id))
     throw new Error(SIGN_UP_ERROR_MESSAGE)
   }
 
