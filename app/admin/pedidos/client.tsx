@@ -24,7 +24,7 @@ const paymentMethods: Array<{ value: FormaPagamento; label: string }> = [
   { value: 'outro', label: 'Outro' },
 ]
 
-type QueueFilter = 'todos' | 'cobrar' | 'andamento' | 'pagos'
+type QueueFilter = 'todos' | 'cobrar' | 'andamento' | 'pagos' | 'cancelados'
 
 function canReceivePayment(account: AtendimentoResumo) {
   return account.status === 'awaiting_payment' && account.saldoPendente > 0
@@ -55,6 +55,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
       || (queueFilter === 'cobrar' && canReceivePayment(account))
       || (queueFilter === 'andamento' && account.status === 'open')
       || (queueFilter === 'pagos' && account.status === 'paid')
+      || (queueFilter === 'cancelados' && account.status === 'cancelled')
     if (!matchesFilter || !normalizedSearch) return matchesFilter
     return [
       `mesa ${account.mesaNumero}`,
@@ -108,9 +109,9 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
     <AdminPanel title="Contas aguardando pagamento" description="As cobranças são agrupadas por atendimento, não apenas pela mesa.">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-end">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar contas">
-          {(Object.keys({ todos: 1, cobrar: 1, andamento: 1, pagos: 1 }) as QueueFilter[]).map((filter) => {
-            const count = filter === 'todos' ? contas.length : filter === 'cobrar' ? contas.filter(canReceivePayment).length : filter === 'andamento' ? contas.filter((account) => account.status === 'open').length : contas.filter((account) => account.status === 'paid').length
-            return <Button key={filter} type="button" intent={queueFilter === filter ? 'informational' : 'neutral'} appearance={queueFilter === filter ? 'solid' : 'outline'} size="sm" className="min-h-11" aria-pressed={queueFilter === filter} onClick={() => setQueueFilter(filter)}>{filter === 'cobrar' ? 'Para cobrar' : filter === 'andamento' ? 'Em atendimento' : filter === 'pagos' ? 'Pagos' : 'Todas'} ({count})</Button>
+          {(Object.keys({ todos: 1, cobrar: 1, andamento: 1, pagos: 1, cancelados: 1 }) as QueueFilter[]).map((filter) => {
+            const count = filter === 'todos' ? contas.length : filter === 'cobrar' ? contas.filter(canReceivePayment).length : filter === 'andamento' ? contas.filter((account) => account.status === 'open').length : filter === 'pagos' ? contas.filter((account) => account.status === 'paid').length : contas.filter((account) => account.status === 'cancelled').length
+            return <Button key={filter} type="button" intent={queueFilter === filter ? 'informational' : 'neutral'} appearance={queueFilter === filter ? 'solid' : 'outline'} size="sm" className="min-h-11" aria-pressed={queueFilter === filter} onClick={() => setQueueFilter(filter)}>{filter === 'cobrar' ? 'Para cobrar' : filter === 'andamento' ? 'Em atendimento' : filter === 'pagos' ? 'Pagos' : filter === 'cancelados' ? 'Cancelados' : 'Todas'} ({count})</Button>
           })}
         </div>
         <label className="grid gap-1 text-sm font-medium">Buscar mesa, conta ou pedido<input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Ex.: Mesa 4 ou 0e09" className="min-h-11 rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
@@ -121,7 +122,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
       {visibleContas.length === 0 ? <AdminEmptyState title="Nenhuma conta corresponde aos filtros" description="Tente outro filtro ou limpe a busca." /> : <div className="grid gap-3">{visibleContas.map((account) => {
         const expanded = expandedId === account.id
         const paymentOpen = paymentAccountId === account.id
-        return <article key={account.id} className="space-y-3 rounded-[var(--radius)] border bg-background p-4">
+        return <article key={account.id} className={`space-y-3 rounded-[var(--radius)] border p-4 ${account.status === 'cancelled' ? 'border-[var(--error)]/35 bg-[var(--error-soft)]' : 'bg-background'}`}>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start"><div><p className="text-lg font-semibold">Mesa {account.mesaNumero} · Conta #{account.id.slice(0, 8)}</p><p className="text-sm text-muted-foreground">{account.orderCount} pedido(s) · {accountLabel(account.status)} · aberta {formatPedidoCriadoEm(account.abertoEm)}</p><p className="mt-2 text-2xl font-bold">{formatCurrency(account.total)}</p><p className="text-sm text-muted-foreground">Pago: {formatCurrency(account.total - account.saldoPendente)} · Saldo pendente: {formatCurrency(account.saldoPendente)}</p></div><div className="flex flex-wrap gap-2"><Button type="button" intent="neutral" appearance="outline" size="sm" className="min-h-11" onClick={() => setExpandedId(expanded ? null : account.id)}>{expanded ? 'Fechar pedidos' : 'Ver pedidos'}</Button>{canReceivePayment(account) ? <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11" onClick={() => { setPaymentAccountId(account.id); setExpandedId(account.id) }}>Receber pagamento</Button> : null}</div></div>
           {expanded ? <div className="space-y-3 border-t pt-3"><h2 className="text-sm font-semibold">Pedidos desta conta</h2>{account.pedidos.map((order) => <div key={order.id} className="rounded-[var(--radius)] border p-3"><div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><span>Pedido #{order.id.slice(0, 8)}</span><span>{formatCurrency(order.total)}</span></div><ul className="mt-2 space-y-1 text-sm">{order.itens.map((item, index) => <li key={`${order.id}-${index}`} className="min-w-0 break-words">{item.quantidade}x {item.nome}{item.observacao ? ` · ${item.observacao}` : ''}</li>)}</ul></div>)}{paymentOpen ? <form aria-busy={isPending} className="grid gap-3 rounded-md border bg-muted/30 p-3" onSubmit={(event) => handlePaymentSubmit(event, account)}><label className="grid gap-1 text-sm">Forma de pagamento<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as FormaPagamento)} className="min-h-11 rounded-md border border-input bg-background px-3">{paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label><label className="grid gap-1 text-sm">Valor recebido<input value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-md border border-input bg-background px-3" inputMode="decimal" required /></label><div className="flex flex-col gap-2 sm:flex-row"><Button type="submit" intent="positive" appearance="solid" className="min-h-11" aria-busy={isPending} disabled={isPending}>{isPending ? 'Registrando...' : 'Confirmar pagamento'}</Button><Button type="button" intent="neutral" appearance="outline" className="min-h-11" onClick={() => setPaymentAccountId(null)} disabled={isPending}>Cancelar</Button></div></form> : null}</div> : null}
         </article>

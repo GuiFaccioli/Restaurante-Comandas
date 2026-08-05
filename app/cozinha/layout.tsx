@@ -1,6 +1,8 @@
 import { ProfileMenu } from '@/components/auth/profile-menu'
 import { requireAccess } from '@/lib/auth/access'
 
+export const dynamic = 'force-dynamic'
+
 export default async function CozinhaLayout({ children }: { children: React.ReactNode }) {
   await requireAccess('cozinha')
   return (

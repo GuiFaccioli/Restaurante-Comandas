@@ -168,6 +168,8 @@ describe('pedido business flow', () => {
     const profileSlotSource = source('components/garcom/garcom-profile-slot.tsx')
     const mesasPageSource = source('app/garcom/mesas/page.tsx')
     expect(garcomLayoutSource).toContain('GarcomProfileSlot')
+    expect(garcomLayoutSource).toContain('showOnOperationalPages={accesses.length > 1}')
+    expect(profileSlotSource).toContain('showOnOperationalPages = false')
     expect(profileSlotSource).toContain("pathname.startsWith('/garcom/mesa/')")
     expect(profileSlotSource).toContain("pathname === '/garcom/mesas'")
     expect(mesasPageSource).toContain('Escolha uma mesa')

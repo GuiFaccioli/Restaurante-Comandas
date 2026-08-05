@@ -516,9 +516,17 @@ async function syncAttendancePaymentStatus(
     ))
   if (orders.some((order) => order.status !== 'entregue' && order.status !== 'cancelado')) return
 
+  const attendanceStatus = orders.every((order) => order.status === 'cancelado')
+    ? 'cancelled'
+    : 'awaiting_payment'
+
   await tx
     .update(pgSchema.atendimento)
-    .set({ status: 'awaiting_payment', aguardandoPagamentoEm: new Date(), atualizadoEm: new Date() })
+    .set({
+      status: attendanceStatus,
+      aguardandoPagamentoEm: attendanceStatus === 'awaiting_payment' ? new Date() : null,
+      atualizadoEm: new Date(),
+    })
     .where(and(
       eq(pgSchema.atendimento.id, atendimentoId),
       eq(pgSchema.atendimento.tenantId, tenantId),

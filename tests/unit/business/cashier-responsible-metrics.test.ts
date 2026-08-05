@@ -19,6 +19,7 @@ const account: AtendimentoResumo = {
 }
 
 const secondAccount: AtendimentoResumo = { ...account, id: 'atendimento-2', mesaNumero: 8, total: 70, saldoPendente: 70, pedidos: [{ ...account.pedidos[0], id: 'pedido-2', total: 70, itens: [{ nome: 'Calabresa', quantidade: 1, precoUnitario: '70.00', observacao: null }] }] }
+const canceledAccount: AtendimentoResumo = { ...account, id: 'atendimento-canceled', status: 'cancelled', total: 0, saldoPendente: 0, pedidos: [{ ...account.pedidos[0], id: 'pedido-canceled', status: 'cancelado', total: 0 }] }
 
 beforeEach(() => { vi.clearAllMocks(); mocks.registrarPagamentoAtendimento.mockResolvedValue({ status: 'registrado', atendimentoStatus: 'paid' }) })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -34,6 +35,15 @@ describe('AdminPedidosLive', () => {
     render(createElement(AdminPedidosLive, { initialPedidos: [account] }))
     fireEvent.change(screen.getByLabelText('Buscar mesa, conta ou pedido'), { target: { value: '99' } })
     expect(screen.getByText('Nenhuma conta corresponde aos filtros')).toBeInTheDocument()
+  })
+
+  it('shows canceled accounts in a dedicated queue', () => {
+    render(createElement(AdminPedidosLive, { initialPedidos: [canceledAccount] }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelados (1)' }))
+
+    expect(screen.getByText(/1 pedido\(s\) · Cancelado/)).toBeInTheDocument()
+    expect(screen.getByText(/Mesa 4 · Conta/).closest('article')).toHaveClass('bg-[var(--error-soft)]')
   })
 
   it('refreshes and keeps account payment amount based on the selected account', async () => {
