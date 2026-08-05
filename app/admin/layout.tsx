@@ -1,4 +1,5 @@
 import { ProfileMenu } from '@/components/auth/profile-menu'
+import { AgilizaFluxoBrand } from '@/components/brand/agiliza-fluxo-brand'
 import { AdminShellNav } from '@/components/admin/admin-shell-nav'
 import { MobileBottomNavigation } from '@/components/shell/mobile-bottom-navigation'
 import { getCurrentAccesses } from '@/lib/auth/access'
@@ -24,10 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="mx-auto grid min-h-dvh max-w-[1600px] grid-cols-1 lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
         <aside className="border-b border-[var(--border)] bg-[var(--surface)] px-4 py-4 lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:border-b-0 lg:px-5 lg:py-6">
           <div className="flex items-start justify-between gap-4 lg:block">
-            <div>
-              <p className="text-lg font-bold tracking-[-0.03em] text-[var(--primary-active)]">Agiliza Fluxo</p>
-              <p className="mt-1 max-w-52 text-sm leading-5 text-[var(--muted)]">Mais produtividade, menos papel.</p>
-            </div>
+            <AgilizaFluxoBrand tagline="A transparência que sua cozinha precisa." />
             <ProfileMenu className="shrink-0 lg:hidden" currentAccess="admin" />
           </div>
 

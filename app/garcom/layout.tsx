@@ -1,4 +1,5 @@
 import { ProfileMenu } from '@/components/auth/profile-menu'
+import { AgilizaFluxoBrand } from '@/components/brand/agiliza-fluxo-brand'
 import { GarcomProfileSlot } from '@/components/garcom/garcom-profile-slot'
 import { MobileBottomNavigation } from '@/components/shell/mobile-bottom-navigation'
 import { getCurrentAccesses, requireAccess } from '@/lib/auth/access'
@@ -11,10 +12,7 @@ export default async function GarcomLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-[var(--canvas)] pb-20">
       <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-        <div>
-          <p className="text-lg font-bold tracking-[-0.03em] text-[var(--primary-active)]">Agiliza Fluxo</p>
-          <p className="text-xs text-[var(--muted)]">Atendimento sem papel.</p>
-        </div>
+        <AgilizaFluxoBrand tagline="Atendimento sem papel." />
         <GarcomProfileSlot showOnOperationalPages={accesses.length > 1}><ProfileMenu currentAccess="garcom" /></GarcomProfileSlot>
       </header>
       {children}

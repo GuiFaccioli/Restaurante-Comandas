@@ -136,6 +136,15 @@ describe('Agiliza Fluxo foundation alignment', () => {
     expect(button).toContain('px-[18px]')
   })
 
+  it('uses the shared Agiliza Fluxo brand in authenticated shells', () => {
+    const brand = source('components/brand/agiliza-fluxo-brand.tsx')
+    expect(brand).toContain('Agiliza Fluxo')
+    expect(brand).toContain('Workflow')
+    expect(source('app/admin/layout.tsx')).toContain('AgilizaFluxoBrand')
+    expect(source('app/garcom/layout.tsx')).toContain('AgilizaFluxoBrand')
+    expect(source('app/cozinha/layout.tsx')).toContain('AgilizaFluxoBrand')
+  })
+
   it('uses 40px inputs with the shared focus ring', () => {
     const input = source('components/ui/input.tsx')
 
