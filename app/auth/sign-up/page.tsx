@@ -1,4 +1,5 @@
 import { signUpOwner } from '@/lib/actions/auth'
+import { AgilizaFluxoBrand } from '@/components/brand/agiliza-fluxo-brand'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
@@ -6,8 +7,8 @@ import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
 export default function SignUpPage() {
   return <main className="flex min-h-dvh items-center justify-center bg-[var(--canvas)] p-4 sm:p-6">
     <section className="af-surface w-full max-w-md p-6 sm:p-8">
-      <p className="text-sm font-semibold text-[var(--primary)]">Agiliza Fluxo</p>
-      <h1 className="mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--ink)]">Comece pelo fluxo certo</h1>
+      <AgilizaFluxoBrand tagline="A transparência que sua cozinha precisa." />
+      <h1 className="mt-8 text-3xl font-black tracking-[-0.04em] text-[var(--ink)]">Comece pelo fluxo certo</h1>
       <p className="mt-1 text-sm leading-6 text-[var(--muted)]">Mais produtividade, menos papel. Cadastre seu restaurante e crie o primeiro acesso.</p>
       <ActionForm action={signUpOwner} successMessage="Conta criada com sucesso." className="mt-6 space-y-4">
         <div className="space-y-1.5"><Label htmlFor="nome">Seu nome</Label><Input id="nome" name="nome" placeholder="Como podemos chamar você?" required /></div>
