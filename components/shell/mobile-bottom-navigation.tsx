@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ClipboardList, LayoutDashboard, Search, Store } from 'lucide-react'
+import { ClipboardList, LayoutDashboard, Store } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 import { cn } from '@/lib/utils'
@@ -9,17 +9,21 @@ import { cn } from '@/lib/utils'
 const items = [
   { href: '/garcom/mesas', label: 'Mesas', icon: Store },
   { href: '/garcom/pedidos', label: 'Pedidos', icon: ClipboardList },
-  { href: '/garcom/mesas', label: 'Buscar', icon: Search },
   { href: '/admin/menu', label: 'Cardápio', icon: LayoutDashboard },
 ]
 
 export function MobileBottomNavigation({ mode = 'waiter' }: { mode?: 'waiter' | 'admin' }) {
   const pathname = usePathname()
-  const visible = mode === 'admin' ? items.filter((item) => item.label !== 'Buscar').map((item) => item.label === 'Pedidos' ? { ...item, href: '/admin/pedidos' } : item) : items.slice(0, 3)
+  const visible = mode === 'admin'
+    ? items.map((item) => item.label === 'Pedidos' ? { ...item, href: '/admin/pedidos' } : item)
+    : items.filter((item) => item.label !== 'Cardápio')
 
   return (
     <nav aria-label="Navegação principal" className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_94%,transparent)] px-2 pb-[env(safe-area-inset-bottom)] shadow-[var(--shadow-dropdown)] backdrop-blur lg:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-3 gap-1 py-2">
+      <div
+        className="mx-auto grid max-w-lg gap-1 py-2"
+        style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0, 1fr))` }}
+      >
         {visible.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`)
           return (

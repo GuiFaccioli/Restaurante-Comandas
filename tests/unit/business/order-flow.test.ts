@@ -146,6 +146,7 @@ describe('pedido business flow', () => {
     const itemSource = source('components/garcom/item-card.tsx')
     const drawerSource = source('components/garcom/cart-drawer.tsx')
     const sheetSource = source('components/garcom/observacao-sheet.tsx')
+    const mobileNavigationSource = source('components/shell/mobile-bottom-navigation.tsx')
     const tableOrdersSource = source('components/garcom/table-orders-panel.tsx')
     const fabSource = source('components/garcom/cart-fab.tsx')
 
@@ -202,6 +203,9 @@ describe('pedido business flow', () => {
 
     expect(fabSource).toContain('aria-label="Abrir carrinho"')
     expect(fabSource).toContain('bottom-[calc(5rem+env(safe-area-inset-bottom))]')
+    expect(mobileNavigationSource).not.toContain("label: 'Buscar'")
+    expect(mobileNavigationSource).not.toContain('Search')
+    expect(mobileNavigationSource).toContain('items.filter((item) => item.label !== \'Cardápio\')')
   })
 
   test('cashier order management keeps readable payment UI', () => {
