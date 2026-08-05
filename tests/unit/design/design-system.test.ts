@@ -32,28 +32,31 @@ describe('Agiliza Fluxo foundation alignment', () => {
   it('defines the foundation color, radius, and accessible focus tokens', () => {
     const css = source('app/globals.css')
 
-    expect(css).toContain('--brand-green: #1f7a4d')
-    expect(css).toContain('--canvas: #f6f8f7')
-    expect(css).toContain('--radius-button: 10px')
-    expect(css).toContain('--focus-ring: #1f7a4d')
+    expect(css).toContain('--brand-terracotta: #e24d28')
+    expect(css).toContain('--canvas: #fbf9f4')
+    expect(css).toContain('--radius-button: 8px')
+    expect(css).toContain('--focus-ring: #e24d28')
     expect(css).toContain('--ring: var(--focus-ring)')
-    expect(css).toContain('--border: #d8e0db')
+    expect(css).toContain('--border: #e7dfda')
   })
 
   it('defines accessible semantic action and focus tokens', () => {
     const css = source('app/globals.css')
 
-    expect(token(css, 'action-positive')).toBe('#1f7a4d')
-    expect(token(css, 'action-positive-hover')).toBe('#17613d')
-    expect(token(css, 'action-informational')).toBe('#2e6eb5')
-    expect(token(css, 'action-warning')).toBe('#c98216')
-    expect(token(css, 'action-warning-solid-foreground')).toBe('#18211c')
-    expect(token(css, 'action-warning-soft')).toBe('#fff3d8')
-    expect(token(css, 'action-warning-soft-foreground')).toBe('#6b430b')
-    expect(token(css, 'action-destructive')).toBe('#c64343')
-    expect(token(css, 'focus-ring')).toBe('#1f7a4d')
+    expect(token(css, 'action-positive')).toBe('#e24d28')
+    expect(token(css, 'action-positive-hover')).toBe('#b83d22')
+    expect(token(css, 'action-positive-solid-foreground')).toBe('#181411')
+    expect(token(css, 'action-informational')).toBe('#4b3d34')
+    expect(token(css, 'action-warning')).toBe('#f19d27')
+    expect(token(css, 'action-warning-solid-foreground')).toBe('#241d19')
+    expect(token(css, 'action-warning-soft')).toBe('#fbe7bf')
+    expect(token(css, 'action-warning-soft-foreground')).toBe('#774b0b')
+    expect(token(css, 'action-destructive')).toBe('#dc2828')
+    expect(token(css, 'focus-ring')).toBe('#e24d28')
 
-    expect(contrast(token(css, 'action-positive'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
+    expect(
+      contrast(token(css, 'action-positive-solid-foreground'), token(css, 'action-positive'))
+    ).toBeGreaterThanOrEqual(4.5)
     expect(contrast(token(css, 'action-informational'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
     expect(
       contrast(token(css, 'action-warning-solid-foreground'), token(css, 'action-warning'))
@@ -97,30 +100,32 @@ describe('Agiliza Fluxo foundation alignment', () => {
     expect(contrast(token(css, 'focus-ring'), '#0a0a0a')).toBeGreaterThanOrEqual(3)
   })
 
-  it('documents solid and soft warning foregrounds separately', () => {
-    const guide = source('docs/AGILIZA_FLUXO_DESIGN.md')
+  it('documents the terracotta visual identity and solid/soft warning foregrounds', () => {
+    const guide = source('docs/AGILIZA_FLUXO_DESIGN_SYSTEM.md')
 
-    expect(guide).toContain('#1F7A4D')
-    expect(guide).toContain('#F2A93B')
-    expect(guide).toContain('Status nunca deve depender apenas da cor')
+    expect(guide).toContain('#e24d28')
+    expect(guide).toContain('#f19d27')
+    expect(guide).toContain('Status de pedido e estoque devem combinar cor, texto')
     expect(guide).toContain('Agiliza Fluxo')
   })
 
   it('limits outline contrast guarantees to approved light surfaces', () => {
-    const guide = source('docs/AGILIZA_FLUXO_DESIGN.md')
+    const guide = source('docs/AGILIZA_FLUXO_DESIGN_SYSTEM.md')
 
-    expect(guide).toContain('Contraste adequado')
-    expect(guide).toContain('foco visível')
-    expect(guide).toContain('navegação por teclado')
+    expect(guide).toContain('Critérios de aceite')
+    expect(guide).toContain('Foco de teclado permanece visível')
+    expect(guide).toContain('alvos de toque de pelo menos `44px`')
   })
 
-  it('keeps Inter for prose and Geist Mono for code', () => {
+  it('uses Satoshi for headings, Inter for prose, and Fira Code for code', () => {
     const layout = source('app/layout.tsx')
     const css = source('app/globals.css')
 
     expect(layout).not.toContain('next/font/google')
     expect(css).toContain('--font-sans: Inter')
-    expect(css).toContain('--font-mono: "Geist Mono"')
+    expect(css).toContain('--font-heading: Satoshi')
+    expect(css).toContain('--font-mono: "Fira Code"')
+    expect(css).toContain('font-family: Satoshi, Inter')
   })
 
   it('uses touch-sized primary buttons with the shared geometry', () => {
@@ -129,6 +134,23 @@ describe('Agiliza Fluxo foundation alignment', () => {
     expect(button).toContain('rounded-[var(--radius-button)]')
     expect(button).toContain('h-11')
     expect(button).toContain('px-[18px]')
+  })
+
+  it('uses the shared Agiliza Fluxo brand in authenticated shells', () => {
+    const brand = source('components/brand/agiliza-fluxo-brand.tsx')
+    expect(brand).toContain('Agiliza Fluxo')
+    expect(brand).toContain('Workflow')
+    expect(source('app/admin/layout.tsx')).toContain('AgilizaFluxoBrand')
+    expect(source('app/garcom/layout.tsx')).toContain('AgilizaFluxoBrand')
+    expect(source('app/cozinha/layout.tsx')).toContain('AgilizaFluxoBrand')
+  })
+
+  it('uses the visual tokens in shared admin surfaces', () => {
+    const adminPage = source('components/admin/admin-page.tsx')
+    expect(adminPage).toContain('font-heading text-3xl font-black')
+    expect(adminPage).toContain('rounded-[var(--radius-card)]')
+    expect(adminPage).toContain('shadow-[var(--shadow-card)]')
+    expect(adminPage).toContain('text-[var(--muted)]')
   })
 
   it('uses 40px inputs with the shared focus ring', () => {

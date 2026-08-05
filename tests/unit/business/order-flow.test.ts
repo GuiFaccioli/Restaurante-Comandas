@@ -209,7 +209,7 @@ describe('pedido business flow', () => {
     const pageSource = source('app/admin/pedidos/page.tsx')
     const clientSource = source('app/admin/pedidos/client.tsx')
 
-    expect(layoutSource).toContain('Agiliza Fluxo')
+    expect(layoutSource).toContain('AgilizaFluxoBrand')
     expect(layoutSource).toContain('bg-[var(--canvas)]')
     expect(layoutSource).toContain('lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]')
     expect(layoutSource).toContain('max-w-[1600px]')
@@ -289,16 +289,20 @@ describe('pedido business flow', () => {
 
     expect(signInPageSource).toContain('min-h-dvh')
     expect(signInPageSource).toContain('Não tem conta?')
-    expect(signInPageSource).toContain('rounded-[var(--radius)]')
+    expect(signInPageSource).toContain('af-surface')
     expect(signInClientSource).toContain('min-h-11')
 
     expect(signUpSource).toContain('min-h-dvh')
     expect(signUpSource).toContain('Criar conta')
+    expect(signInPageSource).toContain('AgilizaFluxoBrand')
+    expect(signUpSource).toContain('AgilizaFluxoBrand')
+    expect(areaSource).toContain('AgilizaFluxoBrand')
+    expect(companySource).toContain('AgilizaFluxoBrand')
     expect(signUpSource).toContain('Já tem conta?')
     expect(signUpSource).toContain('min-h-11')
 
     expect(areaSource).toContain('Por onde você quer começar?')
-    expect(areaSource).toContain('Agiliza Fluxo')
+    expect(areaSource).toContain('AgilizaFluxoBrand')
     expect(areaSource).toContain('af-surface')
     expect(areaSource).toContain('focus-visible:ring-2')
 
