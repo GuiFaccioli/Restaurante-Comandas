@@ -3,6 +3,8 @@ import { GarcomProfileSlot } from '@/components/garcom/garcom-profile-slot'
 import { MobileBottomNavigation } from '@/components/shell/mobile-bottom-navigation'
 import { requireAccess } from '@/lib/auth/access'
 
+export const dynamic = 'force-dynamic'
+
 export default async function GarcomLayout({ children }: { children: React.ReactNode }) {
   await requireAccess('garcom')
   return (

@@ -15,6 +15,9 @@ describe('dynamic auth pages', () => {
       'app/selecionar-area/page.tsx',
       'app/admin/menu/page.tsx',
       'app/admin/mesas/page.tsx',
+      'app/admin/layout.tsx',
+      'app/garcom/layout.tsx',
+      'app/cozinha/layout.tsx',
     ]
 
     for (const path of paths) {

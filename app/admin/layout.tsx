@@ -3,6 +3,8 @@ import { AdminShellNav } from '@/components/admin/admin-shell-nav'
 import { MobileBottomNavigation } from '@/components/shell/mobile-bottom-navigation'
 import { getCurrentAccesses } from '@/lib/auth/access'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const accesses = await getCurrentAccesses()
   const primaryLinks = [
