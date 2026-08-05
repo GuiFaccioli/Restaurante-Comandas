@@ -25,6 +25,7 @@ vi.mock('@/lib/stock/service', () => ({
 
 import * as schema from '@/lib/db/schema'
 import {
+  cancelOrderInPostgresTransaction,
   createOrderInPostgresTransaction,
   transitionOrderInPostgresTransaction,
 } from '@/lib/stock/order-consumption'
@@ -243,6 +244,34 @@ describe('PostgreSQL order consumption', () => {
     expect(current.lock).toHaveBeenCalledWith('update')
     expect(mocks.applyStockMovementInPostgresTransaction).not.toHaveBeenCalled()
     expect(tx.update).not.toHaveBeenCalled()
+  })
+
+  it('marks an attendance as canceled when its last order is canceled', async () => {
+    const current = lockedQuery([{ status: 'novo' as const, atendimentoId: 'atendimento-1' }])
+    const orders = {
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{ status: 'cancelado' as const }]),
+      })),
+    }
+    const updateValues: unknown[] = []
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(current).mockReturnValueOnce(orders),
+      update: vi.fn(() => ({
+        set: vi.fn((values: unknown) => {
+          updateValues.push(values)
+          return { where: vi.fn(async () => undefined) }
+        }),
+      })),
+    }
+
+    await expect(cancelOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', pedidoId: 'pedido-1',
+    })).resolves.toEqual({ changed: true, status: 'cancelado' })
+
+    expect(updateValues).toEqual([
+      expect.objectContaining({ status: 'cancelado' }),
+      expect.objectContaining({ status: 'cancelled' }),
+    ])
   })
 
   it('retries a partially applied preparation without duplicating an existing movement', async () => {
