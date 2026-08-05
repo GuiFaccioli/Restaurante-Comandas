@@ -3,10 +3,10 @@
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
-export function GarcomProfileSlot({ children }: { children: ReactNode }) {
+export function GarcomProfileSlot({ children, showOnOperationalPages = false }: { children: ReactNode; showOnOperationalPages?: boolean }) {
   const pathname = usePathname()
 
-  if (pathname.startsWith('/garcom/mesa/') || pathname === '/garcom/mesas') return null
+  if (!showOnOperationalPages && (pathname.startsWith('/garcom/mesa/') || pathname === '/garcom/mesas')) return null
 
   return children
 }
