@@ -145,6 +145,14 @@ describe('Agiliza Fluxo foundation alignment', () => {
     expect(source('app/cozinha/layout.tsx')).toContain('AgilizaFluxoBrand')
   })
 
+  it('uses the visual tokens in shared admin surfaces', () => {
+    const adminPage = source('components/admin/admin-page.tsx')
+    expect(adminPage).toContain('font-heading text-3xl font-black')
+    expect(adminPage).toContain('rounded-[var(--radius-card)]')
+    expect(adminPage).toContain('shadow-[var(--shadow-card)]')
+    expect(adminPage).toContain('text-[var(--muted)]')
+  })
+
   it('uses 40px inputs with the shared focus ring', () => {
     const input = source('components/ui/input.tsx')
 
