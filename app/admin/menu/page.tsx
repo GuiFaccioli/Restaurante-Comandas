@@ -1,7 +1,7 @@
 // app/(admin)/menu/page.tsx
 import { db } from '@/lib/db/index'
 import { asc, eq } from 'drizzle-orm'
-import { categoria, fichaTecnicaItem, insumo, produto } from '@/lib/db/schema'
+import { categoria, fichaTecnicaItem, itemEstoque, produto } from '@/lib/db/schema'
 import { calcularCustoFicha } from '@/lib/stock/costing'
 import { MenuAdminClient } from './client'
 import { requireAccess } from '@/lib/auth/access'
@@ -15,16 +15,16 @@ export default async function MenuAdminPage() {
     .from(categoria)
     .where(eq(categoria.tenantId, tenantId))
     .orderBy(asc(categoria.ordem))
-  const [produtos, fichas, insumos] = await Promise.all([
+  const [produtos, fichas, itemEstoques] = await Promise.all([
     db.select().from(produto).where(eq(produto.tenantId, tenantId)),
     db.select().from(fichaTecnicaItem).where(eq(fichaTecnicaItem.tenantId, tenantId)),
-    db.select({ id: insumo.id, custoUnitario: insumo.custoUnitario }).from(insumo).where(eq(insumo.tenantId, tenantId)),
+    db.select({ id: itemEstoque.id, custoUnitario: itemEstoque.custoUnitario }).from(itemEstoque).where(eq(itemEstoque.tenantId, tenantId)),
   ])
 
-  const custoPorInsumo = new Map(insumos.map((item) => [item.id, item.custoUnitario]))
+  const custoPorItemEstoque = new Map(itemEstoques.map((item) => [item.id, item.custoUnitario]))
   const custoPorProduto = new Map(produtos.map((item) => {
     const result = calcularCustoFicha(
-      fichas.filter((ficha) => ficha.produtoId === item.id).map((ficha) => ({ quantidade: ficha.quantidade, custoUnitario: custoPorInsumo.get(ficha.insumoId) ?? null })),
+      fichas.filter((ficha) => ficha.produtoId === item.id).map((ficha) => ({ quantidade: ficha.quantidade, custoUnitario: custoPorItemEstoque.get(ficha.itemEstoqueId) ?? null })),
       item.preco,
     )
     return [item.id, result] as const

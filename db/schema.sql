@@ -68,19 +68,26 @@ CREATE TABLE produto (
     REFERENCES categoria(tenant_id, id)
 );
 
-CREATE TABLE insumo (
+CREATE TABLE item_estoque (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
   nome TEXT NOT NULL,
+  categoria_id UUID,
   unidade_base TEXT NOT NULL,
   unidade_compra TEXT NOT NULL,
   fator_compra_para_base NUMERIC(12,3) NOT NULL DEFAULT 1,
   estoque_atual NUMERIC(12,3) NOT NULL DEFAULT 0,
-  estoque_ideal NUMERIC(12,3) NOT NULL DEFAULT 0,
-  estoque_minimo NUMERIC(12,3) NOT NULL DEFAULT 0,
+  estoque_ideal NUMERIC(12,3),
+  estoque_minimo NUMERIC(12,3),
   custo_unitario NUMERIC(12,4),
   ativo BOOLEAN NOT NULL DEFAULT true,
-  UNIQUE (tenant_id, id)
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, id),
+  CHECK (fator_compra_para_base > 0),
+  CHECK (estoque_ideal IS NULL OR estoque_minimo IS NULL OR estoque_ideal >= estoque_minimo),
+  FOREIGN KEY (tenant_id, categoria_id)
+    REFERENCES categoria(tenant_id, id)
 );
 
 CREATE TABLE atendimento (
@@ -136,29 +143,29 @@ CREATE TABLE ficha_tecnica_item (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
   produto_id UUID NOT NULL,
-  insumo_id UUID NOT NULL,
+  item_estoque_id UUID NOT NULL,
   quantidade NUMERIC(12,3) NOT NULL,
-  UNIQUE (tenant_id, produto_id, insumo_id),
+  UNIQUE (tenant_id, produto_id, item_estoque_id),
   FOREIGN KEY (tenant_id, produto_id)
     REFERENCES produto(tenant_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id, insumo_id)
-    REFERENCES insumo(tenant_id, id)
+  FOREIGN KEY (tenant_id, item_estoque_id)
+    REFERENCES item_estoque(tenant_id, id)
 );
 
-CREATE TABLE item_pedido_insumo (
+CREATE TABLE item_pedido_composicao (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
   pedido_id UUID NOT NULL,
   item_pedido_id UUID NOT NULL,
-  insumo_id UUID NOT NULL,
+  item_estoque_id UUID NOT NULL,
   quantidade_total NUMERIC(12,3) NOT NULL CHECK (quantidade_total > 0),
-  UNIQUE (tenant_id, item_pedido_id, insumo_id),
+  UNIQUE (tenant_id, item_pedido_id, item_estoque_id),
   FOREIGN KEY (tenant_id, pedido_id)
     REFERENCES pedido(tenant_id, id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id, pedido_id, item_pedido_id)
     REFERENCES item_pedido(tenant_id, pedido_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id, insumo_id)
-    REFERENCES insumo(tenant_id, id)
+  FOREIGN KEY (tenant_id, item_estoque_id)
+    REFERENCES item_estoque(tenant_id, id)
 );
 
 CREATE TABLE tenant_user (
@@ -206,7 +213,7 @@ CREATE TABLE pagamento_pedido (
 CREATE TABLE movimento_estoque (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
-  insumo_id UUID NOT NULL,
+  item_estoque_id UUID NOT NULL,
   tipo TEXT NOT NULL,
   quantidade NUMERIC(12,3) NOT NULL,
   saldo_anterior NUMERIC(12,3) NOT NULL DEFAULT 0,
@@ -221,8 +228,9 @@ CREATE TABLE movimento_estoque (
   criado_por_usuario_id UUID REFERENCES usuario(id) ON DELETE SET NULL,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (item_pedido_id IS NULL OR pedido_id IS NOT NULL),
-  FOREIGN KEY (tenant_id, insumo_id)
-    REFERENCES insumo(tenant_id, id),
+  CHECK (tipo IN ('entrada', 'consumo', 'perda', 'contagem', 'ajuste', 'estorno')),
+  FOREIGN KEY (tenant_id, item_estoque_id)
+    REFERENCES item_estoque(tenant_id, id),
   FOREIGN KEY (tenant_id, pedido_id)
     REFERENCES pedido(tenant_id, id),
   FOREIGN KEY (tenant_id, pedido_id, item_pedido_id)
@@ -235,11 +243,11 @@ CREATE UNIQUE INDEX mesa_tenant_numero_unique
 CREATE INDEX idx_categoria_tenant_id ON categoria(tenant_id);
 CREATE INDEX idx_produto_cat ON produto(categoria_id);
 CREATE INDEX idx_produto_tenant_id ON produto(tenant_id);
-CREATE INDEX idx_insumo_tenant_id ON insumo(tenant_id);
+CREATE INDEX idx_item_estoque_tenant_id ON item_estoque(tenant_id);
 CREATE INDEX idx_ficha_tecnica_produto_id
   ON ficha_tecnica_item(produto_id);
-CREATE INDEX idx_ficha_tecnica_insumo_id
-  ON ficha_tecnica_item(insumo_id);
+CREATE INDEX idx_ficha_tecnica_item_estoque_id
+  ON ficha_tecnica_item(item_estoque_id);
 CREATE INDEX idx_pedido_mesa_id ON pedido(mesa_id);
 CREATE INDEX idx_pedido_tenant_atendimento ON pedido(tenant_id, atendimento_id);
 CREATE INDEX idx_pedido_tenant_id ON pedido(tenant_id);
@@ -248,10 +256,10 @@ CREATE INDEX idx_pedido_created_by_user_id
   ON pedido(created_by_user_id);
 CREATE INDEX idx_item_pedido_id ON item_pedido(pedido_id);
 CREATE INDEX idx_item_pedido_tenant_id ON item_pedido(tenant_id);
-CREATE INDEX idx_item_pedido_insumo_tenant_pedido
-  ON item_pedido_insumo(tenant_id, pedido_id);
-CREATE INDEX idx_item_pedido_insumo_insumo_id
-  ON item_pedido_insumo(insumo_id);
+CREATE INDEX idx_item_pedido_composicao_tenant_pedido
+  ON item_pedido_composicao(tenant_id, pedido_id);
+CREATE INDEX idx_item_pedido_composicao_item_estoque_id
+  ON item_pedido_composicao(item_estoque_id);
 CREATE INDEX idx_tenant_user_tenant_id ON tenant_user(tenant_id);
 CREATE INDEX idx_tenant_user_usuario_id ON tenant_user(usuario_id);
 CREATE INDEX idx_usuario_acesso_tenant_user_id
@@ -270,12 +278,12 @@ CREATE UNIQUE INDEX atendimento_tenant_mesa_open_unique
   WHERE status = 'open';
 CREATE INDEX idx_movimento_estoque_tenant_id
   ON movimento_estoque(tenant_id);
-CREATE INDEX idx_movimento_estoque_insumo_id
-  ON movimento_estoque(insumo_id);
+CREATE INDEX idx_movimento_estoque_item_estoque_id
+  ON movimento_estoque(item_estoque_id);
 CREATE UNIQUE INDEX movimento_estoque_tenant_chave_idempotencia_unique
   ON movimento_estoque(tenant_id, chave_idempotencia);
-CREATE INDEX idx_movimento_estoque_insumo_criado_em
-  ON movimento_estoque(insumo_id, criado_em DESC);
+CREATE INDEX idx_movimento_estoque_item_estoque_criado_em
+  ON movimento_estoque(item_estoque_id, criado_em DESC);
 CREATE INDEX idx_movimento_estoque_pedido_item
   ON movimento_estoque(pedido_id, item_pedido_id);
 

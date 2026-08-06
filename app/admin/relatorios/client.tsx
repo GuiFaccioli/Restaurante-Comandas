@@ -10,7 +10,7 @@ type ReportData = {
   pedidos: { status: string; quantidade: number }[]
   produtos: { nome: string; quantidade: number; receita: string }[]
   estoque: { nome: string; atual: string; minimo: string; unidade: string; situacao: string }[]
-  fichas: { produto: string; insumo: string; quantidade: string; unidade: string }[]
+  fichas: { produto: string; itemEstoque: string; quantidade: string; unidade: string }[]
 }
 
 const labels: Record<ReportKey, string> = { resumo: 'Resumo', pedidos: 'Pedidos', produtos: 'Produtos', estoque: 'Estoque', fichas: 'Fichas técnicas' }
@@ -31,8 +31,8 @@ export function RelatoriosAdminClient({ data }: { data: ReportData }) {
         {selected === 'resumo' && <ReportTable headers={['Indicador', 'Valor']} rows={data.resumo.map((row) => [row.indicador, row.valor])} />}
         {selected === 'pedidos' && <ReportTable headers={['Status', 'Pedidos']} rows={data.pedidos.map((row) => [row.status, String(row.quantidade)])} />}
         {selected === 'produtos' && <ReportTable headers={['Produto', 'Quantidade', 'Receita']} rows={data.produtos.map((row) => [row.nome, String(row.quantidade), row.receita])} />}
-        {selected === 'estoque' && <ReportTable headers={['Insumo', 'Atual', 'Mínimo', 'Situação']} rows={data.estoque.map((row) => [row.nome, `${row.atual} ${row.unidade}`, `${row.minimo} ${row.unidade}`, row.situacao])} />}
-        {selected === 'fichas' && <ReportTable headers={['Produto', 'Insumo', 'Quantidade', 'Unidade']} rows={data.fichas.map((row) => [row.produto, row.insumo, row.quantidade, row.unidade])} />}
+        {selected === 'estoque' && <ReportTable headers={['Item de estoque', 'Atual', 'Mínimo', 'Situação']} rows={data.estoque.map((row) => [row.nome, `${row.atual} ${row.unidade}`, `${row.minimo} ${row.unidade}`, row.situacao])} />}
+        {selected === 'fichas' && <ReportTable headers={['Produto', 'Item de estoque', 'Quantidade', 'Unidade']} rows={data.fichas.map((row) => [row.produto, row.itemEstoque, row.quantidade, row.unidade])} />}
       </div>
     </AdminPage>
   )

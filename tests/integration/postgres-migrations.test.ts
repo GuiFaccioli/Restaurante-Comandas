@@ -65,7 +65,7 @@ describe('PostgreSQL migration definitions', () => {
       Math.max(reconciliationStart, 0),
     )
     expect(reconciliation).toContain(
-      'item_pedido_insumo_tenant_pedido_item_fkey',
+      'item_pedido_composicao_tenant_pedido_item_fkey',
     )
     expect(reconciliation).toContain(
       'movimento_estoque_tenant_pedido_item_fkey',
@@ -122,7 +122,7 @@ describePostgres(
                 'tenant',
                 'pedido',
                 'item_pedido',
-                'item_pedido_insumo',
+                'item_pedido_composicao',
                 'movimento_estoque',
                 'pagamento_pedido'
               )`,
@@ -134,13 +134,13 @@ describePostgres(
              FROM pg_constraint
             WHERE connamespace = current_schema()::regnamespace
               AND conname IN (
-                'item_pedido_insumo_tenant_pedido_item_fkey',
+                'item_pedido_composicao_tenant_pedido_item_fkey',
                 'movimento_estoque_tenant_pedido_item_fkey',
                 'movimento_estoque_item_requires_pedido_check'
               )`,
         )
         expect(constraints.rows.map((row) => row.conname).sort()).toEqual([
-          'item_pedido_insumo_tenant_pedido_item_fkey',
+          'item_pedido_composicao_tenant_pedido_item_fkey',
           'movimento_estoque_item_requires_pedido_check',
           'movimento_estoque_tenant_pedido_item_fkey',
         ])
@@ -169,8 +169,8 @@ describePostgres(
         await scopedPool.query(`
           CREATE UNIQUE INDEX item_pedido_tenant_pedido_id_unique
             ON item_pedido(tenant_id, pedido_id, id);
-          ALTER TABLE item_pedido_insumo
-            ADD CONSTRAINT item_pedido_insumo_tenant_pedido_item_fkey
+          ALTER TABLE item_pedido_composicao
+            ADD CONSTRAINT item_pedido_composicao_tenant_pedido_item_fkey
             FOREIGN KEY (tenant_id, pedido_id, item_pedido_id)
             REFERENCES item_pedido(tenant_id, pedido_id, id)
             ON DELETE NO ACTION;
@@ -220,7 +220,7 @@ describePostgres(
              JOIN pg_class AS child ON child.oid = constraint_row.conrelid
              JOIN pg_class AS parent ON parent.oid = constraint_row.confrelid
             WHERE constraint_row.conname IN (
-              'item_pedido_insumo_tenant_pedido_item_fkey',
+              'item_pedido_composicao_tenant_pedido_item_fkey',
               'movimento_estoque_tenant_pedido_item_fkey'
             )
             ORDER BY constraint_row.conname`,
@@ -228,8 +228,8 @@ describePostgres(
         expect(foreignKeys.rows).toEqual([
           {
             conname:
-              'item_pedido_insumo_tenant_pedido_item_fkey',
-            child_table: 'item_pedido_insumo',
+              'item_pedido_composicao_tenant_pedido_item_fkey',
+            child_table: 'item_pedido_composicao',
             parent_table: 'item_pedido',
             child_columns: [
               'tenant_id',

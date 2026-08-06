@@ -54,7 +54,7 @@
 - [ ] Write tests proving events from tenant A never reach tenant B and cross-tenant mesa/category IDs are rejected.
 - [ ] Run the targeted tests and confirm RED.
 - [ ] Replace the global SSE set with tenant-keyed channels and pass the authenticated tenant through every publisher.
-- [ ] Validate mesa, category, product, ingredient, and order relations against the authenticated tenant before writes.
+- [ ] Validate mesa, category, product, item de estoque, and order relations against the authenticated tenant before writes.
 - [ ] Run targeted tests and `npx.cmd tsc --noEmit`, then review all publisher call sites with `rg -n "notifyKitchen|addClient|removeClient"`.
 
 ### Task 3: Use a transaction-capable PostgreSQL driver
@@ -90,7 +90,7 @@
 - Create: `tests/unit/stock/order-consumption.test.ts`
 
 **Interfaces:**
-- Produces: one transaction that validates an allowed status transition, aggregates demand by ingredient, creates uniquely keyed movements, updates balances, and advances the order.
+- Produces: one transaction that validates an allowed status transition, aggregates demand by item de estoque, creates uniquely keyed movements, updates balances, and advances the order.
 
 - [ ] Write tests for create-without-consumption, kitchen consumption, shared-ingredient aggregation, insufficient-stock rollback, retry idempotency, delivery without second deduction, and eligible cancellation reversal.
 - [ ] Run the targeted tests and confirm RED.

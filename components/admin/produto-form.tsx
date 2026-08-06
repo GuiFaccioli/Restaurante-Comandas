@@ -67,11 +67,11 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
           {produto ? (
             <div className="flex flex-col gap-2 rounded-[var(--radius)] border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium">Ingredientes do produto</p>
-                <p className="mt-1 text-xs text-muted-foreground">Defina os insumos consumidos na ficha técnica.</p>
+                <p className="text-sm font-medium">Composição do produto</p>
+                <p className="mt-1 text-xs text-muted-foreground">Defina os itens de estoque consumidos na ficha técnica.</p>
               </div>
               <Link href={`/admin/estoque/ficha-tecnica?produtoId=${produto.id}`} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-border bg-background px-3 text-sm font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                Editar insumos
+                Editar ficha técnica
               </Link>
             </div>
           ) : null}

@@ -16,7 +16,7 @@ import {
   tenant,
   tenantUser,
   pagamentoPedido,
-  insumo,
+  itemEstoque,
   fichaTecnicaItem,
   movimentoEstoque,
 } from '@/lib/db/schema'
@@ -59,7 +59,7 @@ describe('Drizzle schema', () => {
 
   describe('stock tables', () => {
     it('stores tenant-scoped stock items with normalized units and thresholds', () => {
-      expect(Object.keys(insumo)).toEqual(expect.arrayContaining([
+      expect(Object.keys(itemEstoque)).toEqual(expect.arrayContaining([
         'id', 'tenantId', 'nome', 'unidadeBase', 'unidadeCompra',
         'fatorCompraParaBase', 'estoqueAtual', 'estoqueIdeal', 'estoqueMinimo',
       ]))
@@ -67,13 +67,13 @@ describe('Drizzle schema', () => {
 
     it('connects products to stock items through technical sheets', () => {
       expect(Object.keys(fichaTecnicaItem)).toEqual(expect.arrayContaining([
-        'id', 'tenantId', 'produtoId', 'insumoId', 'quantidade',
+        'id', 'tenantId', 'produtoId', 'itemEstoqueId', 'quantidade',
       ]))
     })
 
     it('keeps an idempotent movement ledger for stock changes', () => {
       expect(Object.keys(movimentoEstoque)).toEqual(expect.arrayContaining([
-        'id', 'tenantId', 'insumoId', 'tipo', 'quantidade', 'saldoAnterior', 'saldoResultante',
+        'id', 'tenantId', 'itemEstoqueId', 'tipo', 'quantidade', 'saldoAnterior', 'saldoResultante',
         'custoUnitario', 'custoTotal', 'pedidoId', 'itemPedidoId', 'chaveIdempotencia', 'motivo',
         'criadoPorUsuarioId',
       ]))
@@ -152,7 +152,7 @@ describe('Drizzle schema', () => {
       expect(sqlSchema).toContain('CREATE TABLE pagamento_pedido')
       expect(sqlSchema).toContain('forma_pagamento')
       expect(sqlSchema).toContain('status_pagamento')
-      expect(sqlSchema).toContain('CREATE TABLE insumo')
+      expect(sqlSchema).toContain('CREATE TABLE item_estoque')
       expect(sqlSchema).toContain('CREATE TABLE ficha_tecnica_item')
       expect(sqlSchema).toContain('CREATE TABLE movimento_estoque')
     })
@@ -176,13 +176,13 @@ describe('Drizzle schema', () => {
       const sqlSchema = readFileSync(join(process.cwd(), 'db/schema.sql'), 'utf8')
 
       expect(sqlSchema).toMatch(
-        /CREATE TABLE item_pedido_insumo\s*\([\s\S]*tenant_id UUID NOT NULL[\s\S]*pedido_id UUID NOT NULL[\s\S]*item_pedido_id UUID NOT NULL[\s\S]*insumo_id UUID NOT NULL[\s\S]*quantidade_total NUMERIC\(12,\s*3\) NOT NULL[\s\S]*UNIQUE\s*\(tenant_id,\s*item_pedido_id,\s*insumo_id\)[\s\S]*\);/i,
+        /CREATE TABLE item_pedido_composicao\s*\([\s\S]*tenant_id UUID NOT NULL[\s\S]*pedido_id UUID NOT NULL[\s\S]*item_pedido_id UUID NOT NULL[\s\S]*item_estoque_id UUID NOT NULL[\s\S]*quantidade_total NUMERIC\(12,\s*3\) NOT NULL[\s\S]*UNIQUE\s*\(tenant_id,\s*item_pedido_id,\s*item_estoque_id\)[\s\S]*\);/i,
       )
       expect(sqlSchema).toMatch(
-        /CREATE INDEX idx_item_pedido_insumo_tenant_pedido\s+ON item_pedido_insumo\s*\(tenant_id,\s*pedido_id\);/i,
+        /CREATE INDEX idx_item_pedido_composicao_tenant_pedido\s+ON item_pedido_composicao\s*\(tenant_id,\s*pedido_id\);/i,
       )
       expect(sqlSchema).toMatch(
-        /CREATE INDEX idx_item_pedido_insumo_insumo_id\s+ON item_pedido_insumo\s*\(insumo_id\);/i,
+        /CREATE INDEX idx_item_pedido_composicao_item_estoque_id\s+ON item_pedido_composicao\s*\(item_estoque_id\);/i,
       )
     })
 

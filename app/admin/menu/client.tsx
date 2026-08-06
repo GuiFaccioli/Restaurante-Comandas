@@ -15,7 +15,7 @@ import { nextCategoryIdAfterDeletion } from '@/lib/admin/category-selection'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-type Produto = { id: string; nome: string; descricao: string | null; preco: string; imagemUrl: string | null; disponivel: boolean; custo?: { custoTotal: number | null; margemPercentual: number | null; possuiFicha: boolean; possuiIngredienteSemCusto: boolean } }
+type Produto = { id: string; nome: string; descricao: string | null; preco: string; imagemUrl: string | null; disponivel: boolean; custo?: { custoTotal: number | null; margemPercentual: number | null; possuiFicha: boolean; possuiItemEstoqueSemCusto: boolean } }
 type Categoria = { id: string; nome: string; ordem: number; produtos: Produto[] }
 
 export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
@@ -224,7 +224,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
                     <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center rounded-[var(--radius)] border border-border px-4 text-sm font-medium outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring">Ações</summary>
                     <div className="absolute right-0 z-10 mt-2 grid min-w-44 gap-1 rounded-[var(--radius)] border bg-background p-2 shadow-sm">
                       <Button type="button" intent="informational" appearance="ghost" className="justify-start" aria-label={`Editar produto ${p.nome}`} onClick={() => { setEditProduto(p); setFormOpen(true) }}><Pencil aria-hidden="true" /> Editar</Button>
-                      <Link href={`/admin/estoque/ficha-tecnica?produtoId=${p.id}`} className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Editar insumos</Link>
+                      <Link href={`/admin/estoque/ficha-tecnica?produtoId=${p.id}`} className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Editar ficha técnica</Link>
                       <Button type="button" intent={p.disponivel ? 'warning' : 'positive'} appearance="ghost" className="justify-start" onClick={() => handleToggleProduto(p)}>{p.disponivel ? 'Desativar' : 'Ativar'}</Button>
                       <Button type="button" intent="destructive" appearance="ghost" className="justify-start" aria-label={`Excluir produto ${p.nome}`} onClick={() => handleRemoveProduto(p)}>Excluir</Button>
                     </div>

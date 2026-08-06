@@ -820,7 +820,7 @@ card de pedido;
 
 card de item da cozinha;
 
-card de insumo;
+card de item de estoque;
 
 card de resumo operacional;
 
@@ -1061,7 +1061,7 @@ Cadastro simples primeiro
 
 Exibir inicialmente apenas os campos essenciais.
 
-Exemplo de novo insumo:
+Exemplo de novo item de estoque:
 
 Nome
 Unidade de medida
@@ -1080,7 +1080,7 @@ Salvamento
 
 Botões no final:
 
-[ Cancelar ] [ Salvar insumo ]
+[ Cancelar ] [ Salvar item de estoque ]
 
 Em formulários longos, usar barra fixa de ações.
 
@@ -1150,11 +1150,11 @@ Nenhum registro.
 
 Melhor:
 
-Você ainda não cadastrou nenhum insumo.
+Você ainda não cadastrou nenhum item de estoque.
 
 Ação:
 
-Cadastrar primeiro insumo
+Cadastrar primeiro item de estoque
 
 Erros
 
@@ -1338,7 +1338,7 @@ Estoque
 
 Separar claramente:
 
-Insumos;
+Itens de estoque;
 
 Estoque;
 

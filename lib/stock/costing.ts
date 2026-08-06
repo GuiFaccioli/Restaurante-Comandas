@@ -8,7 +8,7 @@ export type RecipeCostResult = {
   margemPercentual: number | null
   lucroBruto: number | null
   possuiFicha: boolean
-  possuiIngredienteSemCusto: boolean
+  possuiItemEstoqueSemCusto: boolean
 }
 
 function numberValue(value: string | number | null | undefined): number {
@@ -37,14 +37,14 @@ export function calcularCustoFicha(
   precoVenda: string | number | null,
 ): RecipeCostResult {
   const possuiFicha = items.length > 0
-  const possuiIngredienteSemCusto = items.some((item) => item.custoUnitario === null)
-  if (!possuiFicha || possuiIngredienteSemCusto) {
+  const possuiItemEstoqueSemCusto = items.some((item) => item.custoUnitario === null)
+  if (!possuiFicha || possuiItemEstoqueSemCusto) {
     return {
       custoTotal: null,
       margemPercentual: null,
       lucroBruto: null,
       possuiFicha,
-      possuiIngredienteSemCusto,
+      possuiItemEstoqueSemCusto,
     }
   }
 
@@ -59,6 +59,6 @@ export function calcularCustoFicha(
     margemPercentual: preco > 0 ? (lucroBruto / preco) * 100 : null,
     lucroBruto,
     possuiFicha,
-    possuiIngredienteSemCusto,
+    possuiItemEstoqueSemCusto,
   }
 }

@@ -106,7 +106,7 @@ describe('PostgreSQL order consumption', () => {
   it('consumes the tenant snapshot before marking a new order as in preparation', async () => {
     const current = lockedQuery([{ status: 'novo' as const }])
     const snapshots = [{
-      itemPedidoId: 'item-1', insumoId: 'insumo-1', quantidadeTotal: '2.000',
+      itemPedidoId: 'item-1', itemEstoqueId: 'itemEstoque-1', quantidadeTotal: '2.000',
     }]
     const effects: string[] = []
     mocks.applyStockMovementInPostgresTransaction.mockImplementation(async () => {
@@ -130,13 +130,13 @@ describe('PostgreSQL order consumption', () => {
 
     expect(current.lock).toHaveBeenCalledWith('update')
     expect(mocks.lockStockItemInPostgresTransaction).toHaveBeenCalledWith(
-      tx, 'tenant-1', 'insumo-1',
+      tx, 'tenant-1', 'itemEstoque-1',
     )
     expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
         tenantId: 'tenant-1', pedidoId: 'pedido-1', itemPedidoId: 'item-1',
-        insumoId: 'insumo-1', tipo: 'saida', quantidade: -2,
+        itemEstoqueId: 'itemEstoque-1', tipo: 'consumo', quantidade: -2,
       }),
     )
     expect(updateWhere).toHaveBeenCalledTimes(1)
@@ -145,7 +145,7 @@ describe('PostgreSQL order consumption', () => {
 
   it('consumes stock before directly delivering a new order', async () => {
     const current = lockedQuery([{ status: 'novo' as const }])
-    const snapshots = [{ itemPedidoId: 'item-1', insumoId: 'insumo-1', quantidadeTotal: '2.000' }]
+    const snapshots = [{ itemPedidoId: 'item-1', itemEstoqueId: 'itemEstoque-1', quantidadeTotal: '2.000' }]
     const effects: string[] = []
     mocks.applyStockMovementInPostgresTransaction.mockImplementation(async () => effects.push('consume-snapshot'))
     const updateWhere = vi.fn(async () => effects.push('update-status'))
@@ -277,9 +277,9 @@ describe('PostgreSQL order consumption', () => {
   it('retries a partially applied preparation without duplicating an existing movement', async () => {
     const current = lockedQuery([{ status: 'novo' as const }])
     const snapshots = [{
-      itemPedidoId: 'item-1', insumoId: 'insumo-1', quantidadeTotal: '2.000',
+      itemPedidoId: 'item-1', itemEstoqueId: 'itemEstoque-1', quantidadeTotal: '2.000',
     }]
-    const existingKey = 'consumo:tenant-1:pedido:pedido-1:item:item-1:insumo:insumo-1'
+    const existingKey = 'consumo:tenant-1:pedido:pedido-1:item:item-1:item-estoque:itemEstoque-1'
     const updateWhere = vi.fn(async () => undefined)
     const tx = {
       select: vi.fn()

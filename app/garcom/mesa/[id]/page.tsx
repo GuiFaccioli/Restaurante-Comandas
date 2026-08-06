@@ -1,7 +1,7 @@
 // app/(garcom)/mesa/[id]/page.tsx
 import { db } from '@/lib/db/index'
 import { and, eq, asc } from 'drizzle-orm'
-import { mesa, categoria, produto, fichaTecnicaItem, insumo } from '@/lib/db/schema'
+import { mesa, categoria, produto, fichaTecnicaItem, itemEstoque } from '@/lib/db/schema'
 import { notFound } from 'next/navigation'
 import { MesaPageClient } from './client'
 import { requireAccess } from '@/lib/auth/access'
@@ -37,12 +37,12 @@ export default async function MesaPage({ params, searchParams }: { params: Promi
     .orderBy(asc(produto.nome))
 
   const [receitas, saldos] = await Promise.all([
-    db.select({ produtoId: fichaTecnicaItem.produtoId, insumoId: fichaTecnicaItem.insumoId, quantidade: fichaTecnicaItem.quantidade })
+    db.select({ produtoId: fichaTecnicaItem.produtoId, itemEstoqueId: fichaTecnicaItem.itemEstoqueId, quantidade: fichaTecnicaItem.quantidade })
       .from(fichaTecnicaItem)
       .where(eq(fichaTecnicaItem.tenantId, tenantId)),
-    db.select({ id: insumo.id, estoqueAtual: insumo.estoqueAtual })
-      .from(insumo)
-      .where(eq(insumo.tenantId, tenantId)),
+    db.select({ id: itemEstoque.id, estoqueAtual: itemEstoque.estoqueAtual })
+      .from(itemEstoque)
+      .where(eq(itemEstoque.tenantId, tenantId)),
   ])
 
   const categoriaComProdutos = categorias.map((c) => ({

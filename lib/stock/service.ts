@@ -8,7 +8,7 @@ import type { TipoMovimentoEstoque } from '@/lib/db/schema'
 export type ApplyStockMovementInput = {
   tenantId: string
   usuarioId?: string | null
-  insumoId: string
+  itemEstoqueId: string
   tipo: TipoMovimentoEstoque
   quantidade: number
   chaveIdempotencia: string
@@ -49,7 +49,7 @@ type StockMovementValues = {
   movementValues: {
     id: string
     tenantId: string
-    insumoId: string
+    itemEstoqueId: string
     tipo: TipoMovimentoEstoque
     quantidade: string
     saldoAnterior: string
@@ -112,7 +112,7 @@ export function stockMillisToDecimal(millis: number): string {
 }
 
 function validateInput(input: ApplyStockMovementInput): void {
-  if (!input.tenantId || !input.insumoId || !input.chaveIdempotencia.trim()) {
+  if (!input.tenantId || !input.itemEstoqueId || !input.chaveIdempotencia.trim()) {
     throw new Error('Movimentação de estoque inválida')
   }
   const quantityMillis = stockQuantityToMillis(input.quantidade)
@@ -186,7 +186,7 @@ function buildMovementValues(
     movementValues: {
       id: crypto.randomUUID(),
       tenantId: input.tenantId,
-      insumoId: input.insumoId,
+      itemEstoqueId: input.itemEstoqueId,
       tipo: input.tipo,
       quantidade: stockMillisToDecimal(quantidadeMovimentoMillis),
       saldoAnterior: stockMillisToDecimal(saldoAnteriorMillis),
@@ -229,21 +229,21 @@ function appliedResult(
 export async function lockStockItemInPostgresTransaction(
   tx: PostgresStockTransaction,
   tenantId: string,
-  insumoId: string,
+  itemEstoqueId: string,
 ): Promise<LockedStockItem> {
   const [item] = await tx
     .select({
-      nome: pgSchema.insumo.nome,
-      estoqueAtual: pgSchema.insumo.estoqueAtual,
-      custoUnitario: pgSchema.insumo.custoUnitario,
+      nome: pgSchema.itemEstoque.nome,
+      estoqueAtual: pgSchema.itemEstoque.estoqueAtual,
+      custoUnitario: pgSchema.itemEstoque.custoUnitario,
     })
-    .from(pgSchema.insumo)
+    .from(pgSchema.itemEstoque)
     .where(and(
-      eq(pgSchema.insumo.id, insumoId),
-      eq(pgSchema.insumo.tenantId, tenantId),
+      eq(pgSchema.itemEstoque.id, itemEstoqueId),
+      eq(pgSchema.itemEstoque.tenantId, tenantId),
     ))
     .for('update')
-  if (!item) throw new Error('Insumo não encontrado')
+  if (!item) throw new Error('Item de estoque não encontrado')
   return item
 }
 
@@ -268,7 +268,7 @@ export async function applyStockMovementInPostgresTransaction(
   const item = await lockStockItemInPostgresTransaction(
     tx,
     input.tenantId,
-    input.insumoId,
+    input.itemEstoqueId,
   )
 
   const [existingAfterLock] = await tx
@@ -285,11 +285,11 @@ export async function applyStockMovementInPostgresTransaction(
 
   const values = buildMovementValues(input, item)
   await tx
-    .update(pgSchema.insumo)
+    .update(pgSchema.itemEstoque)
     .set(values.stockUpdate)
     .where(and(
-      eq(pgSchema.insumo.id, input.insumoId),
-      eq(pgSchema.insumo.tenantId, input.tenantId),
+      eq(pgSchema.itemEstoque.id, input.itemEstoqueId),
+      eq(pgSchema.itemEstoque.tenantId, input.tenantId),
     ))
   await tx.insert(pgSchema.movimentoEstoque).values(values.movementValues)
   return appliedResult(values)

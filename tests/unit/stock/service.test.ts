@@ -45,7 +45,7 @@ function installTransactionHarness(
                   )
                 }
                 const rows = [{
-                  id: 'ingredient-1',
+                  id: 'item-1',
                   nome: 'Cheese',
                   estoqueAtual: pendingState.estoqueAtual,
                   custoUnitario: '2.0000',
@@ -91,7 +91,7 @@ function installTransactionHarness(
 function movementInput() {
   return {
     tenantId: 'tenant-1',
-    insumoId: 'ingredient-1',
+    itemEstoqueId: 'item-1',
     tipo: 'entrada' as const,
     quantidade: 5,
     custoUnitario: 4,
@@ -239,7 +239,7 @@ describe('applyStockMovement concurrency and physical counts', () => {
 
       await expect(applyStockMovement({
         tenantId: 'tenant-1',
-        insumoId: 'ingredient-1',
+        itemEstoqueId: 'item-1',
         tipo: 'contagem',
         quantidade: 7,
         chaveIdempotencia: 'count-1',

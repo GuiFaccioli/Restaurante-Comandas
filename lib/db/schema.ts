@@ -74,11 +74,11 @@ export type StatusAtendimento =
   | 'cancelled'
 export type TipoMovimentoEstoque =
   | 'entrada'
+  | 'consumo'
   | 'perda'
   | 'contagem'
-  | 'saida'
-  | 'estorno'
   | 'ajuste'
+  | 'estorno'
 
 export const tenant = pgTable('tenant', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -167,14 +167,15 @@ export const produto = pgTable(
   ],
 )
 
-export const insumo = pgTable(
-  'insumo',
+export const itemEstoque = pgTable(
+  'item_estoque',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenant.id, { onDelete: 'cascade' }),
     nome: text('nome').notNull(),
+    categoriaId: uuid('categoria_id'),
     unidadeBase: text('unidade_base').notNull(),
     unidadeCompra: text('unidade_compra').notNull(),
     fatorCompraParaBase: numeric('fator_compra_para_base', {
@@ -186,17 +187,32 @@ export const insumo = pgTable(
     estoqueAtual: numeric('estoque_atual', { precision: 12, scale: 3 })
       .notNull()
       .default('0'),
-    estoqueIdeal: numeric('estoque_ideal', { precision: 12, scale: 3 })
-      .notNull()
-      .default('0'),
-    estoqueMinimo: numeric('estoque_minimo', { precision: 12, scale: 3 })
-      .notNull()
-      .default('0'),
+    estoqueIdeal: numeric('estoque_ideal', { precision: 12, scale: 3 }),
+    estoqueMinimo: numeric('estoque_minimo', { precision: 12, scale: 3 }),
     custoUnitario: numeric('custo_unitario', { precision: 12, scale: 4 }),
     ativo: boolean('ativo').notNull().default(true),
+    criadoEm: timestamp('criado_em', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    atualizadoEm: timestamp('atualizado_em', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    uniqueIndex('insumo_tenant_id_unique').on(table.tenantId, table.id),
+    uniqueIndex('item_estoque_tenant_id_unique').on(table.tenantId, table.id),
+    check(
+      'item_estoque_fator_compra_positivo_check',
+      sql`${table.fatorCompraParaBase} > 0`,
+    ),
+    check(
+      'item_estoque_ideal_maior_ou_igual_minimo_check',
+      sql`${table.estoqueIdeal} IS NULL OR ${table.estoqueMinimo} IS NULL OR ${table.estoqueIdeal} >= ${table.estoqueMinimo}`,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.categoriaId],
+      foreignColumns: [categoria.tenantId, categoria.id],
+      name: 'item_estoque_tenant_categoria_fkey',
+    }),
   ],
 )
 
@@ -317,14 +333,14 @@ export const fichaTecnicaItem = pgTable(
       .notNull()
       .references(() => tenant.id, { onDelete: 'cascade' }),
     produtoId: uuid('produto_id').notNull(),
-    insumoId: uuid('insumo_id').notNull(),
+    itemEstoqueId: uuid('item_estoque_id').notNull(),
     quantidade: numeric('quantidade', { precision: 12, scale: 3 }).notNull(),
   },
   (table) => [
-    uniqueIndex('ficha_tecnica_tenant_produto_insumo_unique').on(
+    uniqueIndex('ficha_tecnica_tenant_produto_item_estoque_unique').on(
       table.tenantId,
       table.produtoId,
-      table.insumoId,
+      table.itemEstoqueId,
     ),
     foreignKey({
       columns: [table.tenantId, table.produtoId],
@@ -332,15 +348,15 @@ export const fichaTecnicaItem = pgTable(
       name: 'ficha_tecnica_tenant_produto_fkey',
     }).onDelete('cascade'),
     foreignKey({
-      columns: [table.tenantId, table.insumoId],
-      foreignColumns: [insumo.tenantId, insumo.id],
-      name: 'ficha_tecnica_tenant_insumo_fkey',
+      columns: [table.tenantId, table.itemEstoqueId],
+      foreignColumns: [itemEstoque.tenantId, itemEstoque.id],
+      name: 'ficha_tecnica_tenant_item_estoque_fkey',
     }),
   ],
 )
 
-export const itemPedidoInsumo = pgTable(
-  'item_pedido_insumo',
+export const itemPedidoComposicao = pgTable(
+  'item_pedido_composicao',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
@@ -348,22 +364,22 @@ export const itemPedidoInsumo = pgTable(
       .references(() => tenant.id, { onDelete: 'cascade' }),
     pedidoId: uuid('pedido_id').notNull(),
     itemPedidoId: uuid('item_pedido_id').notNull(),
-    insumoId: uuid('insumo_id').notNull(),
+    itemEstoqueId: uuid('item_estoque_id').notNull(),
     quantidadeTotal: numeric('quantidade_total', {
       precision: 12,
       scale: 3,
     }).notNull(),
   },
   (table) => [
-    uniqueIndex('item_pedido_insumo_tenant_item_insumo_unique').on(
+    uniqueIndex('item_pedido_composicao_tenant_item_estoque_unique').on(
       table.tenantId,
       table.itemPedidoId,
-      table.insumoId,
+      table.itemEstoqueId,
     ),
     foreignKey({
       columns: [table.tenantId, table.pedidoId],
       foreignColumns: [pedido.tenantId, pedido.id],
-      name: 'item_pedido_insumo_tenant_pedido_fkey',
+      name: 'item_pedido_composicao_tenant_pedido_fkey',
     }).onDelete('cascade'),
     foreignKey({
       columns: [table.tenantId, table.pedidoId, table.itemPedidoId],
@@ -372,12 +388,12 @@ export const itemPedidoInsumo = pgTable(
         itemPedido.pedidoId,
         itemPedido.id,
       ],
-      name: 'item_pedido_insumo_tenant_pedido_item_fkey',
+      name: 'item_pedido_composicao_tenant_pedido_item_fkey',
     }).onDelete('cascade'),
     foreignKey({
-      columns: [table.tenantId, table.insumoId],
-      foreignColumns: [insumo.tenantId, insumo.id],
-      name: 'item_pedido_insumo_tenant_insumo_fkey',
+      columns: [table.tenantId, table.itemEstoqueId],
+      foreignColumns: [itemEstoque.tenantId, itemEstoque.id],
+      name: 'item_pedido_composicao_tenant_item_estoque_fkey',
     }),
   ],
 )
@@ -466,7 +482,7 @@ export const movimentoEstoque = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenant.id, { onDelete: 'cascade' }),
-    insumoId: uuid('insumo_id').notNull(),
+    itemEstoqueId: uuid('item_estoque_id').notNull(),
     tipo: text('tipo').notNull(),
     quantidade: numeric('quantidade', { precision: 12, scale: 3 }).notNull(),
     saldoAnterior: numeric('saldo_anterior', {
@@ -501,14 +517,18 @@ export const movimentoEstoque = pgTable(
       'movimento_estoque_item_requires_pedido_check',
       sql`${table.itemPedidoId} IS NULL OR ${table.pedidoId} IS NOT NULL`,
     ),
+    check(
+      'movimento_estoque_tipo_check',
+      sql`${table.tipo} IN ('entrada', 'consumo', 'perda', 'contagem', 'ajuste', 'estorno')`,
+    ),
     uniqueIndex('movimento_estoque_tenant_chave_idempotencia_unique').on(
       table.tenantId,
       table.chaveIdempotencia,
     ),
     foreignKey({
-      columns: [table.tenantId, table.insumoId],
-      foreignColumns: [insumo.tenantId, insumo.id],
-      name: 'movimento_estoque_tenant_insumo_fkey',
+      columns: [table.tenantId, table.itemEstoqueId],
+      foreignColumns: [itemEstoque.tenantId, itemEstoque.id],
+      name: 'movimento_estoque_tenant_item_estoque_fkey',
     }),
     foreignKey({
       columns: [table.tenantId, table.pedidoId],

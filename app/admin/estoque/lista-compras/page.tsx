@@ -4,9 +4,7 @@ import { loadInventoryData } from '../data'
 
 export const dynamic = 'force-dynamic'
 
-export default async function InsumosAdminPage() {
+export default async function ListaComprasPage() {
   const { tenantId } = await requireAccess('admin')
-  const data = await loadInventoryData(tenantId)
-
-  return <EstoqueAdminClient {...data} initialProdutoId="" view="insumos" />
+  return <EstoqueAdminClient {...await loadInventoryData(tenantId)} initialProdutoId="" view="compras" />
 }

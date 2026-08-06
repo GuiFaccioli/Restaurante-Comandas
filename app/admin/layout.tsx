@@ -10,7 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const accesses = await getCurrentAccesses()
   const primaryLinks = [
     { href: '/admin/menu', label: 'Cardápio', description: 'Função futura · delivery e outros canais' },
-    { href: '/admin/estoque/insumos', label: 'Estoque', description: 'Insumos e fichas técnicas' },
+    { href: '/admin/estoque/itens', label: 'Estoque', description: 'Itens, reposição e fichas técnicas' },
     { href: '/admin/mesas', label: 'Mesas', description: 'Salão e atendimento' },
     ...(accesses.includes('caixa') ? [{ href: '/admin/pedidos', label: 'Pedidos', description: 'Caixa e pagamentos' }] : []),
     { href: '/admin/relatorios', label: 'Relatórios', description: 'Perguntas da operação' },

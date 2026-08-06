@@ -6,13 +6,13 @@ DO $$
 BEGIN
   IF EXISTS (
     SELECT 1
-      FROM item_pedido_insumo AS child
+      FROM item_pedido_composicao AS child
       JOIN item_pedido AS item_parent ON item_parent.id = child.item_pedido_id
      WHERE child.tenant_id IS DISTINCT FROM item_parent.tenant_id
         OR child.pedido_id IS DISTINCT FROM item_parent.pedido_id
   ) THEN
     RAISE EXCEPTION
-      'Order-item coherence violation: item_pedido_insumo references an item from another tenant or pedido';
+      'Order-item coherence violation: item_pedido_composicao references an item from another tenant or pedido';
   END IF;
 
   IF EXISTS (
@@ -55,7 +55,7 @@ BEGIN
          'pedido',
          'item_pedido',
          'ficha_tecnica_item',
-         'item_pedido_insumo',
+         'item_pedido_composicao',
          'movimento_estoque',
          'pagamento_pedido'
        )
@@ -80,21 +80,21 @@ BEGIN
       ) OR
       (
         fk.relname = 'ficha_tecnica_item'
-        AND child_columns IN (ARRAY['produto_id'], ARRAY['insumo_id'])
+        AND child_columns IN (ARRAY['produto_id'], ARRAY['item_estoque_id'])
       ) OR
       (
-        fk.relname = 'item_pedido_insumo'
+        fk.relname = 'item_pedido_composicao'
         AND child_columns IN (
           ARRAY['pedido_id'],
           ARRAY['item_pedido_id'],
-          ARRAY['insumo_id'],
+          ARRAY['item_estoque_id'],
           ARRAY['tenant_id', 'item_pedido_id']
         )
       ) OR
       (
         fk.relname = 'movimento_estoque'
         AND child_columns IN (
-          ARRAY['insumo_id'],
+          ARRAY['item_estoque_id'],
           ARRAY['pedido_id'],
           ARRAY['item_pedido_id'],
           ARRAY['tenant_id', 'item_pedido_id']
@@ -128,8 +128,8 @@ BEGIN
       FROM (
         VALUES
           (
-            'item_pedido_insumo_tenant_pedido_item_fkey',
-            'item_pedido_insumo',
+            'item_pedido_composicao_tenant_pedido_item_fkey',
+            'item_pedido_composicao',
             ARRAY['tenant_id', 'pedido_id', 'item_pedido_id']::TEXT[],
             'item_pedido',
             ARRAY['tenant_id', 'pedido_id', 'id']::TEXT[],
@@ -234,11 +234,11 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
       FROM pg_constraint
-     WHERE conrelid = 'item_pedido_insumo'::regclass
-       AND conname = 'item_pedido_insumo_tenant_pedido_item_fkey'
+     WHERE conrelid = 'item_pedido_composicao'::regclass
+       AND conname = 'item_pedido_composicao_tenant_pedido_item_fkey'
   ) THEN
-    ALTER TABLE item_pedido_insumo
-      ADD CONSTRAINT item_pedido_insumo_tenant_pedido_item_fkey
+    ALTER TABLE item_pedido_composicao
+      ADD CONSTRAINT item_pedido_composicao_tenant_pedido_item_fkey
       FOREIGN KEY (tenant_id, pedido_id, item_pedido_id)
       REFERENCES item_pedido(tenant_id, pedido_id, id)
       ON DELETE CASCADE;

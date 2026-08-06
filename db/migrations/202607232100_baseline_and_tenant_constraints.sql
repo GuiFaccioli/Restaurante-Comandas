@@ -86,19 +86,27 @@ CREATE TABLE IF NOT EXISTS produto (
     REFERENCES categoria (tenant_id, id)
 );
 
-CREATE TABLE IF NOT EXISTS insumo (
+CREATE TABLE IF NOT EXISTS item_estoque (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
   nome TEXT NOT NULL,
+  categoria_id UUID,
   unidade_base TEXT NOT NULL,
   unidade_compra TEXT NOT NULL,
   fator_compra_para_base NUMERIC(12,3) NOT NULL DEFAULT 1,
   estoque_atual NUMERIC(12,3) NOT NULL DEFAULT 0,
-  estoque_ideal NUMERIC(12,3) NOT NULL DEFAULT 0,
-  estoque_minimo NUMERIC(12,3) NOT NULL DEFAULT 0,
+  estoque_ideal NUMERIC(12,3),
+  estoque_minimo NUMERIC(12,3),
   custo_unitario NUMERIC(12,4),
   ativo BOOLEAN NOT NULL DEFAULT true,
-  UNIQUE (tenant_id, id)
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, id),
+  CHECK (fator_compra_para_base > 0),
+  CHECK (estoque_ideal IS NULL OR estoque_minimo IS NULL OR estoque_ideal >= estoque_minimo),
+  CONSTRAINT item_estoque_tenant_categoria_fkey
+    FOREIGN KEY (tenant_id, categoria_id)
+    REFERENCES categoria (tenant_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS pedido (
@@ -137,34 +145,34 @@ CREATE TABLE IF NOT EXISTS ficha_tecnica_item (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
   produto_id UUID NOT NULL,
-  insumo_id UUID NOT NULL,
+  item_estoque_id UUID NOT NULL,
   quantidade NUMERIC(12,3) NOT NULL,
-  UNIQUE (tenant_id, produto_id, insumo_id),
+  UNIQUE (tenant_id, produto_id, item_estoque_id),
   CONSTRAINT ficha_tecnica_tenant_produto_fkey
     FOREIGN KEY (tenant_id, produto_id)
     REFERENCES produto (tenant_id, id) ON DELETE CASCADE,
-  CONSTRAINT ficha_tecnica_tenant_insumo_fkey
-    FOREIGN KEY (tenant_id, insumo_id)
-    REFERENCES insumo (tenant_id, id)
+  CONSTRAINT ficha_tecnica_tenant_item_estoque_fkey
+    FOREIGN KEY (tenant_id, item_estoque_id)
+    REFERENCES item_estoque (tenant_id, id)
 );
 
-CREATE TABLE IF NOT EXISTS item_pedido_insumo (
+CREATE TABLE IF NOT EXISTS item_pedido_composicao (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
   pedido_id UUID NOT NULL,
   item_pedido_id UUID NOT NULL,
-  insumo_id UUID NOT NULL,
+  item_estoque_id UUID NOT NULL,
   quantidade_total NUMERIC(12,3) NOT NULL CHECK (quantidade_total > 0),
-  UNIQUE (tenant_id, item_pedido_id, insumo_id),
-  CONSTRAINT item_pedido_insumo_tenant_pedido_fkey
+  UNIQUE (tenant_id, item_pedido_id, item_estoque_id),
+  CONSTRAINT item_pedido_composicao_tenant_pedido_fkey
     FOREIGN KEY (tenant_id, pedido_id)
     REFERENCES pedido (tenant_id, id) ON DELETE CASCADE,
-  CONSTRAINT item_pedido_insumo_tenant_item_fkey
+  CONSTRAINT item_pedido_composicao_tenant_item_fkey
     FOREIGN KEY (tenant_id, item_pedido_id)
     REFERENCES item_pedido (tenant_id, id) ON DELETE CASCADE,
-  CONSTRAINT item_pedido_insumo_tenant_insumo_fkey
-    FOREIGN KEY (tenant_id, insumo_id)
-    REFERENCES insumo (tenant_id, id)
+  CONSTRAINT item_pedido_composicao_tenant_item_estoque_fkey
+    FOREIGN KEY (tenant_id, item_estoque_id)
+    REFERENCES item_estoque (tenant_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_user (
@@ -210,7 +218,7 @@ CREATE TABLE IF NOT EXISTS pagamento_pedido (
 CREATE TABLE IF NOT EXISTS movimento_estoque (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
-  insumo_id UUID NOT NULL,
+  item_estoque_id UUID NOT NULL,
   tipo TEXT NOT NULL,
   quantidade NUMERIC(12,3) NOT NULL,
   saldo_anterior NUMERIC(12,3) NOT NULL DEFAULT 0,
@@ -224,9 +232,10 @@ CREATE TABLE IF NOT EXISTS movimento_estoque (
   observacao TEXT,
   criado_por_usuario_id UUID REFERENCES usuario(id) ON DELETE SET NULL,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT movimento_estoque_tenant_insumo_fkey
-    FOREIGN KEY (tenant_id, insumo_id)
-    REFERENCES insumo (tenant_id, id),
+  CHECK (tipo IN ('entrada', 'consumo', 'perda', 'contagem', 'ajuste', 'estorno')),
+  CONSTRAINT movimento_estoque_tenant_item_estoque_fkey
+    FOREIGN KEY (tenant_id, item_estoque_id)
+    REFERENCES item_estoque (tenant_id, id),
   CONSTRAINT movimento_estoque_tenant_pedido_fkey
     FOREIGN KEY (tenant_id, pedido_id)
     REFERENCES pedido (tenant_id, id),
@@ -328,44 +337,44 @@ BEGIN
     SELECT 1
       FROM ficha_tecnica_item child
       JOIN produto product_parent ON product_parent.id = child.produto_id
-      JOIN insumo ingredient_parent ON ingredient_parent.id = child.insumo_id
+      JOIN item_estoque item_parent ON item_parent.id = child.item_estoque_id
      WHERE child.tenant_id <> product_parent.tenant_id
-        OR child.tenant_id <> ingredient_parent.tenant_id
+        OR child.tenant_id <> item_parent.tenant_id
   ) THEN
     RAISE EXCEPTION
-      'Cross-tenant data detected: ficha_tecnica_item -> produto/insumo';
+      'Cross-tenant data detected: ficha_tecnica_item -> produto/item_estoque';
   END IF;
   IF EXISTS (
     SELECT 1
-      FROM item_pedido_insumo child
+      FROM item_pedido_composicao child
       JOIN pedido order_parent ON order_parent.id = child.pedido_id
-      JOIN item_pedido item_parent ON item_parent.id = child.item_pedido_id
-      JOIN insumo ingredient_parent ON ingredient_parent.id = child.insumo_id
+      JOIN item_pedido order_item_parent ON order_item_parent.id = child.item_pedido_id
+      JOIN item_estoque stock_item_parent ON stock_item_parent.id = child.item_estoque_id
      WHERE child.tenant_id <> order_parent.tenant_id
-        OR child.tenant_id <> item_parent.tenant_id
-        OR child.tenant_id <> ingredient_parent.tenant_id
+        OR child.tenant_id <> order_item_parent.tenant_id
+        OR child.tenant_id <> stock_item_parent.tenant_id
   ) THEN
     RAISE EXCEPTION
-      'Cross-tenant data detected: item_pedido_insumo -> pedido/item/insumo';
+      'Cross-tenant data detected: item_pedido_composicao -> pedido/item/item_estoque';
   END IF;
   IF EXISTS (
     SELECT 1
       FROM movimento_estoque child
-      JOIN insumo ingredient_parent ON ingredient_parent.id = child.insumo_id
+      JOIN item_estoque stock_item_parent ON stock_item_parent.id = child.item_estoque_id
       LEFT JOIN pedido order_parent ON order_parent.id = child.pedido_id
-      LEFT JOIN item_pedido item_parent ON item_parent.id = child.item_pedido_id
-     WHERE child.tenant_id <> ingredient_parent.tenant_id
+      LEFT JOIN item_pedido order_item_parent ON order_item_parent.id = child.item_pedido_id
+     WHERE child.tenant_id <> stock_item_parent.tenant_id
         OR (
           child.pedido_id IS NOT NULL
           AND child.tenant_id <> order_parent.tenant_id
         )
         OR (
           child.item_pedido_id IS NOT NULL
-          AND child.tenant_id <> item_parent.tenant_id
+          AND child.tenant_id <> order_item_parent.tenant_id
         )
   ) THEN
     RAISE EXCEPTION
-      'Cross-tenant data detected: movimento_estoque -> insumo/pedido/item';
+      'Cross-tenant data detected: movimento_estoque -> item_estoque/pedido/item';
   END IF;
   IF EXISTS (
     SELECT 1
@@ -416,14 +425,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS categoria_tenant_id_unique
   ON categoria (tenant_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS produto_tenant_id_unique
   ON produto (tenant_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS insumo_tenant_id_unique
-  ON insumo (tenant_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS item_estoque_tenant_id_unique
+  ON item_estoque (tenant_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS pedido_tenant_id_unique
   ON pedido (tenant_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS item_pedido_tenant_id_unique
   ON item_pedido (tenant_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS ficha_tecnica_tenant_produto_insumo_unique
-  ON ficha_tecnica_item (tenant_id, produto_id, insumo_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ficha_tecnica_tenant_produto_item_estoque_unique
+  ON ficha_tecnica_item (tenant_id, produto_id, item_estoque_id);
 CREATE UNIQUE INDEX IF NOT EXISTS movimento_estoque_tenant_chave_idempotencia_unique
   ON movimento_estoque (tenant_id, chave_idempotencia);
 
@@ -493,53 +502,53 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-     WHERE conname = 'ficha_tecnica_tenant_insumo_fkey'
+     WHERE conname = 'ficha_tecnica_tenant_item_estoque_fkey'
        AND conrelid = 'ficha_tecnica_item'::regclass
   ) THEN
     ALTER TABLE ficha_tecnica_item
-      ADD CONSTRAINT ficha_tecnica_tenant_insumo_fkey
-      FOREIGN KEY (tenant_id, insumo_id)
-      REFERENCES insumo (tenant_id, id);
+      ADD CONSTRAINT ficha_tecnica_tenant_item_estoque_fkey
+      FOREIGN KEY (tenant_id, item_estoque_id)
+      REFERENCES item_estoque (tenant_id, id);
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-     WHERE conname = 'item_pedido_insumo_tenant_pedido_fkey'
-       AND conrelid = 'item_pedido_insumo'::regclass
+     WHERE conname = 'item_pedido_composicao_tenant_pedido_fkey'
+       AND conrelid = 'item_pedido_composicao'::regclass
   ) THEN
-    ALTER TABLE item_pedido_insumo
-      ADD CONSTRAINT item_pedido_insumo_tenant_pedido_fkey
+    ALTER TABLE item_pedido_composicao
+      ADD CONSTRAINT item_pedido_composicao_tenant_pedido_fkey
       FOREIGN KEY (tenant_id, pedido_id)
       REFERENCES pedido (tenant_id, id) ON DELETE CASCADE;
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-     WHERE conname = 'item_pedido_insumo_tenant_item_fkey'
-       AND conrelid = 'item_pedido_insumo'::regclass
+     WHERE conname = 'item_pedido_composicao_tenant_item_fkey'
+       AND conrelid = 'item_pedido_composicao'::regclass
   ) THEN
-    ALTER TABLE item_pedido_insumo
-      ADD CONSTRAINT item_pedido_insumo_tenant_item_fkey
+    ALTER TABLE item_pedido_composicao
+      ADD CONSTRAINT item_pedido_composicao_tenant_item_fkey
       FOREIGN KEY (tenant_id, item_pedido_id)
       REFERENCES item_pedido (tenant_id, id) ON DELETE CASCADE;
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-     WHERE conname = 'item_pedido_insumo_tenant_insumo_fkey'
-       AND conrelid = 'item_pedido_insumo'::regclass
+     WHERE conname = 'item_pedido_composicao_tenant_item_estoque_fkey'
+       AND conrelid = 'item_pedido_composicao'::regclass
   ) THEN
-    ALTER TABLE item_pedido_insumo
-      ADD CONSTRAINT item_pedido_insumo_tenant_insumo_fkey
-      FOREIGN KEY (tenant_id, insumo_id)
-      REFERENCES insumo (tenant_id, id);
+    ALTER TABLE item_pedido_composicao
+      ADD CONSTRAINT item_pedido_composicao_tenant_item_estoque_fkey
+      FOREIGN KEY (tenant_id, item_estoque_id)
+      REFERENCES item_estoque (tenant_id, id);
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-     WHERE conname = 'movimento_estoque_tenant_insumo_fkey'
+     WHERE conname = 'movimento_estoque_tenant_item_estoque_fkey'
        AND conrelid = 'movimento_estoque'::regclass
   ) THEN
     ALTER TABLE movimento_estoque
-      ADD CONSTRAINT movimento_estoque_tenant_insumo_fkey
-      FOREIGN KEY (tenant_id, insumo_id)
-      REFERENCES insumo (tenant_id, id);
+      ADD CONSTRAINT movimento_estoque_tenant_item_estoque_fkey
+      FOREIGN KEY (tenant_id, item_estoque_id)
+      REFERENCES item_estoque (tenant_id, id);
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -577,11 +586,11 @@ CREATE INDEX IF NOT EXISTS idx_mesa_tenant_id ON mesa(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_categoria_tenant_id ON categoria(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_produto_cat ON produto(categoria_id);
 CREATE INDEX IF NOT EXISTS idx_produto_tenant_id ON produto(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_insumo_tenant_id ON insumo(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_item_estoque_tenant_id ON item_estoque(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_produto_id
   ON ficha_tecnica_item(produto_id);
-CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_insumo_id
-  ON ficha_tecnica_item(insumo_id);
+CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_item_estoque_id
+  ON ficha_tecnica_item(item_estoque_id);
 CREATE INDEX IF NOT EXISTS idx_pedido_mesa_id ON pedido(mesa_id);
 CREATE INDEX IF NOT EXISTS idx_pedido_tenant_id ON pedido(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_pedido_status ON pedido(status);
@@ -589,10 +598,10 @@ CREATE INDEX IF NOT EXISTS idx_pedido_created_by_user_id
   ON pedido(created_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_item_pedido_id ON item_pedido(pedido_id);
 CREATE INDEX IF NOT EXISTS idx_item_pedido_tenant_id ON item_pedido(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_item_pedido_insumo_tenant_pedido
-  ON item_pedido_insumo(tenant_id, pedido_id);
-CREATE INDEX IF NOT EXISTS idx_item_pedido_insumo_insumo_id
-  ON item_pedido_insumo(insumo_id);
+CREATE INDEX IF NOT EXISTS idx_item_pedido_composicao_tenant_pedido
+  ON item_pedido_composicao(tenant_id, pedido_id);
+CREATE INDEX IF NOT EXISTS idx_item_pedido_composicao_item_estoque_id
+  ON item_pedido_composicao(item_estoque_id);
 CREATE INDEX IF NOT EXISTS idx_tenant_user_tenant_id
   ON tenant_user(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tenant_user_usuario_id
@@ -613,10 +622,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS
   WHERE status = 'registrado';
 CREATE INDEX IF NOT EXISTS idx_movimento_estoque_tenant_id
   ON movimento_estoque(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_movimento_estoque_insumo_id
-  ON movimento_estoque(insumo_id);
-CREATE INDEX IF NOT EXISTS idx_movimento_estoque_insumo_criado_em
-  ON movimento_estoque(insumo_id, criado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_movimento_estoque_item_estoque_id
+  ON movimento_estoque(item_estoque_id);
+CREATE INDEX IF NOT EXISTS idx_movimento_estoque_item_estoque_criado_em
+  ON movimento_estoque(item_estoque_id, criado_em DESC);
 CREATE INDEX IF NOT EXISTS idx_movimento_estoque_pedido_item
   ON movimento_estoque(pedido_id, item_pedido_id);
 

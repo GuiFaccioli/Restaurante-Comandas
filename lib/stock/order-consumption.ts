@@ -60,7 +60,7 @@ type ProductForOrder = {
 
 type SnapshotMovement = {
   itemPedidoId: string
-  insumoId: string
+  itemEstoqueId: string
   quantidadeTotal: string
   chaveIdempotencia: string
 }
@@ -101,7 +101,7 @@ function idempotencyKey(
   tenantId: string,
   pedidoId: string,
   itemPedidoId: string,
-  insumoId: string,
+  itemEstoqueId: string,
 ): string {
   return [
     'consumo',
@@ -110,8 +110,8 @@ function idempotencyKey(
     pedidoId,
     'item',
     itemPedidoId,
-    'insumo',
-    insumoId,
+    'item-estoque',
+    itemEstoqueId,
   ].join(':')
 }
 
@@ -120,7 +120,7 @@ function prepareSnapshotMovements(
   pedidoId: string,
   snapshots: Array<{
     itemPedidoId: string
-    insumoId: string
+    itemEstoqueId: string
     quantidadeTotal: string
   }>,
 ): SnapshotMovement[] {
@@ -133,12 +133,12 @@ function prepareSnapshotMovements(
           tenantId,
           pedidoId,
           snapshot.itemPedidoId,
-          snapshot.insumoId,
+          snapshot.itemEstoqueId,
         ),
       }
     })
     .sort((left, right) => (
-      left.insumoId.localeCompare(right.insumoId) ||
+      left.itemEstoqueId.localeCompare(right.itemEstoqueId) ||
       left.itemPedidoId.localeCompare(right.itemPedidoId)
     ))
 }
@@ -149,8 +149,8 @@ function aggregateDemand(
   const demand = new Map<string, number>()
   for (const movement of movements) {
     demand.set(
-      movement.insumoId,
-      (demand.get(movement.insumoId) ?? 0) +
+      movement.itemEstoqueId,
+      (demand.get(movement.itemEstoqueId) ?? 0) +
       stockQuantityToMillis(movement.quantidadeTotal),
     )
   }
@@ -276,12 +276,12 @@ export async function createOrderInPostgresTransaction(
     .filter(([, product]) => product.controleEstoque)
     .map(([produtoId]) => produtoId)
     .sort()
-  const recipeIngredientRefs = controlledProductIds.length === 0
+  const recipeItemRefs = controlledProductIds.length === 0
     ? []
     : await tx
       .select({
         produtoId: pgSchema.fichaTecnicaItem.produtoId,
-        insumoId: pgSchema.fichaTecnicaItem.insumoId,
+        itemEstoqueId: pgSchema.fichaTecnicaItem.itemEstoqueId,
       })
       .from(pgSchema.fichaTecnicaItem)
       .where(and(
@@ -291,27 +291,27 @@ export async function createOrderInPostgresTransaction(
           controlledProductIds,
         ),
       ))
-  const ingredientIds = [
-    ...new Set(recipeIngredientRefs.map((recipe) => recipe.insumoId)),
+  const itemEstoqueIds = [
+    ...new Set(recipeItemRefs.map((recipe) => recipe.itemEstoqueId)),
   ].sort()
-  for (const insumoId of ingredientIds) {
-    const [ingredient] = await tx
+  for (const itemEstoqueId of itemEstoqueIds) {
+    const [stockItem] = await tx
       .select({
-        id: pgSchema.insumo.id,
-        tenantId: pgSchema.insumo.tenantId,
-        ativo: pgSchema.insumo.ativo,
+        id: pgSchema.itemEstoque.id,
+        tenantId: pgSchema.itemEstoque.tenantId,
+        ativo: pgSchema.itemEstoque.ativo,
       })
-      .from(pgSchema.insumo)
+      .from(pgSchema.itemEstoque)
       .where(and(
-        eq(pgSchema.insumo.id, insumoId),
-        eq(pgSchema.insumo.tenantId, input.tenantId),
-        eq(pgSchema.insumo.ativo, true),
+        eq(pgSchema.itemEstoque.id, itemEstoqueId),
+        eq(pgSchema.itemEstoque.tenantId, input.tenantId),
+        eq(pgSchema.itemEstoque.ativo, true),
       ))
       .for('update')
     if (
-      !ingredient ||
-      ingredient.tenantId !== input.tenantId ||
-      !ingredient.ativo
+      !stockItem ||
+      stockItem.tenantId !== input.tenantId ||
+      !stockItem.ativo
     ) {
       throw new Error('Ficha técnica inválida')
     }
@@ -321,7 +321,7 @@ export async function createOrderInPostgresTransaction(
     : await tx
       .select({
         produtoId: pgSchema.fichaTecnicaItem.produtoId,
-        insumoId: pgSchema.fichaTecnicaItem.insumoId,
+        itemEstoqueId: pgSchema.fichaTecnicaItem.itemEstoqueId,
         quantidade: pgSchema.fichaTecnicaItem.quantidade,
       })
       .from(pgSchema.fichaTecnicaItem)
@@ -334,7 +334,7 @@ export async function createOrderInPostgresTransaction(
       ))
       .orderBy(
         asc(pgSchema.fichaTecnicaItem.produtoId),
-        asc(pgSchema.fichaTecnicaItem.insumoId),
+        asc(pgSchema.fichaTecnicaItem.itemEstoqueId),
       )
 
   const preparedItems = input.items.map((item) => ({
@@ -374,12 +374,12 @@ export async function createOrderInPostgresTransaction(
       const quantidadeTotal = stockMillisToDecimal(
         validateRecipeQuantity(recipe.quantidade) * item.quantidade,
       )
-      await tx.insert(pgSchema.itemPedidoInsumo).values({
+      await tx.insert(pgSchema.itemPedidoComposicao).values({
         id: crypto.randomUUID(),
         tenantId: input.tenantId,
         pedidoId,
         itemPedidoId,
-        insumoId: recipe.insumoId,
+        itemEstoqueId: recipe.itemEstoqueId,
         quantidadeTotal,
       })
     }
@@ -398,14 +398,14 @@ async function consumeSnapshotInPostgresTransaction(
 ): Promise<void> {
   const snapshots = await tx
     .select({
-      itemPedidoId: pgSchema.itemPedidoInsumo.itemPedidoId,
-      insumoId: pgSchema.itemPedidoInsumo.insumoId,
-      quantidadeTotal: pgSchema.itemPedidoInsumo.quantidadeTotal,
+      itemPedidoId: pgSchema.itemPedidoComposicao.itemPedidoId,
+      itemEstoqueId: pgSchema.itemPedidoComposicao.itemEstoqueId,
+      quantidadeTotal: pgSchema.itemPedidoComposicao.quantidadeTotal,
     })
-    .from(pgSchema.itemPedidoInsumo)
+    .from(pgSchema.itemPedidoComposicao)
     .where(and(
-      eq(pgSchema.itemPedidoInsumo.tenantId, input.tenantId),
-      eq(pgSchema.itemPedidoInsumo.pedidoId, input.pedidoId),
+      eq(pgSchema.itemPedidoComposicao.tenantId, input.tenantId),
+      eq(pgSchema.itemPedidoComposicao.pedidoId, input.pedidoId),
     ))
   const movements = prepareSnapshotMovements(
     input.tenantId,
@@ -430,15 +430,15 @@ async function consumeSnapshotInPostgresTransaction(
   )
   const demand = aggregateDemand(pending)
 
-  for (const insumoId of [...demand.keys()].sort()) {
+  for (const itemEstoqueId of [...demand.keys()].sort()) {
     const item = await lockStockItemInPostgresTransaction(
       tx,
       input.tenantId,
-      insumoId,
+      itemEstoqueId,
     )
     if (
       stockQuantityToMillis(item.estoqueAtual) <
-      (demand.get(insumoId) ?? 0)
+      (demand.get(itemEstoqueId) ?? 0)
     ) {
       throw new Error(`Não há estoque suficiente para ${item.nome}`)
     }
@@ -448,8 +448,8 @@ async function consumeSnapshotInPostgresTransaction(
     await applyStockMovementInPostgresTransaction(tx, {
       tenantId: input.tenantId,
       usuarioId: input.usuarioId,
-      insumoId: movement.insumoId,
-      tipo: 'saida',
+      itemEstoqueId: movement.itemEstoqueId,
+      tipo: 'consumo',
       quantidade:
         -stockQuantityToMillis(movement.quantidadeTotal) / 1_000,
       pedidoId: input.pedidoId,
@@ -523,8 +523,9 @@ async function syncAttendancePaymentStatus(
   await tx
     .update(pgSchema.atendimento)
     .set({
-      status: attendanceStatus,
-      aguardandoPagamentoEm: attendanceStatus === 'awaiting_payment' ? new Date() : null,
+      ...(attendanceStatus === 'awaiting_payment'
+        ? { status: 'awaiting_payment' as const, aguardandoPagamentoEm: new Date() }
+        : { status: 'cancelled' as const, aguardandoPagamentoEm: null }),
       atualizadoEm: new Date(),
     })
     .where(and(

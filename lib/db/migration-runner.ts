@@ -13,8 +13,8 @@ type MigrationFile = TrackedMigration & { sql: string }
 
 const POSTGRES_BASELINE = '202607232100_baseline_and_tenant_constraints.sql'
 const POSTGRES_TABLES = [
-  'tenant', 'mesa', 'categoria', 'produto', 'insumo', 'ficha_tecnica_item',
-  'pedido', 'atendimento', 'item_pedido', 'item_pedido_insumo', 'usuario', 'tenant_user',
+  'tenant', 'mesa', 'categoria', 'produto', 'item_estoque', 'ficha_tecnica_item',
+  'pedido', 'atendimento', 'item_pedido', 'item_pedido_composicao', 'usuario', 'tenant_user',
   'usuario_acesso', 'auth_session', 'pagamento_pedido', 'movimento_estoque',
 ]
 

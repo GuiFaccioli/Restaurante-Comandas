@@ -42,11 +42,11 @@ A auditoria foi feita após a leitura completa de `docs/AGILIZA_FLUXO_DESIGN.md`
 | `/admin/relatorios` | ADMIN | desktop-first | Consultas e tabelas. |
 | `/admin/usuarios` | ADMIN | desktop-first | Cadastro, edição de acessos e remoção de usuário do tenant. |
 | `/admin/configuracoes` | ADMIN | desktop-first | Atalhos para parâmetros/gestão. |
-| `/admin/estoque` | — | — | Redirect para insumos ou ficha técnica; o arquivo não chama `requireAccess`. |
-| `/admin/estoque/insumos` | ADMIN | desktop-first | Cadastro/edição/exclusão de insumo. |
+| `/admin/estoque` | — | — | Redirect para itens de estoque ou ficha técnica; o arquivo não chama `requireAccess`. |
+| `/admin/estoque/itens de estoque` | ADMIN | desktop-first | Cadastro/edição/exclusão de item de estoque. |
 | `/admin/estoque/saldos` | ADMIN | desktop-first | Saldo e movimentação manual. |
-| `/admin/estoque/ficha-tecnica` | ADMIN | desktop-first | Ingredientes por produto. |
-| `/admin/estoque/[id]` | ADMIN | desktop-first | Histórico de movimentações de um insumo. |
+| `/admin/estoque/ficha-tecnica` | ADMIN | desktop-first | Itens de estoque por produto. |
+| `/admin/estoque/[id]` | ADMIN | desktop-first | Histórico de movimentações de um item de estoque. |
 | `/cozinha/dashboard` | COOK | tablet/desktop-first | Kanban/pedidos com polling. |
 | `/garcom/mesas` | WAITER | mobile-first | Escolha de mesa. |
 | `/garcom/mesa/[id]` | WAITER | mobile-first | Menu, carrinho, observação e pedidos da mesa. |
@@ -84,7 +84,7 @@ A união de acessos é obtida por `lib/auth/access.ts` no tenant selecionado. Os
 ### Componentes a substituir ou remodelar
 
 1. **Shell e navegação:** substituir a navegação admin fixa por uma navegação orientada a papel. ADMIN não deve receber um link visual para `/admin/pedidos` se não tiver CASHIER; CASHIER precisa de um shell próprio, ou de uma variante explicitamente financeira.
-2. **Estoque:** `app/admin/estoque/client.tsx` concentra insumos, saldos/movimentações e ficha técnica em um componente client muito grande. Separar em três experiências e manter apenas uma navegação compartilhada.
+2. **Estoque:** `app/admin/estoque/client.tsx` concentra itens de estoque, saldos/movimentações e ficha técnica em um componente client muito grande. Separar em três experiências e manter apenas uma navegação compartilhada.
 3. **Garçom:** remodelar `app/garcom/mesa/[id]/client.tsx`, `MenuGrid`, `ItemCard`, `CartDrawer` e `TableOrdersPanel` para o fluxo mobile de uma coluna, ação primária fixa e menos carga visual.
 4. **Cozinha:** transformar `KanbanBoard`/`PedidoCard` em cartões legíveis à distância, com status de um toque e ritmo/atraso explícitos.
 5. **Pedidos/caixa:** retirar a semântica de caixa de dentro do admin genérico e criar resumo de pagamento, divisão e fechamento com confirmações adequadas.
