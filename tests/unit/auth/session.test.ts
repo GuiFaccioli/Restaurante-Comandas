@@ -34,6 +34,15 @@ vi.mock('@/lib/db/schema', () => ({
     email: 'usuario.email',
     nome: 'usuario.nome',
   },
+  tenant: {
+    id: 'tenant.id',
+    status: 'tenant.status',
+  },
+  tenantUser: {
+    tenantId: 'tenant_user.tenant_id',
+    usuarioId: 'tenant_user.usuario_id',
+    status: 'tenant_user.status',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -52,6 +61,9 @@ vi.mock('@/lib/db/index', () => ({
     })),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({
+          where: vi.fn(async () => state.selectResults.shift() ?? []),
+        })),
         where: vi.fn(async () => state.selectResults.shift() ?? []),
       })),
     })),
@@ -103,6 +115,21 @@ describe('auth session', () => {
       email: 'ana@example.com',
       nome: 'Ana',
       selectedTenantId: null,
+    })
+  })
+
+  it('selects the only active tenant when the local session cookie is missing', async () => {
+    state.selectResults = [
+      [{ id: 'user-1', email: 'ana@example.com', nome: 'Ana' }],
+      [{ tenantId: 'tenant-1' }],
+    ]
+    state.cookieGet.mockReturnValue(undefined)
+
+    await expect(getCurrentSession()).resolves.toEqual({
+      usuarioId: 'user-1',
+      email: 'ana@example.com',
+      nome: 'Ana',
+      selectedTenantId: 'tenant-1',
     })
   })
 })
