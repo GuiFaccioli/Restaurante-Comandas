@@ -18,10 +18,14 @@ import type { AcessoUsuario } from '@/lib/db/schema'
 const SIGN_UP_ERROR_MESSAGE = 'Não foi possível criar a conta'
 
 function authCallbackUrl(): string {
+  const vercelUrl = process.env.VERCEL_URL
+  if (process.env.VERCEL_ENV === 'preview' && vercelUrl) {
+    return `https://${vercelUrl}/auth/sign-in`
+  }
+
   const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
   if (configuredUrl) return `${configuredUrl}/auth/sign-in`
 
-  const vercelUrl = process.env.VERCEL_URL
   if (vercelUrl) return `https://${vercelUrl}/auth/sign-in`
 
   return 'http://127.0.0.1:3000/auth/sign-in'
