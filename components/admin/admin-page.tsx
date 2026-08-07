@@ -4,7 +4,7 @@ import { actionSemantics } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 export function AdminPage({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('mx-auto w-full max-w-[1280px] space-y-6', className)}>{children}</div>
+  return <div className={cn('mx-auto w-full max-w-[1280px] space-y-8', className)}>{children}</div>
 }
 
 export function AdminPageHeader({
@@ -19,15 +19,15 @@ export function AdminPageHeader({
   action?: ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-4 border-b border-[var(--border)] pb-7 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
         {eyebrow ? (
-          <p className="mb-1 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--primary)]">
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="text-3xl font-bold tracking-[-0.025em]">{title}</h1>
-        <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">{description}</p>
+        <h1 className="font-heading text-3xl font-black tracking-[-0.04em] text-[var(--ink)] sm:text-4xl">{title}</h1>
+        <p className="mt-2 text-pretty text-sm leading-6 text-[var(--muted)]">{description}</p>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -68,7 +68,7 @@ export function AdminStatCard({
     danger: 'bg-destructive',
   }[tone]
   const baseCardClassName =
-    'flex w-full flex-col gap-0 h-auto min-h-11 rounded-[var(--radius)] border p-4 text-left'
+    'flex w-full flex-col gap-0 h-auto min-h-11 rounded-[var(--radius-card)] border border-[var(--border)] p-4 text-left shadow-[var(--shadow-card)]'
   const staticCardClassName = cn(baseCardClassName, toneClass)
   const interactiveCardClassName = cn(
     baseCardClassName,
@@ -82,9 +82,9 @@ export function AdminStatCard({
       <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
         <div className={cn('h-full w-10 rounded-full', markerClass)} />
       </div>
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-bold tracking-[-0.03em]">{value}</p>
-      {detail ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p> : null}
+      <p className="text-sm font-medium text-[var(--muted)]">{label}</p>
+      <p className="mt-2 font-heading text-3xl font-black tracking-[-0.04em] text-[var(--ink)]">{value}</p>
+      {detail ? <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{detail}</p> : null}
       {onClick ? (
         <span className="mt-3 block text-xs font-semibold underline underline-offset-4">
           {expanded ? 'Ocultar responsáveis' : 'Ver responsáveis'}
@@ -124,13 +124,13 @@ export function AdminPanel({
   className?: string
 }) {
   return (
-    <section className={cn('overflow-hidden rounded-[var(--radius)] border bg-card', className)}>
+    <section className={cn('overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]', className)}>
       {title || description || action ? (
-        <div className="flex min-h-16 items-start justify-between gap-3 border-b bg-muted/35 px-4 py-3">
+        <div className="flex min-h-16 items-start justify-between gap-3 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--muted)_55%,var(--surface))] px-4 py-3">
           <div className="min-w-0">
-            {title ? <h2 className="font-semibold">{title}</h2> : null}
+            {title ? <h2 className="font-heading font-bold text-[var(--ink)]">{title}</h2> : null}
             {description ? (
-              <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
             ) : null}
           </div>
           {action ? <div className="shrink-0">{action}</div> : null}
@@ -163,10 +163,10 @@ export function AdminBar({
   }[tone]
 
   return (
-    <div className="rounded-[var(--radius)] border bg-background p-3">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)]">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
         <p className="min-w-0 truncate text-sm font-semibold">{label}</p>
-        <p className="shrink-0 text-sm font-medium text-muted-foreground">{detail}</p>
+        <p className="shrink-0 text-sm font-medium text-[var(--muted)]">{detail}</p>
       </div>
       <div className="mt-3 h-3 overflow-hidden rounded-full bg-muted">
         <div className={cn('h-full rounded-full', fillClass)} style={{ width: `${width}%` }} />
@@ -187,9 +187,9 @@ export function AdminEmptyState({
   className?: string
 }) {
   return (
-    <div className={cn('rounded-[var(--radius)] border border-dashed bg-background p-6 text-center', className)}>
-      <h3 className="font-semibold">{title}</h3>
-      <p className="mx-auto mt-1 max-w-md text-pretty text-sm leading-6 text-muted-foreground">{description}</p>
+    <div className={cn('rounded-[var(--radius-card)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-8 text-center shadow-[var(--shadow-card)]', className)}>
+      <h3 className="font-heading font-bold text-[var(--ink)]">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-pretty text-sm leading-6 text-[var(--muted)]">{description}</p>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   )

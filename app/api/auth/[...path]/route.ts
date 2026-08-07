@@ -1,10 +1,11 @@
-﻿const disabledAuthResponse = () =>
-  Response.json(
-    {
-      error: 'First-party auth uses Server Actions in /auth/sign-in and /auth/sign-up.',
-    },
-    { status: 404 }
-  )
+import { getNeonAuth } from '@/lib/auth/server'
 
-export const GET = disabledAuthResponse
-export const POST = disabledAuthResponse
+type AuthRouteContext = { params: Promise<{ path: string[] }> }
+
+export async function GET(request: Request, context: AuthRouteContext) {
+  return (await getNeonAuth()).handler().GET(request, context)
+}
+
+export async function POST(request: Request, context: AuthRouteContext) {
+  return (await getNeonAuth()).handler().POST(request, context)
+}

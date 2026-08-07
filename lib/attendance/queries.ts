@@ -122,7 +122,6 @@ export async function getCashierAccounts(input: { tenantId: string }): Promise<A
     .where(and(
       eq(atendimento.tenantId, input.tenantId),
       eq(mesa.tenantId, input.tenantId),
-      ne(atendimento.status, 'cancelled'),
     ))
     .orderBy(desc(atendimento.abertoEm))
   return hydrateAttendances(input.tenantId, rows)

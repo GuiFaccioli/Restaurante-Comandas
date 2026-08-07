@@ -34,6 +34,20 @@ function copyPreCoherenceMigrations(): string {
 }
 
 describe('PostgreSQL migration definitions', () => {
+  it('allows attendance-level payments without an order id', () => {
+    const migration = readFileSync(
+      resolve(
+        process.cwd(),
+        'db/migrations/202607311600_allow_attendance_level_payments.sql',
+      ),
+      'utf8',
+    )
+
+    expect(migration).toMatch(
+      /ALTER TABLE\s+pagamento_pedido\s+ALTER COLUMN\s+pedido_id\s+DROP NOT NULL/i,
+    )
+  })
+
   it('reconciles canonical constraints by complete catalog semantics', () => {
     const migration = readFileSync(
       resolve(

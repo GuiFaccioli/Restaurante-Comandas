@@ -146,6 +146,7 @@ describe('pedido business flow', () => {
     const itemSource = source('components/garcom/item-card.tsx')
     const drawerSource = source('components/garcom/cart-drawer.tsx')
     const sheetSource = source('components/garcom/observacao-sheet.tsx')
+    const mobileNavigationSource = source('components/shell/mobile-bottom-navigation.tsx')
     const tableOrdersSource = source('components/garcom/table-orders-panel.tsx')
     const fabSource = source('components/garcom/cart-fab.tsx')
 
@@ -168,6 +169,8 @@ describe('pedido business flow', () => {
     const profileSlotSource = source('components/garcom/garcom-profile-slot.tsx')
     const mesasPageSource = source('app/garcom/mesas/page.tsx')
     expect(garcomLayoutSource).toContain('GarcomProfileSlot')
+    expect(garcomLayoutSource).toContain('showOnOperationalPages={accesses.length > 1}')
+    expect(profileSlotSource).toContain('showOnOperationalPages = false')
     expect(profileSlotSource).toContain("pathname.startsWith('/garcom/mesa/')")
     expect(profileSlotSource).toContain("pathname === '/garcom/mesas'")
     expect(mesasPageSource).toContain('Escolha uma mesa')
@@ -200,6 +203,9 @@ describe('pedido business flow', () => {
 
     expect(fabSource).toContain('aria-label="Abrir carrinho"')
     expect(fabSource).toContain('bottom-[calc(5rem+env(safe-area-inset-bottom))]')
+    expect(mobileNavigationSource).not.toContain("label: 'Buscar'")
+    expect(mobileNavigationSource).not.toContain('Search')
+    expect(mobileNavigationSource).toContain('items.filter((item) => item.label !== \'Cardápio\')')
   })
 
   test('cashier order management keeps readable payment UI', () => {
@@ -207,7 +213,7 @@ describe('pedido business flow', () => {
     const pageSource = source('app/admin/pedidos/page.tsx')
     const clientSource = source('app/admin/pedidos/client.tsx')
 
-    expect(layoutSource).toContain('Agiliza Fluxo')
+    expect(layoutSource).toContain('AgilizaFluxoBrand')
     expect(layoutSource).toContain('bg-[var(--canvas)]')
     expect(layoutSource).toContain('lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]')
     expect(layoutSource).toContain('max-w-[1600px]')
@@ -287,16 +293,20 @@ describe('pedido business flow', () => {
 
     expect(signInPageSource).toContain('min-h-dvh')
     expect(signInPageSource).toContain('Não tem conta?')
-    expect(signInPageSource).toContain('rounded-[var(--radius)]')
+    expect(signInPageSource).toContain('af-surface')
     expect(signInClientSource).toContain('min-h-11')
 
     expect(signUpSource).toContain('min-h-dvh')
     expect(signUpSource).toContain('Criar conta')
+    expect(signInPageSource).toContain('AgilizaFluxoBrand')
+    expect(signUpSource).toContain('AgilizaFluxoBrand')
+    expect(areaSource).toContain('AgilizaFluxoBrand')
+    expect(companySource).toContain('AgilizaFluxoBrand')
     expect(signUpSource).toContain('Já tem conta?')
     expect(signUpSource).toContain('min-h-11')
 
     expect(areaSource).toContain('Por onde você quer começar?')
-    expect(areaSource).toContain('Agiliza Fluxo')
+    expect(areaSource).toContain('AgilizaFluxoBrand')
     expect(areaSource).toContain('af-surface')
     expect(areaSource).toContain('focus-visible:ring-2')
 

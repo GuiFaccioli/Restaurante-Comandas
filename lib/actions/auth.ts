@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { db, runInDbTransaction } from '@/lib/db/index'
 import { tenant, tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
 import { assertValidEmail, hashPassword, verifyPassword } from '@/lib/auth/password'
+import { getNeonAuth, isNeonAuthEnabled } from '@/lib/auth/server'
 import {
   createAuthSession,
   destroyCurrentSession,
@@ -16,6 +17,20 @@ import type { AcessoUsuario } from '@/lib/db/schema'
 
 const SIGN_UP_ERROR_MESSAGE = 'Não foi possível criar a conta'
 
+function authCallbackUrl(): string {
+  const vercelUrl = process.env.VERCEL_URL
+  if (process.env.VERCEL_ENV === 'preview' && vercelUrl) {
+    return `https://${vercelUrl}/auth/sign-in`
+  }
+
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+  if (configuredUrl) return `${configuredUrl}/auth/sign-in`
+
+  if (vercelUrl) return `https://${vercelUrl}/auth/sign-in`
+
+  return 'http://127.0.0.1:3000/auth/sign-in'
+}
+
 function formValue(data: FormData | Record<string, unknown>, key: string): string {
   if (data instanceof FormData) return String(data.get(key) ?? '')
   return String(data[key] ?? '')
@@ -26,6 +41,20 @@ function isUniqueConstraintError(error: unknown): boolean {
 
   const code = 'code' in error ? String(error.code) : ''
   return code === '23505'
+}
+
+function logNeonSignupError(error: unknown, hasUserId: boolean): void {
+  const details = error && typeof error === 'object' ? error as Record<string, unknown> : {}
+  const stringValue = (value: unknown): string | undefined =>
+    typeof value === 'string' ? value.slice(0, 300) : undefined
+
+  console.error('[auth] Neon Auth signup rejected', {
+    code: stringValue(details.code),
+    status: typeof details.status === 'number' ? details.status : undefined,
+    statusCode: typeof details.statusCode === 'number' ? details.statusCode : undefined,
+    message: stringValue(details.message),
+    hasUserId,
+  })
 }
 
 function slugifyTenantName(name: string): string {
@@ -66,16 +95,36 @@ export async function signUpOwner(
   if (!nome) throw new Error('Informe seu nome')
   if (!tenantNome) throw new Error('Informe o nome do restaurante')
 
+  const [existingUser] = await db
+    .select({ id: usuario.id })
+    .from(usuario)
+    .where(eq(usuario.email, email))
+  if (existingUser) throw new Error(SIGN_UP_ERROR_MESSAGE)
+
+  const neonAuth = isNeonAuthEnabled()
+  const authResult = neonAuth
+    ? await (await getNeonAuth()).signUp.email({
+        email,
+        password,
+        name: nome,
+        callbackURL: authCallbackUrl(),
+      })
+    : null
+  if (neonAuth && (authResult?.error || !authResult?.data?.user?.id)) {
+    logNeonSignupError(authResult?.error, Boolean(authResult?.data?.user?.id))
+    throw new Error(SIGN_UP_ERROR_MESSAGE)
+  }
+
   const usuarioId = crypto.randomUUID()
   const tenantId = crypto.randomUUID()
   const tenantUserId = crypto.randomUUID()
   const now = new Date()
-  const passwordHash = await hashPassword(password)
   const usuarioValues = {
     id: usuarioId,
+    authUserId: authResult?.data?.user?.id ?? null,
     nome,
     email,
-    passwordHash,
+    passwordHash: neonAuth ? null : await hashPassword(password),
     role: 'admin' as const,
     createdAt: now,
     updatedAt: now,
@@ -139,13 +188,31 @@ export async function signIn(
   const email = assertValidEmail(formValue(data, 'email'))
   const password = formValue(data, 'password')
 
-  const [user] = await db
-    .select({ id: usuario.id, passwordHash: usuario.passwordHash })
-    .from(usuario)
-    .where(eq(usuario.email, email))
+  let userId: string | undefined
+  if (isNeonAuthEnabled()) {
+    const authResult = await (await getNeonAuth()).signIn.email({
+      email,
+      password,
+      callbackURL: authCallbackUrl(),
+    })
+    const authUserId = authResult.data?.user?.id
+    if (authResult.error || !authUserId) throw new Error('E-mail ou senha incorretos')
 
-  const valid = await verifyPassword(password, user?.passwordHash)
-  if (!user || !valid) throw new Error('E-mail ou senha incorretos')
+    const [user] = await db
+      .select({ id: usuario.id })
+      .from(usuario)
+      .where(eq(usuario.authUserId, authUserId))
+    userId = user?.id
+  } else {
+    const [user] = await db
+      .select({ id: usuario.id, passwordHash: usuario.passwordHash })
+      .from(usuario)
+      .where(eq(usuario.email, email))
+    if (user && (await verifyPassword(password, user.passwordHash))) userId = user.id
+  }
+
+  if (!userId) throw new Error('E-mail ou senha incorretos')
+  const user = { id: userId }
 
   const memberships = await db
     .select({ id: tenantUser.id, tenantId: tenantUser.tenantId, nome: tenant.nome })
@@ -186,7 +253,11 @@ export async function signIn(
 }
 
 export async function signOut(): Promise<void> {
-  await destroyCurrentSession()
+  try {
+    if (isNeonAuthEnabled()) await (await getNeonAuth()).signOut()
+  } finally {
+    await destroyCurrentSession()
+  }
   redirect('/auth/sign-in')
 }
 

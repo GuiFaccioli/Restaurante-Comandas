@@ -70,7 +70,7 @@ export function SignInClientForm({ action }: SignInClientFormProps) {
         />
         Lembrar e-mail neste aparelho
       </label>
-      <ActionSubmit pendingLabel="Entrando…" intent="neutral" appearance="solid" className="min-h-11 w-full">
+      <ActionSubmit pendingLabel="Entrando…" intent="positive" appearance="solid" className="min-h-11 w-full">
         Entrar
       </ActionSubmit>
     </ActionForm>

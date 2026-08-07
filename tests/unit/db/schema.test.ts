@@ -125,6 +125,7 @@ describe('Drizzle schema', () => {
   describe('usuario table', () => {
     it('has required columns', () => {
       expect(Object.keys(usuario)).toContain('id')
+      expect(Object.keys(usuario)).toContain('authUserId')
       expect(Object.keys(usuario)).toContain('nome')
       expect(Object.keys(usuario)).toContain('email')
       expect(Object.keys(usuario)).toContain('role')
@@ -143,6 +144,7 @@ describe('Drizzle schema', () => {
       expect(sqlSchema).toContain('CREATE TABLE usuario_acesso')
       expect(sqlSchema).toContain('CREATE TABLE auth_session')
       expect(sqlSchema).toContain('password_hash')
+      expect(sqlSchema).toContain('auth_user_id TEXT UNIQUE')
       expect(sqlSchema).toContain('CREATE TABLE tenant')
       expect(sqlSchema).toContain('CREATE TABLE tenant_user')
       expect(sqlSchema).toContain('tenant_id')

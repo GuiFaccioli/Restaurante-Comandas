@@ -27,6 +27,7 @@ CREATE TABLE tenant (
 
 CREATE TABLE usuario (
   id UUID PRIMARY KEY,
+  auth_user_id TEXT UNIQUE,
   nome TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   role role_usuario NOT NULL DEFAULT 'garcom',

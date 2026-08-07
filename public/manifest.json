@@ -1,11 +1,11 @@
 {
-  "name": "Gestão de Pedidos",
-  "short_name": "Pedidos",
-  "description": "Sistema de gestão de pedidos para pizzaria",
+  "name": "Agiliza Fluxo",
+  "short_name": "Agiliza Fluxo",
+  "description": "Do pedido ao estoque, tudo conectado.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#171717",
+  "background_color": "#FBF9F4",
+  "theme_color": "#E24D28",
   "orientation": "portrait",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },

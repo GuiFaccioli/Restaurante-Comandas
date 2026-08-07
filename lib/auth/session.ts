@@ -2,7 +2,8 @@ import { createHash, randomBytes } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { and, eq, gt } from 'drizzle-orm'
 import { db } from '@/lib/db/index'
-import { authSession, usuario } from '@/lib/db/schema'
+import { authSession, tenant, tenantUser, usuario } from '@/lib/db/schema'
+import { getNeonAuth, isNeonAuthEnabled } from '@/lib/auth/server'
 
 const SESSION_COOKIE = 'restaurante_session'
 const SESSION_DAYS = 30
@@ -13,6 +14,22 @@ function hashToken(token: string): string {
 
 async function cookieStore() {
   return cookies()
+}
+
+async function getSingleActiveTenantId(usuarioId: string): Promise<string | null> {
+  const memberships = await db
+    .select({ tenantId: tenantUser.tenantId })
+    .from(tenantUser)
+    .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
+    .where(
+      and(
+        eq(tenantUser.usuarioId, usuarioId),
+        eq(tenantUser.status, 'active'),
+        eq(tenant.status, 'active')
+      )
+    )
+
+  return memberships.length === 1 ? memberships[0].tenantId : null
 }
 
 export async function createAuthSession(
@@ -48,9 +65,57 @@ export async function getCurrentSession(): Promise<{
   nome: string
   selectedTenantId: string | null
 } | null> {
+  let user: { id: string; email: string; nome: string } | undefined
   const store = await cookieStore()
   const token = store.get(SESSION_COOKIE)?.value
-  if (!token) return null
+
+  if (isNeonAuthEnabled()) {
+    const neonSession = await (await getNeonAuth()).getSession()
+    const authUserId = neonSession.data?.user?.id
+    if (authUserId) {
+      ;[user] = await db
+        .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
+        .from(usuario)
+        .where(eq(usuario.authUserId, authUserId))
+    }
+
+    if (!user && token) {
+      ;[user] = await db
+        .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
+        .from(usuario)
+        .innerJoin(authSession, eq(authSession.usuarioId, usuario.id))
+        .where(
+          and(
+            eq(authSession.tokenHash, hashToken(token)),
+            gt(authSession.expiresAt, new Date())
+          )
+        )
+    }
+  } else {
+    if (!token) return null
+    ;[user] = await db
+      .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
+      .from(usuario)
+      .innerJoin(authSession, eq(authSession.usuarioId, usuario.id))
+      .where(
+        and(
+          eq(authSession.tokenHash, hashToken(token)),
+          gt(authSession.expiresAt, new Date())
+        )
+      )
+  }
+
+  if (!user) return null
+
+  if (!token) {
+    const selectedTenantId = await getSingleActiveTenantId(user.id)
+    return {
+      usuarioId: user.id,
+      email: user.email,
+      nome: user.nome,
+      selectedTenantId,
+    }
+  }
 
   const [session] = await db
     .select({
@@ -58,34 +123,60 @@ export async function getCurrentSession(): Promise<{
       selectedTenantId: authSession.selectedTenantId,
     })
     .from(authSession)
-    .where(and(eq(authSession.tokenHash, hashToken(token)), gt(authSession.expiresAt, new Date())))
-
-  if (!session) return null
-
-  const [user] = await db
-    .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
-    .from(usuario)
-    .where(eq(usuario.id, session.usuarioId))
-
-  if (!user) return null
+    .where(
+      and(
+        eq(authSession.tokenHash, hashToken(token)),
+        eq(authSession.usuarioId, user.id),
+        gt(authSession.expiresAt, new Date())
+      )
+    )
 
   return {
     usuarioId: user.id,
     email: user.email,
     nome: user.nome,
-    selectedTenantId: session.selectedTenantId ?? null,
+    selectedTenantId: session?.selectedTenantId ?? await getSingleActiveTenantId(user.id),
   }
 }
 
 export async function setSelectedTenant(tenantId: string): Promise<void> {
+  const session = await getCurrentSession()
+  if (!session) return
+
   const store = await cookieStore()
   const token = store.get(SESSION_COOKIE)?.value
-  if (!token) return
+  if (!token) {
+    await createAuthSession(session.usuarioId, tenantId)
+    return
+  }
+
+  const [localSession] = await db
+    .select({ id: authSession.id })
+    .from(authSession)
+    .where(
+      and(
+        eq(authSession.tokenHash, hashToken(token)),
+        eq(authSession.usuarioId, session.usuarioId),
+        gt(authSession.expiresAt, new Date())
+      )
+    )
+
+  if (!localSession) {
+    await createAuthSession(session.usuarioId, tenantId)
+    return
+  }
 
   await db
     .update(authSession)
     .set({ selectedTenantId: tenantId })
-    .where(and(eq(authSession.tokenHash, hashToken(token)), gt(authSession.expiresAt, new Date())))
+    .where(
+      and(
+        eq(authSession.tokenHash, hashToken(token)),
+        eq(authSession.usuarioId, session.usuarioId),
+        gt(authSession.expiresAt, new Date())
+      )
+    )
+
 }
 
 export async function destroyCurrentSession(): Promise<void> {

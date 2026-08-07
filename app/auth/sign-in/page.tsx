@@ -1,24 +1,26 @@
 import { signIn } from '@/lib/actions/auth'
+import { AgilizaFluxoBrand } from '@/components/brand/agiliza-fluxo-brand'
 import { SignInClientForm } from './client'
 
 export default function SignInPage() {
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-4 rounded-[var(--radius)] border bg-card p-6">
-        <div>
-          <h1 className="text-2xl font-bold">Entrar</h1>
-          <p className="text-pretty text-sm text-muted-foreground">
-            Acesse sua área de trabalho no restaurante.
+    <main className="flex min-h-dvh items-center justify-center bg-[var(--canvas)] p-4 sm:p-6">
+      <section className="af-surface w-full max-w-sm p-6 sm:p-8">
+        <AgilizaFluxoBrand tagline="Do pedido ao estoque, tudo conectado." />
+        <div className="mt-8">
+          <h1 className="text-3xl font-black tracking-[-0.04em] text-[var(--ink)]">Entrar</h1>
+          <p className="mt-1 text-pretty text-sm leading-6 text-[var(--muted)]">
+            Acesse sua operação e veja o que precisa da sua atenção agora.
           </p>
         </div>
         <SignInClientForm action={signIn} />
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="mt-6 text-center text-sm text-[var(--muted)]">
           Não tem conta?{' '}
-          <a href="/auth/sign-up" className="underline underline-offset-2">
+          <a href="/auth/sign-up" className="font-semibold text-[var(--primary)] underline underline-offset-2">
             Criar conta
           </a>
         </p>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }
