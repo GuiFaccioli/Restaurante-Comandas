@@ -417,6 +417,41 @@ describe('auth actions', () => {
       )
   })
 
+  it('uses the current Vercel preview URL for Neon Auth callbacks', async () => {
+    const previousEnvironment = process.env.VERCEL_ENV
+    const previousUrl = process.env.VERCEL_URL
+    const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL
+
+    process.env.VERCEL_ENV = 'preview'
+    process.env.VERCEL_URL = 'preview.example.vercel.app'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://production.example.com'
+    state.selectResults = [[]]
+
+    try {
+      await expect(
+        signUpOwner({
+          nome: 'Ana',
+          email: 'ana@example.com',
+          password: 'senha-certa',
+          tenantNome: 'Pizza Boa',
+        })
+      ).rejects.toThrow('REDIRECT:/selecionar-area')
+    } finally {
+      if (previousEnvironment === undefined) delete process.env.VERCEL_ENV
+      else process.env.VERCEL_ENV = previousEnvironment
+      if (previousUrl === undefined) delete process.env.VERCEL_URL
+      else process.env.VERCEL_URL = previousUrl
+      if (previousAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+      else process.env.NEXT_PUBLIC_APP_URL = previousAppUrl
+    }
+
+    expect(state.neonAuth.signUp.email).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callbackURL: 'https://preview.example.vercel.app/auth/sign-in',
+      })
+    )
+  })
+
   it('rolls back all signup writes on an intermediate failure', async () => {
       state.selectResults = [[]]
       state.insertFailureAt = 2
