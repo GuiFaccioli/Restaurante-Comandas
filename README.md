@@ -1,43 +1,96 @@
-﻿# Restaurante Comandas
+# Restaurante Comandas
 
-Sistema de comandas para restaurante/pizzaria com fluxo de garçom, cozinha, administração, caixa e relatórios.
+> Uma plataforma operacional para restaurantes e pizzarias que conecta salão, cozinha, caixa e estoque em um único fluxo.
 
-## Stack atual
+## A dor que o produto resolve
 
-- Next.js 16 App Router
-- React 19
-- Neon Postgres em produção via `@neondatabase/serverless`
-- Drizzle ORM como fonte de verdade do schema
-- SQLite local/teste via `better-sqlite3`
-- Autenticação first-party com sessão HTTP-only
-- Multi-tenant por `tenant` + `tenantUser` + `authSession.selectedTenantId`
-- Server Actions para mutações
-- SSE e polling seguro de 5s para telas operacionais sem depender de F5
-- Vitest para testes unitários
+Em uma operação de restaurante, o pedido não é apenas uma anotação: ele muda o trabalho de quem atende, de quem produz, de quem fecha a conta e de quem repõe insumos. Quando cada etapa vive em uma planilha, papel ou conversa paralela, surgem atrasos, retrabalho e pouca visibilidade sobre o que realmente está acontecendo.
 
-## Decisões importantes
+O **Restaurante Comandas** foi construído para centralizar esse ciclo. A aplicação transforma o pedido em um estado compartilhado entre os papéis operacionais e mantém o estoque conectado ao que foi configurado no cardápio.
 
-- Neon DB fica como fundação do projeto.
-- Neon Auth legado foi removido; auth agora é própria e tenant-aware.
-- Prisma tooling foi removido; Drizzle é a fonte de verdade.
-- `next-pwa` foi removido para eliminar a cadeia vulnerável Workbox/serialize-javascript.
-- Caixa v1 registra pagamento externo; o app não processa gateway, PIX ou cartão.
-- Login lembra somente o e-mail no aparelho; senha fica com o gerenciador do navegador.
-- Telas de pedidos/mesa/caixa devem atualizar sem limpar carrinho, drawer, modal ou formulários.
+## Como o fluxo funciona
 
-## Operação
+| Papel | O que faz no sistema | Resultado para a operação |
+| --- | --- | --- |
+| Garçom | Abre atendimentos por mesa, monta pedidos e acompanha entregas. | Menos perda de contexto entre salão e cozinha. |
+| Cozinha | Move os pedidos por etapas de preparo. | Priorização clara do que precisa ser produzido. |
+| Caixa | Visualiza contas por atendimento e registra pagamentos. | Cobrança baseada no estado real da operação. |
+| Administração | Gerencia cardápio, mesas, usuários, relatórios e estoque. | Visão centralizada para decisões diárias. |
 
-Veja `docs/OPERATIONS.md` para a regra mobile/no-F5, login lembrado com e-mail
-somente, monitoramento de pedidos por mesa e fluxo de caixa.
+As telas operacionais recebem eventos em tempo real e usam atualização de apoio sem depender de recarregar a página. A intenção é simples: uma mudança de estado precisa chegar a quem trabalha com ela, sem apagar o carrinho, um formulário ou o contexto que a pessoa está usando.
 
-## Comandos
+## Estoque conectado ao cardápio
+
+O estoque não foi tratado como uma tela isolada. Cada produto pode ter uma **ficha técnica** que associa insumos e quantidades ao item do cardápio. Quando o controle de estoque está configurado para o produto, o fluxo de pedido usa essa configuração para refletir o consumo de insumos.
+
+Além disso, a operação conta com:
+
+- cadastro de insumos com unidade de compra e unidade base;
+- estoque atual, mínimo e ideal;
+- entradas, perdas e contagens manuais;
+- histórico de movimentações;
+- bloqueio de consumo quando não há saldo suficiente;
+- custo médio ponderado para entradas com custo informado.
+
+### Próxima evolução: lista de compras informativa
+
+O modelo já mantém o estoque atual, mínimo e ideal. A próxima evolução prevista é gerar uma lista de compras informativa: quais insumos precisam ser repostos e quanto falta para voltar ao nível ideal. Ela apoiará a decisão de compra; não será uma ordem de compra nem alterará o estoque automaticamente.
+
+## Pensado como produto, não só como CRUD
+
+### UX/UI operacional
+
+- Interface responsiva, com navegação inferior para dispositivos móveis e layout adaptável para desktop.
+- Ações principais dimensionadas para toque, com estados de carregamento, erro e vazio.
+- Foco em contexto: listas, filtros, formulários e detalhes permanecem estáveis nas atualizações.
+- Componentes semânticos, rótulos acessíveis e estados de foco visível para navegação por teclado.
+
+### Regras que protegem a operação
+
+- Isolamento multi-tenant: cada operação acessa apenas seus próprios dados.
+- Sessões HTTP-only e autenticação gerenciada pelo Neon Auth.
+- Movimentações de estoque idempotentes e protegidas por transações.
+- Baixa de estoque validada antes de confirmar a operação.
+
+## Arquitetura e tecnologias
+
+| Camada | Escolhas |
+| --- | --- |
+| Aplicação web | Next.js 16 com App Router, React 19 e TypeScript |
+| Dados | Neon Postgres e Drizzle ORM |
+| Autenticação | Neon Auth com cookies de sessão HTTP-only |
+| Mutação de dados | Server Actions e transações PostgreSQL |
+| Atualização operacional | Server-Sent Events (SSE) e polling de apoio |
+| Interface | Tailwind CSS, componentes reutilizáveis e ícones Lucide |
+| Qualidade | Vitest, testes de integração e Playwright para fluxos E2E |
+
+## Qualidade e estratégia de testes
+
+O projeto possui testes unitários, de integração e E2E. A preocupação não é apenas testar telas: regras de negócio também são cobertas, especialmente as que têm impacto financeiro ou de estoque.
+
+Exemplos de cenários protegidos por testes:
+
+- consumo e devolução de insumos no ciclo do pedido;
+- idempotência de movimentações manuais de estoque;
+- isolamento de dados por tenant;
+- regras de pagamento e conta por atendimento;
+- comportamento de telas de garçom, cozinha, caixa e administração;
+- autenticação e sessão.
+
+## Executar localmente
 
 ```bash
 npm install
 npm run dev
+```
+
+Em outro terminal, execute a suíte de testes e o build de produção:
+
+```bash
 npm test -- --maxWorkers=1
+npm run test:integration
+npm run test:e2e
 npm run build
-npm audit
 ```
 
 ## Seed local
@@ -46,5 +99,9 @@ npm audit
 npm run db:seed
 ```
 
-O seed cria um tenant local `Restaurante Dev`, usuários de teste e dados iniciais de mesas/cardápio.
+O seed cria um ambiente local inicial com restaurante, usuários, mesas e itens de cardápio para explorar os fluxos.
 
+## Escopo atual
+
+- O caixa registra pagamentos operacionais; não processa gateway, PIX ou cartão.
+- A lista de compras informativa é uma evolução planejada e ainda não está implementada.
