@@ -132,4 +132,20 @@ describe('auth session', () => {
       selectedTenantId: 'tenant-1',
     })
   })
+
+  it('resolves a newly signed-up user from the local session when Neon Auth has not created a session yet', async () => {
+    state.neonAuth.getSession.mockResolvedValueOnce({ data: { user: null }, error: null })
+    state.cookieGet.mockReturnValue({ value: 'local-session-token' })
+    state.selectResults = [
+      [{ id: 'user-1', email: 'ana@example.com', nome: 'Ana' }],
+      [{ usuarioId: 'user-1', selectedTenantId: 'tenant-1' }],
+    ]
+
+    await expect(getCurrentSession()).resolves.toEqual({
+      usuarioId: 'user-1',
+      email: 'ana@example.com',
+      nome: 'Ana',
+      selectedTenantId: 'tenant-1',
+    })
+  })
 })

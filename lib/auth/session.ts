@@ -66,17 +66,32 @@ export async function getCurrentSession(): Promise<{
   selectedTenantId: string | null
 } | null> {
   let user: { id: string; email: string; nome: string } | undefined
+  const store = await cookieStore()
+  const token = store.get(SESSION_COOKIE)?.value
+
   if (isNeonAuthEnabled()) {
     const neonSession = await (await getNeonAuth()).getSession()
     const authUserId = neonSession.data?.user?.id
-    if (!authUserId) return null
-    ;[user] = await db
-      .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
-      .from(usuario)
-      .where(eq(usuario.authUserId, authUserId))
+    if (authUserId) {
+      ;[user] = await db
+        .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
+        .from(usuario)
+        .where(eq(usuario.authUserId, authUserId))
+    }
+
+    if (!user && token) {
+      ;[user] = await db
+        .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
+        .from(usuario)
+        .innerJoin(authSession, eq(authSession.usuarioId, usuario.id))
+        .where(
+          and(
+            eq(authSession.tokenHash, hashToken(token)),
+            gt(authSession.expiresAt, new Date())
+          )
+        )
+    }
   } else {
-    const store = await cookieStore()
-    const token = store.get(SESSION_COOKIE)?.value
     if (!token) return null
     ;[user] = await db
       .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
@@ -92,8 +107,6 @@ export async function getCurrentSession(): Promise<{
 
   if (!user) return null
 
-  const store = await cookieStore()
-  const token = store.get(SESSION_COOKIE)?.value
   if (!token) {
     const selectedTenantId = await getSingleActiveTenantId(user.id)
     return {
