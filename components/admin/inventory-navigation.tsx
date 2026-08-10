@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 const links = [
-  { href: '/admin/estoque/insumos', label: 'Insumos' },
-  { href: '/admin/estoque/saldos', label: 'Estoque' },
+  { href: '/admin/estoque', label: 'Estoque' },
+  { href: '/admin/estoque/lista-de-compras', label: 'Lista de compras' },
   { href: '/admin/estoque/ficha-tecnica', label: 'Ficha técnica' },
 ]
 

@@ -27,6 +27,24 @@ describe('inventory and waiter menu workflows', () => {
     expect(client).toContain('onClick={() => selectProduct(product.id)}')
   })
 
+  it('consolidates navigation around stock, recipes, and the shopping list', () => {
+    expect(source('components/admin/inventory-navigation.tsx')).toContain(
+      "{ href: '/admin/estoque/lista-de-compras', label: 'Lista de compras' }",
+    )
+    expect(source('components/admin/inventory-navigation.tsx')).not.toContain("label: 'Insumos'")
+  })
+
+  it('loads and presents a separate shopping list view with idempotent confirmation', () => {
+    const data = source('app/admin/estoque/data.ts')
+    const client = source('app/admin/estoque/client.tsx')
+
+    expect(data).toContain('shoppingListItems')
+    expect(client).toContain("type InventoryView = 'estoque' | 'ficha' | 'lista'")
+    expect(client).toContain('confirmarItemListaCompra')
+    expect(client).toContain('adicionarItemManualListaCompra')
+    expect(client).toContain('crypto.randomUUID()')
+  })
+
   it('keeps the waiter menu alphabetical and image-free without changing stock fields', () => {
     const page = source('app/garcom/mesa/[id]/page.tsx')
     const grid = source('components/garcom/menu-grid.tsx')

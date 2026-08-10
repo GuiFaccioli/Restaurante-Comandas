@@ -1,12 +1,5 @@
-import { requireAccess } from '@/lib/auth/access'
-import { EstoqueAdminClient } from '../client'
-import { loadInventoryData } from '../data'
-
-export const dynamic = 'force-dynamic'
+import { redirect } from 'next/navigation'
 
 export default async function InsumosAdminPage() {
-  const { tenantId } = await requireAccess('admin')
-  const data = await loadInventoryData(tenantId)
-
-  return <EstoqueAdminClient {...data} initialProdutoId="" view="insumos" />
+  redirect('/admin/estoque')
 }
