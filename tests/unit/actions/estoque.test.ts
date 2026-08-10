@@ -46,6 +46,7 @@ import {
 } from '@/lib/actions/estoque'
 import { applyStockMovement } from '@/lib/stock/service'
 import {
+  addManualShoppingListItem,
   completeShoppingListItem,
   reconcileShoppingListInPostgresTransaction,
 } from '@/lib/shopping-list/service'
@@ -74,6 +75,27 @@ function findSqlIdentifier(value: unknown, prefix: string): string | undefined {
   }
   return visit(value)
 }
+
+describe('manual shopping-list item idempotency', () => {
+  it('persists the validated UUID key with the manual item', async () => {
+    const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
+    const values = vi.fn().mockReturnValue({ onConflictDoNothing })
+    ;(db.insert as any).mockReturnValue({ values })
+
+    await addManualShoppingListItem({
+      nome: '  Guardanapos ', quantidade: '2', unidade: 'kg',
+      idempotencyKey: '11111111-1111-4111-8111-111111111111',
+    })
+
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId: 'tenant-1', kind: 'manual', nome: 'Guardanapos',
+      chaveIdempotencia: '11111111-1111-4111-8111-111111111111',
+    }))
+    expect(onConflictDoNothing).toHaveBeenCalledWith(expect.objectContaining({
+      target: expect.arrayContaining([expect.anything(), expect.anything()]),
+    }))
+  })
+})
 
 describe('server action boundary', () => {
   it('does not export order helpers that accept a frontend-supplied tenant', async () => {

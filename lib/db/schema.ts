@@ -215,6 +215,7 @@ export const shoppingListItem = pgTable(
       precision: 12,
       scale: 3,
     }).notNull(),
+    chaveIdempotencia: text('chave_idempotencia'),
     criadoEm: timestamp('criado_em', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -231,6 +232,9 @@ export const shoppingListItem = pgTable(
     uniqueIndex('shopping_list_active_automatic_item_unique')
       .on(table.tenantId, table.insumoId)
       .where(sql`${table.kind} = 'automatic'`),
+    uniqueIndex('shopping_list_tenant_idempotency_key_unique')
+      .on(table.tenantId, table.chaveIdempotencia)
+      .where(sql`${table.chaveIdempotencia} IS NOT NULL`),
     foreignKey({
       columns: [table.tenantId, table.insumoId],
       foreignColumns: [insumo.tenantId, insumo.id],

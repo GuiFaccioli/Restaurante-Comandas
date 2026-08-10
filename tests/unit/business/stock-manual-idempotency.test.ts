@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   ajustarEstoqueAtual: vi.fn(),
   registrarPerdaEstoque: vi.fn(),
   realizarContagemEstoque: vi.fn(),
+  adicionarItemManualListaCompra: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -25,6 +26,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('@/lib/actions/estoque', () => ({
+  adicionarItemManualListaCompra: state.adicionarItemManualListaCompra,
   ajustarEstoqueAtual: state.ajustarEstoqueAtual,
   criarInsumo: vi.fn(),
   editarInsumo: vi.fn(),
@@ -67,7 +69,19 @@ function renderStock(insumos = [ingredient]) {
     produtos: [],
     fichas: [],
     initialProdutoId: '',
+    shoppingListItems: [],
     view: 'estoque',
+  }))
+}
+
+function renderShoppingList() {
+  return render(createElement(EstoqueAdminClient, {
+    insumos: [],
+    produtos: [],
+    fichas: [],
+    initialProdutoId: '',
+    shoppingListItems: [],
+    view: 'lista',
   }))
 }
 
@@ -81,6 +95,31 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+})
+
+describe('manual shopping-list creation idempotency in the UI', () => {
+  it('reuses a UUID key when the same failed manual item is retried', async () => {
+    state.adicionarItemManualListaCompra
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined)
+
+    renderShoppingList()
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Guardanapos' } })
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '2' } })
+    const submit = screen.getByRole('button', { name: 'Adicionar item' })
+
+    fireEvent.click(submit)
+    await waitFor(() => expect(state.adicionarItemManualListaCompra).toHaveBeenCalledTimes(1))
+    fireEvent.click(submit)
+    await waitFor(() => expect(state.adicionarItemManualListaCompra).toHaveBeenCalledTimes(2))
+
+    expect(state.adicionarItemManualListaCompra).toHaveBeenNthCalledWith(1, {
+      nome: 'Guardanapos', quantidade: '2', unidade: 'kg', idempotencyKey: firstKey,
+    })
+    expect(state.adicionarItemManualListaCompra).toHaveBeenNthCalledWith(2, {
+      nome: 'Guardanapos', quantidade: '2', unidade: 'kg', idempotencyKey: firstKey,
+    })
+  })
 })
 
 describe('manual stock operation idempotency in the UI', () => {

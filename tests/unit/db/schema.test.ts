@@ -61,7 +61,7 @@ describe('Drizzle schema', () => {
   describe('stock tables', () => {
     it('declares tenant-scoped shopping-list items', () => {
       expect(Object.keys(shoppingListItem)).toEqual(expect.arrayContaining([
-        'id', 'tenantId', 'kind', 'insumoId', 'nome', 'unidade', 'quantidadeSugerida', 'criadoEm',
+        'id', 'tenantId', 'kind', 'insumoId', 'nome', 'unidade', 'quantidadeSugerida', 'chaveIdempotencia', 'criadoEm',
       ]))
     })
 

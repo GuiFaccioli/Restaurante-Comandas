@@ -22,6 +22,7 @@ export type AddManualShoppingListItemInput = {
   nome: string
   quantidade: string
   unidade: string
+  idempotencyKey: string
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -88,6 +89,7 @@ export async function addManualShoppingListItem(
   input: AddManualShoppingListItemInput,
 ): Promise<void> {
   const { tenantId } = await requireAccess('admin')
+  const key = validateIdempotencyKey(input.idempotencyKey)
   const nome = input.nome.trim()
   if (!nome) throw new Error('Informe o nome do item')
   if (!UNIDADES_COMPRA.includes(input.unidade as typeof UNIDADES_COMPRA[number])) {
@@ -98,6 +100,9 @@ export async function addManualShoppingListItem(
     id: crypto.randomUUID(), tenantId, kind: 'manual', insumoId: null, nome,
     unidade: input.unidade,
     quantidadeSugerida: parsePositiveDecimal(input.quantidade, 'Quantidade').toFixed(3),
+    chaveIdempotencia: key,
+  }).onConflictDoNothing({
+    target: [shoppingListItem.tenantId, shoppingListItem.chaveIdempotencia],
   })
 }
 

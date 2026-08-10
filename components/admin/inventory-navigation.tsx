@@ -17,7 +17,7 @@ export function InventoryNavigation() {
   return (
     <nav aria-label="Seções do estoque" className="flex flex-wrap gap-2 border-b pb-4">
       {links.map((link) => {
-        const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
+        const active = pathname === link.href
 
         return (
           <Link

@@ -145,6 +145,7 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const intentsRef = useRef<Record<string, ManualOperationIntent>>({})
+  const manualItemIntentRef = useRef<ManualOperationIntent | null>(null)
 
   function openConfirmation(item: ShoppingListItem) {
     if (busy) return
@@ -181,10 +182,14 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
 
   async function addManualItem() {
     if (busy) return
+    const fingerprint = JSON.stringify([manualItem.nome, manualItem.quantidade, manualItem.unidade])
+    const intent = intentForFingerprint(manualItemIntentRef.current, fingerprint)
+    manualItemIntentRef.current = intent
     setBusy(true)
     setActionError('')
     try {
-      await adicionarItemManualListaCompra(manualItem)
+      await adicionarItemManualListaCompra({ ...manualItem, idempotencyKey: intent.key })
+      manualItemIntentRef.current = null
       setManualItem({ nome: '', quantidade: '', unidade: 'kg' })
       router.refresh()
       toast.success('Item adicionado ? lista.')
