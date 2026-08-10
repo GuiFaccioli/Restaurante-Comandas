@@ -2,13 +2,20 @@ export type ReceitaDisponibilidade = { produtoId: string; insumoId: string; quan
 export type SaldoInsumo = { id: string; estoqueAtual: string }
 
 export type SaldoDisponibilidade = SaldoInsumo & { nome: string }
+export type ProdutoControleEstoque = { id: string; controleEstoque: boolean }
 
 export function getProductAvailability(
   produtoId: string,
   cartItems: Array<{ produtoId: string; quantidade: number }>,
   recipes: ReceitaDisponibilidade[],
   balances: SaldoDisponibilidade[],
+  productStockControls: ProdutoControleEstoque[] = [],
 ): { maxAdditionalQuantity: number | null; limitingItemName: string | null } {
+  const stockControlByProduct = new Map(productStockControls.map((product) => [product.id, product.controleEstoque]))
+  if (stockControlByProduct.get(produtoId) === false) {
+    return { maxAdditionalQuantity: null, limitingItemName: null }
+  }
+
   const productRecipes = recipes.filter((recipe) => recipe.produtoId === produtoId)
   if (productRecipes.length === 0) {
     return { maxAdditionalQuantity: null, limitingItemName: null }
@@ -16,6 +23,7 @@ export function getProductAvailability(
 
   const demandByItem = new Map<string, number>()
   for (const cartItem of cartItems) {
+    if (stockControlByProduct.get(cartItem.produtoId) === false) continue
     for (const recipe of recipes) {
       if (recipe.produtoId !== cartItem.produtoId) continue
       demandByItem.set(

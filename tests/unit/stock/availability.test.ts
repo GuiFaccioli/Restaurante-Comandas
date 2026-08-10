@@ -25,6 +25,13 @@ describe('getProductAvailability', () => {
     })
   })
 
+  it('does not cap a product with a recipe when stock control is disabled', () => {
+    expect(getProductAvailability('prato', [], recipes, balances, [{ id: 'prato', controleEstoque: false }])).toEqual({
+      maxAdditionalQuantity: null,
+      limitingItemName: null,
+    })
+  })
+
   it('returns uncontrolled availability when the product has no recipe', () => {
     expect(getProductAvailability('produto-sem-receita', [], recipes, balances)).toEqual({
       maxAdditionalQuantity: null,

@@ -11,7 +11,7 @@ import type { TableOrder } from '@/lib/orders/queries'
 import { useCart } from '@/lib/store/cart'
 import { MesaAtendimentoGate } from '@/components/garcom/mesa-atendimento-gate'
 import type { AtendimentoResumo } from '@/lib/attendance/queries'
-import type { ReceitaDisponibilidade, SaldoDisponibilidade } from '@/lib/stock/availability'
+import type { ReceitaDisponibilidade, SaldoDisponibilidade, ProdutoControleEstoque } from '@/lib/stock/availability'
 
 type Produto = {
   id: string
@@ -21,6 +21,7 @@ type Produto = {
   imagemUrl: string | null
   disponivel: boolean
   estoqueInsuficiente: boolean
+  controleEstoque: boolean
 }
 
 type CategoriaComProdutos = {
@@ -45,6 +46,7 @@ export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attenda
   const activeMesaId = useCart((state) => state.mesaId)
   const selectMesa = useCart((state) => state.selectMesa)
   const cartReady = activeMesaId === mesaId
+  const productStockControls: ProdutoControleEstoque[] = categorias.flatMap((categoria) => categoria.produtos.map(({ id, controleEstoque }) => ({ id, controleEstoque })))
 
   useLayoutEffect(() => {
     selectMesa(mesaId)
@@ -78,7 +80,7 @@ export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attenda
           <h2 id="garcom-cardapio-heading" className="text-lg font-bold text-[var(--ink)]">Cardápio</h2>
           <p className="text-sm text-[var(--muted)]">Escolha os itens para adicionar à comanda.</p>
         </div>
-        <MenuGrid categorias={categorias} recipes={recipes} balances={balances} />
+        <MenuGrid categorias={categorias} recipes={recipes} balances={balances} productStockControls={productStockControls} />
       </section>}
       {cartReady && atendimentoId && (
         <>
@@ -91,6 +93,7 @@ export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attenda
             atendimentoId={atendimentoId}
             recipes={recipes}
             balances={balances}
+            productStockControls={productStockControls}
           />
         </>
       )}

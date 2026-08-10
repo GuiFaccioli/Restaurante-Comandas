@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { confirmarPedido } from '@/lib/actions/pedidos'
 import { useCart } from '@/lib/store/cart'
-import { getProductAvailability, type ReceitaDisponibilidade, type SaldoDisponibilidade } from '@/lib/stock/availability'
+import { getProductAvailability, type ReceitaDisponibilidade, type SaldoDisponibilidade, type ProdutoControleEstoque } from '@/lib/stock/availability'
 
 type Props = {
   open: boolean
@@ -19,9 +19,10 @@ type Props = {
   atendimentoId: string
   recipes: ReceitaDisponibilidade[]
   balances: SaldoDisponibilidade[]
+  productStockControls: ProdutoControleEstoque[]
 }
 
-export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, recipes, balances }: Props) {
+export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, recipes, balances, productStockControls }: Props) {
   const { items, total, removeItem, addItem, decrementItem, clearCart, setObservacao } = useCart()
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +68,7 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, r
               item={item}
               recipes={recipes}
               balances={balances}
+              productStockControls={productStockControls}
               editingObservationItem={editingObservationItem}
               setEditingObservationItem={setEditingObservationItem}
               removeItem={removeItem}
@@ -99,6 +101,7 @@ type CartItemRowProps = {
   item: ReturnType<typeof useCart.getState>['items'][number]
   recipes: ReceitaDisponibilidade[]
   balances: SaldoDisponibilidade[]
+  productStockControls: ProdutoControleEstoque[]
   editingObservationItem: string | null
   setEditingObservationItem: Dispatch<SetStateAction<string | null>>
   removeItem: ReturnType<typeof useCart.getState>['removeItem']
@@ -107,9 +110,9 @@ type CartItemRowProps = {
   setObservacao: ReturnType<typeof useCart.getState>['setObservacao']
 }
 
-function CartItemRow({ item, recipes, balances, editingObservationItem, setEditingObservationItem, removeItem, addItem, decrementItem, setObservacao }: CartItemRowProps) {
+function CartItemRow({ item, recipes, balances, productStockControls, editingObservationItem, setEditingObservationItem, removeItem, addItem, decrementItem, setObservacao }: CartItemRowProps) {
   const cartItems = useCart((state) => state.items)
-  const availability = getProductAvailability(item.produtoId, cartItems, recipes, balances)
+  const availability = getProductAvailability(item.produtoId, cartItems, recipes, balances, productStockControls)
   const atStockCap = availability.maxAdditionalQuantity === 0
   const maxQuantity = availability.maxAdditionalQuantity === null
     ? undefined

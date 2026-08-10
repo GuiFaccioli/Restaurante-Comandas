@@ -4,7 +4,7 @@ import { Minus, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useCart } from '@/lib/store/cart'
-import { getProductAvailability, type ReceitaDisponibilidade, type SaldoDisponibilidade } from '@/lib/stock/availability'
+import { getProductAvailability, type ReceitaDisponibilidade, type SaldoDisponibilidade, type ProdutoControleEstoque } from '@/lib/stock/availability'
 import { toast } from 'sonner'
 
 type Produto = {
@@ -14,19 +14,21 @@ type Produto = {
   preco: string
   disponivel: boolean
   estoqueInsuficiente: boolean
+  controleEstoque: boolean
 }
 
 type Props = {
   produto: Produto
   recipes: ReceitaDisponibilidade[]
   balances: SaldoDisponibilidade[]
+  productStockControls: ProdutoControleEstoque[]
 }
 
-export function ItemCard({ produto, recipes, balances }: Props) {
+export function ItemCard({ produto, recipes, balances, productStockControls }: Props) {
   const { items, addItem, decrementItem } = useCart()
   const cartItem = items.find((item) => item.produtoId === produto.id)
   const preco = parseFloat(produto.preco)
-  const availability = getProductAvailability(produto.id, items, recipes, balances)
+  const availability = getProductAvailability(produto.id, items, recipes, balances, productStockControls)
   const atStockCap = availability.maxAdditionalQuantity === 0
   const maxQuantity = availability.maxAdditionalQuantity === null
     ? undefined
