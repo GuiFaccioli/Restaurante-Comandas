@@ -11,6 +11,7 @@ import type { TableOrder } from '@/lib/orders/queries'
 import { useCart } from '@/lib/store/cart'
 import { MesaAtendimentoGate } from '@/components/garcom/mesa-atendimento-gate'
 import type { AtendimentoResumo } from '@/lib/attendance/queries'
+import type { ReceitaDisponibilidade, SaldoDisponibilidade } from '@/lib/stock/availability'
 
 type Produto = {
   id: string
@@ -34,10 +35,12 @@ type Props = {
   atendimentoId?: string
   attendances?: AtendimentoResumo[]
   categorias: CategoriaComProdutos[]
+  recipes?: ReceitaDisponibilidade[]
+  balances?: SaldoDisponibilidade[]
   initialPedidos: TableOrder[]
 }
 
-export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attendances = [], categorias, initialPedidos }: Props) {
+export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attendances = [], categorias, recipes = [], balances = [], initialPedidos }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const activeMesaId = useCart((state) => state.mesaId)
   const selectMesa = useCart((state) => state.selectMesa)
@@ -75,7 +78,7 @@ export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attenda
           <h2 id="garcom-cardapio-heading" className="text-lg font-bold text-[var(--ink)]">Cardápio</h2>
           <p className="text-sm text-[var(--muted)]">Escolha os itens para adicionar à comanda.</p>
         </div>
-        <MenuGrid categorias={categorias} />
+        <MenuGrid categorias={categorias} recipes={recipes} balances={balances} />
       </section>}
       {cartReady && atendimentoId && (
         <>
@@ -86,6 +89,8 @@ export function MesaPageClient({ mesaNumero, mesaId, atendimentoId = '', attenda
             mesaId={mesaId}
             mesaNumero={mesaNumero}
             atendimentoId={atendimentoId}
+            recipes={recipes}
+            balances={balances}
           />
         </>
       )}
