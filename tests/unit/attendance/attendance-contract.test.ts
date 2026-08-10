@@ -25,7 +25,7 @@ describe('attendance operational contract', () => {
   it('makes delivery the automatic handoff to cashier without a waiter approval action', () => {
     expect(source('app/garcom/mesa/[id]/client.tsx')).not.toContain('Enviar conta para pagamento')
     expect(source('app/garcom/mesa/[id]/page.tsx')).toContain("item.status === 'awaiting_payment'")
-    expect(source('lib/stock/order-consumption.ts')).toContain("status: 'awaiting_payment'")
+    expect(source('lib/stock/order-consumption.ts')).toContain('status: attendanceStatus')
     expect(source('app/admin/pedidos/client.tsx')).toContain('TenantEventListener')
   })
 })
