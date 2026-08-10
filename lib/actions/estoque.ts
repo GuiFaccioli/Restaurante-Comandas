@@ -7,6 +7,12 @@ import { requireAccess } from '@/lib/auth/access'
 import { fatorCompraParaBase, normalizarQuantidadeBase, parsePositiveDecimal, type UnidadeBase, type UnidadeCompra } from '@/lib/stock/units'
 import { applyStockMovement } from '@/lib/stock/service'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
+import {
+  addManualShoppingListItem,
+  completeShoppingListItem,
+  type AddManualShoppingListItemInput,
+  type CompleteShoppingListItemInput,
+} from '@/lib/shopping-list/service'
 
 export type CriarInsumoInput = {
   nome: string
@@ -28,6 +34,14 @@ export type EditarInsumoInput = {
   estoqueMinimo?: string
 }
 export type FichaTecnicaInput = { insumoId: string; quantidade: string }
+
+export async function adicionarItemManualListaCompra(input: AddManualShoppingListItemInput): Promise<void> {
+  await addManualShoppingListItem(input)
+}
+
+export async function confirmarItemListaCompra(input: CompleteShoppingListItemInput): Promise<void> {
+  await completeShoppingListItem(input)
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
