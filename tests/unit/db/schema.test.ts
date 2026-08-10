@@ -19,6 +19,7 @@ import {
   insumo,
   fichaTecnicaItem,
   movimentoEstoque,
+  shoppingListItem,
 } from '@/lib/db/schema'
 
 describe('Drizzle schema', () => {
@@ -58,6 +59,12 @@ describe('Drizzle schema', () => {
   })
 
   describe('stock tables', () => {
+    it('declares tenant-scoped shopping-list items', () => {
+      expect(Object.keys(shoppingListItem)).toEqual(expect.arrayContaining([
+        'id', 'tenantId', 'kind', 'insumoId', 'nome', 'unidade', 'quantidadeSugerida', 'criadoEm',
+      ]))
+    })
+
     it('stores tenant-scoped stock items with normalized units and thresholds', () => {
       expect(Object.keys(insumo)).toEqual(expect.arrayContaining([
         'id', 'tenantId', 'nome', 'unidadeBase', 'unidadeCompra',

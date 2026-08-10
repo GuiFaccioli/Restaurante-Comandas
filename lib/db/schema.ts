@@ -200,6 +200,45 @@ export const insumo = pgTable(
   ],
 )
 
+export const shoppingListItem = pgTable(
+  'shopping_list_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    insumoId: uuid('insumo_id'),
+    nome: text('nome').notNull(),
+    unidade: text('unidade').notNull(),
+    quantidadeSugerida: numeric('quantidade_sugerida', {
+      precision: 12,
+      scale: 3,
+    }).notNull(),
+    criadoEm: timestamp('criado_em', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'shopping_list_item_kind_check',
+      sql`${table.kind} IN ('automatic', 'manual')`,
+    ),
+    check(
+      'shopping_list_item_kind_insumo_check',
+      sql`(${table.kind} = 'automatic' AND ${table.insumoId} IS NOT NULL) OR (${table.kind} = 'manual' AND ${table.insumoId} IS NULL)`,
+    ),
+    uniqueIndex('shopping_list_active_automatic_item_unique')
+      .on(table.tenantId, table.insumoId)
+      .where(sql`${table.kind} = 'automatic'`),
+    foreignKey({
+      columns: [table.tenantId, table.insumoId],
+      foreignColumns: [insumo.tenantId, insumo.id],
+      name: 'shopping_list_item_tenant_insumo_fkey',
+    }),
+  ],
+)
+
 export const atendimento = pgTable(
   'atendimento',
   {
