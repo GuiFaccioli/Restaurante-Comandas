@@ -6,6 +6,15 @@ export type UnidadeCompra = (typeof UNIDADES_COMPRA)[number]
 const UNIT_FACTORS: Record<UnidadeCompra, number> = { g: 1, kg: 1000, ml: 1, l: 1000, unidade: 1 }
 const UNIT_FAMILIES: Record<UnidadeCompra, 'peso' | 'volume' | 'contagem'> = { g: 'peso', kg: 'peso', ml: 'volume', l: 'volume', unidade: 'contagem' }
 
+export function unidadesCompativeis(first: string, second: string): boolean {
+  if (
+    !UNIDADES_COMPRA.includes(first as UnidadeCompra)
+    || !UNIDADES_COMPRA.includes(second as UnidadeCompra)
+  ) return false
+  return UNIT_FAMILIES[first as UnidadeCompra]
+    === UNIT_FAMILIES[second as UnidadeCompra]
+}
+
 export function movementUnitsFor(unidadeBase: string): UnidadeCompra[] {
   if (unidadeBase === 'g') return ['g', 'kg']
   if (unidadeBase === 'ml') return ['ml', 'l']
@@ -21,7 +30,7 @@ function parseDecimal(value: string | undefined, label: string, allowZero = true
 
 function assertUnits(base: string, purchase: string): asserts base is UnidadeBase {
   if (!UNIDADES_BASE.includes(base as UnidadeBase) || !UNIDADES_COMPRA.includes(purchase as UnidadeCompra)) throw new Error('Unidade de estoque inválida')
-  if (UNIT_FAMILIES[base as UnidadeCompra] !== UNIT_FAMILIES[purchase as UnidadeCompra]) throw new Error('As unidades de compra e estoque precisam ser compatíveis')
+  if (!unidadesCompativeis(base, purchase)) throw new Error('As unidades de compra e estoque precisam ser compatíveis')
 }
 
 export function normalizarQuantidadeBase(quantidade: string, unidadeCompra: string, unidadeBase: string): string {

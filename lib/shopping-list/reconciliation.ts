@@ -6,8 +6,9 @@ import {
   stockQuantityToMillis,
 } from '@/lib/stock/quantity'
 import type { PostgresStockTransaction } from '@/lib/stock/service'
+import { unidadesCompativeis } from '@/lib/stock/units'
 
-type AutomaticShoppingListItem = { id: string } | undefined
+type AutomaticShoppingListItem = { id: string; unidade: string } | undefined
 
 export async function acquireShoppingListReconciliationLock(
   tx: PostgresStockTransaction,
@@ -27,7 +28,10 @@ export async function lockAutomaticShoppingListItemInPostgresTransaction(
   insumoId: string,
 ): Promise<AutomaticShoppingListItem> {
   await acquireShoppingListReconciliationLock(tx, tenantId, insumoId)
-  const [existing] = await tx.select({ id: shoppingListItem.id })
+  const [existing] = await tx.select({
+    id: shoppingListItem.id,
+    unidade: shoppingListItem.unidade,
+  })
     .from(shoppingListItem)
     .where(and(
       eq(shoppingListItem.tenantId, tenantId),
@@ -92,7 +96,16 @@ export async function reconcileShoppingListInPostgresTransaction(
     }
     return
   }
-  if (existing) return
+  if (existing && unidadesCompativeis(existing.unidade, item.unidadeCompra)) {
+    return
+  }
+  if (existing) {
+    await tx.delete(shoppingListItem).where(and(
+      eq(shoppingListItem.id, existing.id),
+      eq(shoppingListItem.tenantId, tenantId),
+    ))
+    existing = undefined
+  }
 
   const suggestedMillis = Math.round(
     neededMillis * 1_000 / factorMillis,

@@ -736,7 +736,7 @@ describe('shopping-list operations', () => {
 
   function reconciliationSelect(
     item: Record<string, string>,
-    existing: { id: string } | undefined,
+    existing: { id: string; unidade?: string } | undefined,
   ) {
     return vi.fn(() => ({
       from: vi.fn((table) => ({
@@ -779,7 +779,7 @@ describe('shopping-list operations', () => {
       select: reconciliationSelect({
         id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
         estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
-      }, { id: 'row-1' }),
+      }, { id: 'row-1', unidade: 'kg' }),
       execute: vi.fn(),
       insert,
     }
@@ -789,10 +789,53 @@ describe('shopping-list operations', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
+  it('keeps a frozen automatic suggestion when the edited unit family stays compatible', async () => {
+    const insert = vi.fn()
+    const deleteRow = vi.fn()
+    const tx = {
+      select: reconciliationSelect({
+        id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+        estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+      }, { id: 'row-1', unidade: 'g' }),
+      execute: vi.fn(),
+      insert,
+      delete: deleteRow,
+    }
+
+    await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
+
+    expect(deleteRow).not.toHaveBeenCalled()
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('replaces a frozen automatic suggestion when the edited unit family changes', async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined)
+    const insertValues = vi.fn().mockResolvedValue(undefined)
+    const tx = {
+      select: reconciliationSelect({
+        id: 'insumo-1', nome: 'Óleo', unidadeCompra: 'l', fatorCompraParaBase: '1000.000',
+        estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+      }, { id: 'row-1', unidade: 'kg' }),
+      execute: vi.fn(),
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    }
+
+    await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
+
+    expect(deleteWhere).toHaveBeenCalledTimes(1)
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'automatic',
+      insumoId: 'insumo-1',
+      unidade: 'l',
+      quantidadeSugerida: '9.000',
+    }))
+  })
+
   it('acquires a stable reconciliation lock before the automatic suggestion and ingredient', async () => {
     const lockOrder: string[] = []
     const automaticRowQuery = {
-      limit: vi.fn(async () => [{ id: 'row-1' }]),
+      limit: vi.fn(async () => [{ id: 'row-1', unidade: 'kg' }]),
     }
     const tx = {
       select: vi.fn(() => ({
@@ -834,7 +877,7 @@ describe('shopping-list operations', () => {
       select: reconciliationSelect({
         id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
         estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
-      }, { id: 'row-1' }),
+      }, { id: 'row-1', unidade: 'kg' }),
       execute: vi.fn(),
       delete: vi.fn(() => ({ where: deleteWhere })),
       insert: vi.fn(),
