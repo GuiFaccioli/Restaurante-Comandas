@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { cancelarPedido, confirmarEntrega } from '@/lib/actions/pedidos'
@@ -29,6 +30,7 @@ function formatOrderTime(value: string) {
 }
 
 export function TableOrdersPanel({ mesaId, atendimentoId, initialPedidos }: Props) {
+  const router = useRouter()
   const [pedidos, setPedidos] = useState(initialPedidos)
   const [expandedIds, setExpandedIds] = useState<string[]>(
     initialPedidos[0]?.id ? [initialPedidos[0].id] : []
@@ -107,6 +109,7 @@ export function TableOrdersPanel({ mesaId, atendimentoId, initialPedidos }: Prop
       try {
         try {
           await cancelarPedido(pedidoId)
+          router.refresh()
         } catch {
           setFeedback({ type: 'error', message: 'Não foi possível cancelar.' })
           return

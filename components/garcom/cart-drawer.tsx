@@ -2,6 +2,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
@@ -33,6 +34,7 @@ export function getOrderConfirmationErrorMessage(error: unknown): string {
 }
 
 export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, recipes, balances, productStockControls }: Props) {
+  const router = useRouter()
   const { items, total, removeItem, addItem, decrementItem, clearCart, setObservacao } = useCart()
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +63,7 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, r
       setSending(false)
     }
 
+    router.refresh()
     clearCart()
     onClose()
     toast.success('Pedido concluído com sucesso.')
