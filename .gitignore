@@ -53,3 +53,7 @@ next-env.d.ts
 .claude/settings.local.json
 .codex/hooks.json
 .impeccable/config.local.json
+
+# Generated local SDD reports and review artifacts
+.superpowers/sdd/*-report.md
+.superpowers/sdd/*-review.diff
