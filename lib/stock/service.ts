@@ -4,7 +4,10 @@ import { runInDbTransaction } from '@/lib/db/index'
 import * as pgSchema from '@/lib/db/schema'
 import { calcularCustoMedioPonderado } from '@/lib/stock/costing'
 import type { TipoMovimentoEstoque } from '@/lib/db/schema'
-import { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
+import {
+  lockAutomaticShoppingListItemInPostgresTransaction,
+  reconcileShoppingListInPostgresTransaction,
+} from '@/lib/shopping-list/reconciliation'
 import {
   stockMillisToDecimal,
   stockQuantityToMillis,
@@ -230,9 +233,14 @@ export async function applyStockMovementInPostgresTransaction(
         pgSchema.movimentoEstoque.chaveIdempotencia,
         input.chaveIdempotencia,
       ),
-    ))
+  ))
   if (existing) return idempotentResult()
 
+  await lockAutomaticShoppingListItemInPostgresTransaction(
+    tx,
+    input.tenantId,
+    input.insumoId,
+  )
   const item = await lockStockItemInPostgresTransaction(
     tx,
     input.tenantId,

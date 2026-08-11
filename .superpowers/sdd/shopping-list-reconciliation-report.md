@@ -22,3 +22,14 @@ Automatic shopping-list rows were only read after the eligibility guard. A direc
   - Output: 2 test files passed, 41 tests passed.
 - `npm run build`
   - Output: Next.js production build and TypeScript check passed.
+
+## Deadlock lock-order follow-up
+- Standardized lock order: automatic shopping-list row, then ingredient row.
+- Applied the order to reconciliation, direct stock movements, ingredient edits, and order stock consumption.
+- When no automatic row exists, reconciliation reads it again after acquiring the ingredient lock to avoid a stale absence during concurrent creation.
+
+### Commands
+- `npm test -- tests/unit/actions/estoque.test.ts tests/unit/actions/estoque-shopping-list-reconciliation.test.ts`
+  - Output: 2 test files passed, 41 tests passed.
+- `npm run build`
+  - Output: Next.js production build and TypeScript check passed.

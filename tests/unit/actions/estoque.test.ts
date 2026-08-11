@@ -32,7 +32,7 @@ vi.mock('@/lib/stock/service', () => ({
 }))
 
 import { db } from '@/lib/db/index'
-import { insumo, produto as postgresProduto } from '@/lib/db/schema'
+import { insumo, produto as postgresProduto, shoppingListItem } from '@/lib/db/schema'
 import { normalizarQuantidadeBase, UNIDADES_BASE } from '@/lib/stock/units'
 import { produtoTemEstoque } from '@/lib/stock/availability'
 import {
@@ -131,7 +131,17 @@ describe('normalizarQuantidadeBase', () => {
 
 describe('criarInsumo', () => {
   beforeEach(() => {
+    const emptyAutomaticQuery = () => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => {
+          const automaticRowQuery = { limit: vi.fn(async () => []) }
+          return { for: vi.fn(() => automaticRowQuery) }
+        }),
+      })),
+    })
     const select = vi.fn()
+    select
+      .mockReturnValueOnce(emptyAutomaticQuery())
       .mockReturnValueOnce({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
@@ -142,19 +152,7 @@ describe('criarInsumo', () => {
           })),
         })),
       })
-      .mockReturnValueOnce({
-        from: vi.fn(() => ({
-          where: vi.fn(() => {
-            const automaticRowQuery = {
-              limit: vi.fn(async () => []),
-            }
-            return {
-              for: vi.fn(() => automaticRowQuery),
-              ...automaticRowQuery,
-            }
-          }),
-        })),
-      })
+      .mockReturnValueOnce(emptyAutomaticQuery())
     runInDbTransactionMock.mockImplementation(async ({ postgresOperation }) => (
       postgresOperation({ insert: db.insert, select })
     ))
@@ -665,33 +663,31 @@ describe('removerInsumo PostgreSQL', () => {
 describe('shopping-list operations', () => {
   const key = '11111111-1111-4111-8111-111111111111'
 
+  function reconciliationSelect(
+    item: Record<string, string>,
+    existing: { id: string } | undefined,
+  ) {
+    return vi.fn(() => ({
+      from: vi.fn((table) => ({
+        where: vi.fn(() => ({
+          for: vi.fn(() => {
+            if (table === shoppingListItem) {
+              return { limit: vi.fn(async () => existing ? [existing] : []) }
+            }
+            return Promise.resolve([item])
+          }),
+        })),
+      })),
+    }))
+  }
+
   it('creates one automatic snapshot at minimum stock', async () => {
     const insertValues = vi.fn().mockResolvedValue(undefined)
     const tx = {
-      select: vi.fn()
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              for: vi.fn(async () => [{
-                id: 'insumo-1',
-                nome: 'Farinha',
-                unidadeCompra: 'kg',
-                fatorCompraParaBase: '1000.000',
-                estoqueAtual: '2000.000',
-                estoqueIdeal: '10000.000',
-                estoqueMinimo: '2000.000',
-              }]),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => {
-              const lockedAutomaticQuery = { limit: vi.fn(async () => []) }
-              return { for: vi.fn(() => lockedAutomaticQuery) }
-            }),
-          })),
-        }),
+      select: reconciliationSelect({
+        id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+        estoqueAtual: '2000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+      }, undefined),
       insert: vi.fn(() => ({ values: insertValues })),
     }
 
@@ -708,27 +704,10 @@ describe('shopping-list operations', () => {
   it('keeps an existing automatic suggestion frozen', async () => {
     const insert = vi.fn()
     const tx = {
-      select: vi.fn()
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              for: vi.fn(async () => [{
-                id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
-                estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
-              }]),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => {
-              const lockedAutomaticQuery = {
-                limit: vi.fn(async () => [{ id: 'row-1' }]),
-              }
-              return { for: vi.fn(() => lockedAutomaticQuery) }
-            }),
-          })),
-        }),
+      select: reconciliationSelect({
+        id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+        estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+      }, { id: 'row-1' }),
       insert,
     }
 
@@ -737,65 +716,45 @@ describe('shopping-list operations', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
-  it('locks an existing automatic suggestion before deciding whether to keep it', async () => {
-    const lockAutomaticRow = vi.fn()
+  it('locks the automatic suggestion before the ingredient', async () => {
+    const lockOrder: string[] = []
     const automaticRowQuery = {
       limit: vi.fn(async () => [{ id: 'row-1' }]),
-      for: lockAutomaticRow,
     }
-    lockAutomaticRow.mockReturnValue(automaticRowQuery)
     const tx = {
-      select: vi.fn()
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              for: vi.fn(async () => [{
+      select: vi.fn(() => ({
+        from: vi.fn((table) => ({
+          where: vi.fn(() => ({
+            for: vi.fn(() => {
+              if (table === shoppingListItem) {
+                lockOrder.push('shopping-list')
+                return automaticRowQuery
+              }
+              lockOrder.push('insumo')
+              return Promise.resolve([{
                 id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
                 estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
-              }]),
-            })),
+              }])
+            }),
           })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              ...automaticRowQuery,
-            })),
-          })),
-        }),
+        })),
+      })),
       insert: vi.fn(),
     }
 
     await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
 
-    expect(lockAutomaticRow).toHaveBeenCalledWith('update')
+    expect(lockOrder).toEqual(['shopping-list', 'insumo'])
     expect(tx.insert).not.toHaveBeenCalled()
   })
 
   it('removes an automatic suggestion when direct replenishment raises stock above minimum', async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined)
     const tx = {
-      select: vi.fn()
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              for: vi.fn(async () => [{
-                id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
-                estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
-              }]),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => {
-              const lockedAutomaticQuery = {
-                limit: vi.fn(async () => [{ id: 'row-1' }]),
-              }
-              return { for: vi.fn(() => lockedAutomaticQuery) }
-            }),
-          })),
-        }),
+      select: reconciliationSelect({
+        id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+        estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+      }, { id: 'row-1' }),
       delete: vi.fn(() => ({ where: deleteWhere })),
       insert: vi.fn(),
     }
@@ -808,25 +767,10 @@ describe('shopping-list operations', () => {
 
   it('does not change the shopping list when a dequalified item has no automatic row', async () => {
     const tx = {
-      select: vi.fn()
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              for: vi.fn(async () => [{
-                id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
-                estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
-              }]),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => {
-              const lockedAutomaticQuery = { limit: vi.fn(async () => []) }
-              return { for: vi.fn(() => lockedAutomaticQuery) }
-            }),
-          })),
-        }),
+      select: reconciliationSelect({
+        id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+        estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+      }, undefined),
       delete: vi.fn(),
       insert: vi.fn(),
     }
@@ -840,6 +784,10 @@ describe('shopping-list operations', () => {
   it('records an edited automatic receipt in its selected compatible unit and removes its row atomically', async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined)
     const applyInTransaction = vi.fn().mockResolvedValue({ applied: true })
+    const reconciliationQuery = reconciliationSelect({
+      id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+      estoqueAtual: '9000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+    }, undefined)
     const tx = {
       select: vi.fn()
         .mockReturnValueOnce({
@@ -860,29 +808,7 @@ describe('shopping-list operations', () => {
             })),
           })),
         })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              for: vi.fn(async () => [{
-                id: 'insumo-1',
-                nome: 'Farinha',
-                unidadeCompra: 'kg',
-                fatorCompraParaBase: '1000.000',
-                estoqueAtual: '9000.000',
-                estoqueIdeal: '10000.000',
-                estoqueMinimo: '2000.000',
-              }]),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => {
-              const lockedAutomaticQuery = { limit: vi.fn(async () => []) }
-              return { for: vi.fn(() => lockedAutomaticQuery) }
-            }),
-          })),
-        }),
+        .mockImplementation(reconciliationQuery),
       delete: vi.fn(() => ({ where: deleteWhere })),
       insert: vi.fn(() => ({ values: vi.fn() })),
     }

@@ -9,6 +9,7 @@ import {
   type LockedStockItem,
   type PostgresStockTransaction,
 } from '@/lib/stock/service'
+import { lockAutomaticShoppingListItemInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
 
 export type OrderItemInput = {
   produtoId: string
@@ -170,6 +171,11 @@ async function lockStockForMovements(
   for (const insumoId of [
     ...new Set(movements.map((movement) => movement.insumoId)),
   ].sort()) {
+    await lockAutomaticShoppingListItemInPostgresTransaction(
+      tx,
+      tenantId,
+      insumoId,
+    )
     locked.set(
       insumoId,
       await lockStockItemInPostgresTransaction(tx, tenantId, insumoId),

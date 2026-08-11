@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   reconcileMock,
+  lockAutomaticMock,
   runInDbTransactionMock,
 } = vi.hoisted(() => ({
   reconcileMock: vi.fn().mockResolvedValue(undefined),
+  lockAutomaticMock: vi.fn().mockResolvedValue(undefined),
   runInDbTransactionMock: vi.fn(),
 }))
 
@@ -19,6 +21,7 @@ vi.mock('@/lib/auth/access', () => ({
   requireAccess: vi.fn(async () => ({ tenantId: 'tenant-1', access: 'admin' })),
 }))
 vi.mock('@/lib/shopping-list/reconciliation', () => ({
+  lockAutomaticShoppingListItemInPostgresTransaction: lockAutomaticMock,
   reconcileShoppingListInPostgresTransaction: reconcileMock,
 }))
 

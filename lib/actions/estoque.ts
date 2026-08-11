@@ -6,7 +6,10 @@ import { fichaTecnicaItem, insumo, movimentoEstoque, produto } from '@/lib/db/sc
 import { requireAccess } from '@/lib/auth/access'
 import { fatorCompraParaBase, normalizarQuantidadeBase, parsePositiveDecimal, type UnidadeBase, type UnidadeCompra } from '@/lib/stock/units'
 import { applyStockMovement } from '@/lib/stock/service'
-import { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
+import {
+  lockAutomaticShoppingListItemInPostgresTransaction,
+  reconcileShoppingListInPostgresTransaction,
+} from '@/lib/shopping-list/reconciliation'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
 import {
   addManualShoppingListItem,
@@ -148,6 +151,11 @@ export async function editarInsumo(id: string, input: EditarInsumoInput): Promis
   if (custoInformado !== null && (!Number.isFinite(custoInformado) || custoInformado < 0)) throw new Error('Informe um custo por unidade válido')
   await runInDbTransaction({
     postgresOperation: async (tx) => {
+      await lockAutomaticShoppingListItemInPostgresTransaction(
+        tx,
+        tenantId,
+        id,
+      )
       await tx.update(insumo).set({ nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueIdeal, estoqueMinimo, ...(custoInformado === null ? {} : { custoUnitario: (custoInformado / fator).toFixed(4) }) }).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
       await reconcileShoppingListInPostgresTransaction(tx, tenantId, id)
     },

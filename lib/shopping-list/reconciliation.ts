@@ -7,11 +7,36 @@ import {
 } from '@/lib/stock/quantity'
 import type { PostgresStockTransaction } from '@/lib/stock/service'
 
+type AutomaticShoppingListItem = { id: string } | undefined
+
+export async function lockAutomaticShoppingListItemInPostgresTransaction(
+  tx: PostgresStockTransaction,
+  tenantId: string,
+  insumoId: string,
+): Promise<AutomaticShoppingListItem> {
+  const [existing] = await tx.select({ id: shoppingListItem.id })
+    .from(shoppingListItem)
+    .where(and(
+      eq(shoppingListItem.tenantId, tenantId),
+      eq(shoppingListItem.insumoId, insumoId),
+      eq(shoppingListItem.kind, 'automatic'),
+    ))
+    .for('update')
+    .limit(1)
+  return existing
+}
+
 export async function reconcileShoppingListInPostgresTransaction(
   tx: PostgresStockTransaction,
   tenantId: string,
   insumoId: string,
 ): Promise<void> {
+  let existing = await lockAutomaticShoppingListItemInPostgresTransaction(
+    tx,
+    tenantId,
+    insumoId,
+  )
+
   const [item] = await tx.select({
     id: insumo.id,
     nome: insumo.nome,
@@ -33,15 +58,13 @@ export async function reconcileShoppingListInPostgresTransaction(
   const factorMillis = stockQuantityToMillis(item.fatorCompraParaBase)
   const neededMillis = idealMillis - currentMillis
 
-  const [existing] = await tx.select({ id: shoppingListItem.id })
-    .from(shoppingListItem)
-    .where(and(
-      eq(shoppingListItem.tenantId, tenantId),
-      eq(shoppingListItem.insumoId, insumoId),
-      eq(shoppingListItem.kind, 'automatic'),
-    ))
-    .for('update')
-    .limit(1)
+  if (!existing) {
+    existing = await lockAutomaticShoppingListItemInPostgresTransaction(
+      tx,
+      tenantId,
+      insumoId,
+    )
+  }
 
   if (
     factorMillis <= 0 ||
