@@ -44,3 +44,14 @@ Automatic shopping-list rows were only read after the eligibility guard. A direc
   - Output: 4 test files passed, 59 tests passed.
 - `npm run build`
   - Output: Next.js production build and TypeScript check passed.
+
+## Order preflight lock-order follow-up
+- `createOrderInPostgresTransaction` now acquires the shared shopping-list coordination lock before every raw ingredient preflight `FOR UPDATE` lock.
+- Ingredient IDs remain sorted; the enforced first-acquisition contract is advisory key, automatic row, then ingredient.
+- Added an actual preflight regression with two ingredients in reversed recipe order, asserting deterministic sorted coordination/preflight pairs.
+
+### Commands
+- `npm test -- tests/unit/stock/service.test.ts tests/unit/stock/order-consumption.test.ts tests/unit/actions/estoque.test.ts tests/unit/actions/estoque-shopping-list-reconciliation.test.ts`
+  - Output: 4 test files passed, 60 tests passed.
+- `npm run build`
+  - Output: Next.js production build and TypeScript check passed.

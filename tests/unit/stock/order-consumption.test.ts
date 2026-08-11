@@ -237,7 +237,77 @@ describe('PostgreSQL order consumption', () => {
       items: [{ produtoId: 'produto-1', quantidade: 1 }],
     })
 
-    expect(lockOrder).toEqual(['shopping-list', 'insumo'])
+    expect(lockOrder).toEqual([
+      'shopping-list',
+      'shopping-list',
+      'insumo',
+    ])
+  })
+
+  it('coordinates sorted ingredient preflight locks before acquiring each ingredient row', async () => {
+    const lockOrder: string[] = []
+    const table = lockedQuery([{ numero: 7 }])
+    const attendance = lockedQuery([{
+      id: 'atendimento-1', mesaId: 'mesa-1', status: 'open' as const,
+    }])
+    const productA = lockedQuery([{
+      nome: 'A', preco: '10.00', categoriaNome: 'Pizzas', controleEstoque: true,
+    }])
+    const productB = lockedQuery([{
+      nome: 'B', preco: '12.00', categoriaNome: 'Pizzas', controleEstoque: true,
+    }])
+    const ingredientA = lockedQuery([{
+      id: 'insumo-a', tenantId: 'tenant-1', ativo: true,
+    }])
+    const ingredientB = lockedQuery([{
+      id: 'insumo-b', tenantId: 'tenant-1', ativo: true,
+    }])
+    ingredientA.lock.mockImplementation(async () => {
+      lockOrder.push('insumo-preflight:insumo-a')
+      return [{ id: 'insumo-a', tenantId: 'tenant-1', ativo: true }]
+    })
+    ingredientB.lock.mockImplementation(async () => {
+      lockOrder.push('insumo-preflight:insumo-b')
+      return [{ id: 'insumo-b', tenantId: 'tenant-1', ativo: true }]
+    })
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(table)
+        .mockReturnValueOnce(attendance)
+        .mockReturnValueOnce(productA)
+        .mockReturnValueOnce(productB)
+        .mockReturnValueOnce(selectedRows([
+          { produtoId: 'produto-a', insumoId: 'insumo-b' },
+          { produtoId: 'produto-b', insumoId: 'insumo-a' },
+        ]))
+        .mockReturnValueOnce(ingredientA)
+        .mockReturnValueOnce(ingredientB)
+        .mockReturnValueOnce(orderedRows([
+          { produtoId: 'produto-a', insumoId: 'insumo-b', quantidade: '1.000' },
+          { produtoId: 'produto-b', insumoId: 'insumo-a', quantidade: '1.000' },
+        ])),
+      insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+    }
+    mocks.lockAutomaticShoppingListItemInPostgresTransaction
+      .mockImplementation(async (_tx, _tenantId, insumoId) => {
+        lockOrder.push(`coordination:${insumoId}`)
+      })
+
+    await createOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', mesaId: 'mesa-1',
+      atendimentoId: 'atendimento-1',
+      items: [
+        { produtoId: 'produto-b', quantidade: 1 },
+        { produtoId: 'produto-a', quantidade: 1 },
+      ],
+    })
+
+    expect(lockOrder.slice(0, 4)).toEqual([
+      'coordination:insumo-a',
+      'insumo-preflight:insumo-a',
+      'coordination:insumo-b',
+      'insumo-preflight:insumo-b',
+    ])
   })
 
   it('consumes at creation and reverses a cancelled new order once', async () => {

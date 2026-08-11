@@ -402,6 +402,12 @@ export async function createOrderInPostgresTransaction(
     ...new Set(recipeIngredientRefs.map((recipe) => recipe.insumoId)),
   ].sort()
   for (const insumoId of ingredientIds) {
+    // Global inventory lock order: coordination key, shopping-list row, ingredient.
+    await lockAutomaticShoppingListItemInPostgresTransaction(
+      tx,
+      input.tenantId,
+      insumoId,
+    )
     const [ingredient] = await tx
       .select({
         id: pgSchema.insumo.id,
