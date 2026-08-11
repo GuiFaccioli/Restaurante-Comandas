@@ -2,7 +2,7 @@
 
 import { and, eq } from 'drizzle-orm'
 import { db, runInDbTransaction } from '@/lib/db/index'
-import { fichaTecnicaItem, insumo, movimentoEstoque, produto } from '@/lib/db/schema'
+import { fichaTecnicaItem, insumo, movimentoEstoque, produto, shoppingListItem } from '@/lib/db/schema'
 import { requireAccess } from '@/lib/auth/access'
 import { fatorCompraParaBase, normalizarQuantidadeBase, parsePositiveDecimal, type UnidadeBase, type UnidadeCompra } from '@/lib/stock/units'
 import { applyStockMovement } from '@/lib/stock/service'
@@ -177,10 +177,17 @@ export async function removerInsumo(id: string, nomeConfirmacao: string): Promis
         eq(insumo.tenantId, tenantId),
         eq(insumo.ativo, true),
       )
+      const automaticShoppingItem =
+        await lockAutomaticShoppingListItemInPostgresTransaction(
+          tx,
+          tenantId,
+          id,
+        )
       const [item] = await tx
         .select({ nome: insumo.nome })
         .from(insumo)
         .where(activeIngredient)
+        .for('update')
       validate(item)
 
       const [recipeUsage] = await tx
@@ -203,6 +210,12 @@ export async function removerInsumo(id: string, nomeConfirmacao: string): Promis
           eq(movimentoEstoque.tenantId, tenantId),
         ))
         .limit(1)
+      if (automaticShoppingItem) {
+        await tx.delete(shoppingListItem).where(and(
+          eq(shoppingListItem.id, automaticShoppingItem.id),
+          eq(shoppingListItem.tenantId, tenantId),
+        ))
+      }
       if (movementUsage) {
         await tx
           .update(insumo)

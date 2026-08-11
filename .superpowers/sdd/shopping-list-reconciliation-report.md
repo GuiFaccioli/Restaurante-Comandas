@@ -55,3 +55,13 @@ Automatic shopping-list rows were only read after the eligibility guard. A direc
   - Output: 4 test files passed, 60 tests passed.
 - `npm run build`
   - Output: Next.js production build and TypeScript check passed.
+
+## Ingredient removal shopping-list lifecycle follow-up
+- Removal now acquires the canonical coordination lock, locks the ingredient, rechecks recipe/movement usage, and removes the automatic shopping-list row in the same transaction before either soft or hard deletion.
+- Hard-delete and soft-delete regressions assert that the automatic persisted row is deleted, preventing stale copied TXT content and avoiding the non-cascading FK violation.
+
+### Commands
+- `npm test -- tests/unit/actions/estoque.test.ts tests/unit/actions/estoque-shopping-list-reconciliation.test.ts tests/unit/stock/service.test.ts tests/unit/stock/order-consumption.test.ts`
+  - Output: 4 test files passed, 61 tests passed.
+- `npm run build`
+  - Output: Next.js production build and TypeScript check passed.

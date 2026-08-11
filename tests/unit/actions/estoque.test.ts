@@ -606,13 +606,13 @@ describe('produtoTemEstoque', () => {
 })
 
 describe('removerInsumo PostgreSQL', () => {
-  it('executa o soft delete no caminho PostgreSQL simulado', async () => {
+  it('removes the automatic shopping row before soft deleting an ingredient with movements', async () => {
     const originalDatabaseUrl = process.env.DATABASE_URL
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     vi.resetModules()
 
     try {
-      const [{ removerInsumo: removerInsumoPostgres }, { insumo: postgresInsumo }] = await Promise.all([
+      const [{ removerInsumo: removerInsumoPostgres }, { insumo: postgresInsumo, shoppingListItem: postgresShoppingListItem }] = await Promise.all([
         import('@/lib/actions/estoque'),
         import('@/lib/db/schema'),
       ])
@@ -622,7 +622,18 @@ describe('removerInsumo PostgreSQL', () => {
         select: vi.fn()
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([{ nome: 'Batata' }]),
+              where: vi.fn().mockReturnValue({
+                for: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue([{ id: 'shopping-row-1' }]),
+                }),
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                for: vi.fn().mockResolvedValue([{ nome: 'Batata' }]),
+              }),
             }),
           })
           .mockReturnValueOnce({
@@ -640,7 +651,8 @@ describe('removerInsumo PostgreSQL', () => {
             }),
           }),
         update: vi.fn().mockReturnValue({ set: updateSet }),
-        delete: vi.fn(),
+        delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+        execute: vi.fn().mockResolvedValue(undefined),
       }
       runInDbTransactionMock.mockImplementationOnce(
         (operations: TransactionOperations) => operations.postgresOperation(tx),
@@ -651,12 +663,47 @@ describe('removerInsumo PostgreSQL', () => {
       expect(runInDbTransactionMock).toHaveBeenCalledTimes(1)
       expect(tx.update).toHaveBeenCalledWith(postgresInsumo)
       expect(updateSet).toHaveBeenCalledWith({ ativo: false })
-      expect(tx.delete).not.toHaveBeenCalled()
+      expect(tx.delete).toHaveBeenCalledWith(postgresShoppingListItem)
     } finally {
       if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL
       else process.env.DATABASE_URL = originalDatabaseUrl
       vi.resetModules()
     }
+  })
+
+  it('removes the automatic shopping row before hard deleting an unused ingredient', async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined)
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(() => ({ limit: vi.fn(async () => [{ id: 'shopping-row-1' }]) })),
+            })),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({ for: vi.fn(async () => [{ nome: 'Batata' }]) })),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(async () => []) })) })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(async () => []) })) })),
+        }),
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      execute: vi.fn(async () => undefined),
+    }
+    runInDbTransactionMock.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(tx),
+    )
+
+    await removerInsumo('insumo-1', 'Batata')
+
+    expect(tx.delete).toHaveBeenNthCalledWith(1, shoppingListItem)
+    expect(tx.delete).toHaveBeenCalledTimes(2)
   })
 })
 
