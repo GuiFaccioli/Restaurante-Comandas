@@ -40,7 +40,7 @@ export default async function MesaPage({ params, searchParams }: { params: Promi
     db.select({ produtoId: fichaTecnicaItem.produtoId, insumoId: fichaTecnicaItem.insumoId, quantidade: fichaTecnicaItem.quantidade })
       .from(fichaTecnicaItem)
       .where(eq(fichaTecnicaItem.tenantId, tenantId)),
-    db.select({ id: insumo.id, estoqueAtual: insumo.estoqueAtual })
+    db.select({ id: insumo.id, nome: insumo.nome, estoqueAtual: insumo.estoqueAtual })
       .from(insumo)
       .where(eq(insumo.tenantId, tenantId)),
   ])
@@ -63,6 +63,8 @@ export default async function MesaPage({ params, searchParams }: { params: Promi
       atendimentoId={atendimentoId}
       attendances={attendances}
       categorias={categoriaComProdutos}
+      recipes={receitas}
+      balances={saldos}
       initialPedidos={initialPedidos}
     />
   )

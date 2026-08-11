@@ -1,6 +1,7 @@
 'use client'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ItemCard } from './item-card'
+import type { ReceitaDisponibilidade, SaldoDisponibilidade, ProdutoControleEstoque } from '@/lib/stock/availability'
 
 type Produto = {
   id: string
@@ -10,11 +11,19 @@ type Produto = {
   imagemUrl: string | null
   disponivel: boolean
   estoqueInsuficiente: boolean
+  controleEstoque: boolean
 }
 
 type Categoria = { id: string; nome: string; produtos: Produto[] }
 
-export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
+type Props = {
+  categorias: Categoria[]
+  recipes: ReceitaDisponibilidade[]
+  balances: SaldoDisponibilidade[]
+  productStockControls: ProdutoControleEstoque[]
+}
+
+export function MenuGrid({ categorias, recipes, balances, productStockControls }: Props) {
   const categoriasOrdenadas = categorias.map((categoria) => ({
     ...categoria,
     produtos: [...categoria.produtos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
@@ -37,7 +46,7 @@ export function MenuGrid({ categorias }: { categorias: Categoria[] }) {
         <TabsContent key={c.id} value={c.id} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 pr-1">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {c.produtos.map((p) => (
-              <ItemCard key={p.id} produto={p} />
+              <ItemCard key={p.id} produto={p} recipes={recipes} balances={balances} productStockControls={productStockControls} />
             ))}
           </div>
         </TabsContent>

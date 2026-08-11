@@ -139,16 +139,16 @@ describe('confirmarPedido', () => {
     expect(mocks.db.select).not.toHaveBeenCalled()
   })
 
-  it('propagates a transaction failure', async () => {
+  it('propagates an insufficient-stock transaction failure', async () => {
     const { confirmarPedido } = await import('@/lib/actions/pedidos')
     mocks.runInDbTransaction.mockImplementationOnce(() => {
-      throw new Error('snapshot insert failed')
+      throw new Error('Não há estoque suficiente para Farinha')
     })
 
     await expect(confirmarPedido('mesa-1', 'atendimento-1', [{
       produtoId: 'produto-1',
       quantidade: 1,
-    }])).rejects.toThrow('snapshot insert failed')
+    }])).rejects.toThrow('Não há estoque suficiente para Farinha')
   })
 
   it.each([
@@ -184,7 +184,7 @@ describe('atualizarStatus', () => {
     },
   )
 
-  it('runs preparation consumption and status update in one transaction', async () => {
+  it('runs the kitchen status update in one transaction', async () => {
     const { atualizarStatus } = await import('@/lib/actions/pedidos')
 
     await atualizarStatus('pedido-1', 'em_preparo')
@@ -216,16 +216,6 @@ describe('atualizarStatus', () => {
     expect(mocks.runInDbTransaction).toHaveBeenCalledTimes(1)
   })
 
-  it('propagates the rollback when preparation consumption fails', async () => {
-    const { atualizarStatus } = await import('@/lib/actions/pedidos')
-    mocks.transitionOrderInPostgresTransaction.mockImplementationOnce(() => {
-      throw new Error('Não há estoque suficiente para Cheese')
-    })
-
-    await expect(
-      atualizarStatus('pedido-1', 'em_preparo'),
-    ).rejects.toThrow('Não há estoque suficiente para Cheese')
-  })
 })
 
 describe('confirmarEntrega', () => {
@@ -262,7 +252,7 @@ describe('confirmarEntrega', () => {
 })
 
 describe('cancelarPedido', () => {
-  it('keeps the safe new-only cancellation inside a transaction with no reversal flow', async () => {
+  it('keeps the new-order reversal and cancellation inside one transaction', async () => {
     const { cancelarPedido } = await import('@/lib/actions/pedidos')
 
     await cancelarPedido('pedido-1')
@@ -275,6 +265,20 @@ describe('cancelarPedido', () => {
         pedidoId: 'pedido-1',
       },
     )
+  })
+})
+
+describe('CartDrawer confirmation errors', () => {
+  it('preserves the specific insufficient-stock error for an editable cart', async () => {
+    const { getOrderConfirmationErrorMessage } = await import(
+      '@/components/garcom/cart-drawer'
+    )
+
+    expect(getOrderConfirmationErrorMessage(
+      new Error('Não há estoque suficiente para Farinha'),
+    )).toBe('Não há estoque suficiente para Farinha')
+    expect(getOrderConfirmationErrorMessage(new Error('database offline')))
+      .toBe('Não foi possível confirmar o pedido. Tente novamente.')
   })
 })
 

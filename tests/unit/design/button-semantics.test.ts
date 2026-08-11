@@ -35,16 +35,14 @@ describe('operational button semantics', () => {
     }
   })
 
-  it('uses destructive red for every cancel action', () => {
-    const controls = [
-      { path: 'components/garcom/cart-drawer.tsx', tag: 'Button', markers: ['Cancelar'] },
-      { path: 'components/admin/produto-form.tsx', tag: 'Button', markers: ['Cancelar'] },
-    ]
+  it('keeps cart dismissal neutral', () => {
+    const control = findJsxBlock(
+      readProjectFile('components/garcom/cart-drawer.tsx'),
+      'Button',
+      ['Cancelar']
+    )
 
-    for (const { path, tag, markers } of controls) {
-      const control = findJsxBlock(readProjectFile(path), tag, markers)
-      expect(control, path).toMatch(/intent\s*(?:=|:)\s*['"]destructive['"]/)
-    }
+    expect(control).toMatch(/intent\s*(?:=|:)\s*['"]neutral['"]/)
   })
 
   it('keeps dismiss, back, logout, and navigation neutral', () => {

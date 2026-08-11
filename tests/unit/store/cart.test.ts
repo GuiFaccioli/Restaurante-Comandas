@@ -90,6 +90,19 @@ describe('useCart', () => {
     expect(useCart.getState().items[0].observacao).toBe('sem cebola')
   })
 
+  it('does not mutate the cart when an item has reached its stock cap', () => {
+    act(() => {
+      useCart.getState().selectMesa('mesa-a')
+      expect(useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 }, 1)).toBe(true)
+      expect(useCart.getState().addItem({ produtoId: 'p1', nome: 'Margherita', preco: 32 }, 1)).toBe(false)
+    })
+
+    expect(useCart.getState().items).toEqual([
+      { produtoId: 'p1', nome: 'Margherita', preco: 32, quantidade: 1 },
+    ])
+    expect(useCart.getState().total).toBe(32)
+  })
+
   it('isolates carts across A to B to A and clears only the confirmed table', () => {
     act(() => {
       useCart.getState().selectMesa('mesa-a')

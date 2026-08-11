@@ -19,7 +19,7 @@ type CartState = {
   items: CartItem[]
   total: number
   selectMesa: (mesaId: string) => void
-  addItem: (item: Pick<CartItem, 'produtoId' | 'nome' | 'preco'>) => void
+  addItem: (item: Pick<CartItem, 'produtoId' | 'nome' | 'preco'>, maxQuantity?: number) => boolean
   removeItem: (produtoId: string) => void
   decrementItem: (produtoId: string) => void
   clearCart: () => void
@@ -62,9 +62,16 @@ export const useCart = create<CartState>((set) => ({
       }
     }),
 
-  addItem: ({ produtoId, nome, preco }) =>
-    set((state) =>
-      updateActiveCart(state, (cart) => {
+  addItem: ({ produtoId, nome, preco }, maxQuantity) => {
+    let added = false
+    set((state) => {
+      if (!state.mesaId) return state
+
+      const existingQuantity = state.items.find((item) => item.produtoId === produtoId)?.quantidade ?? 0
+      if (maxQuantity !== undefined && existingQuantity >= maxQuantity) return state
+
+      added = true
+      return updateActiveCart(state, (cart) => {
         const existing = cart.items.find((i) => i.produtoId === produtoId)
         if (existing) {
           return {
@@ -79,7 +86,9 @@ export const useCart = create<CartState>((set) => ({
           total: cart.total + preco,
         }
       })
-    ),
+    })
+    return added
+  },
 
   removeItem: (produtoId) =>
     set((state) =>

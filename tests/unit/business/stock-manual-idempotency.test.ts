@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   ajustarEstoqueAtual: vi.fn(),
   registrarPerdaEstoque: vi.fn(),
   realizarContagemEstoque: vi.fn(),
+  adicionarItemManualListaCompra: vi.fn(),
+  confirmarItemListaCompra: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -25,6 +27,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('@/lib/actions/estoque', () => ({
+  adicionarItemManualListaCompra: state.adicionarItemManualListaCompra,
   ajustarEstoqueAtual: state.ajustarEstoqueAtual,
   criarInsumo: vi.fn(),
   editarInsumo: vi.fn(),
@@ -33,6 +36,7 @@ vi.mock('@/lib/actions/estoque', () => ({
   registrarPerdaEstoque: state.registrarPerdaEstoque,
   removerInsumo: vi.fn(),
   salvarFichaTecnica: vi.fn(),
+  confirmarItemListaCompra: state.confirmarItemListaCompra,
 }))
 
 import { EstoqueAdminClient } from '@/app/admin/estoque/client'
@@ -60,6 +64,16 @@ const secondIngredient = {
   id: 'insumo-2',
   nome: 'Queijo',
 }
+const volumeIngredient = {
+  ...ingredient,
+  id: 'insumo-volume',
+  nome: 'Óleo',
+  unidadeBase: 'ml',
+  unidadeCompra: 'l',
+  estoqueAtual: '2500.000',
+  estoqueIdeal: '5000.000',
+  estoqueMinimo: '1500.000',
+}
 
 function renderStock(insumos = [ingredient]) {
   return render(createElement(EstoqueAdminClient, {
@@ -67,7 +81,25 @@ function renderStock(insumos = [ingredient]) {
     produtos: [],
     fichas: [],
     initialProdutoId: '',
+    shoppingListItems: [],
     view: 'estoque',
+  }))
+}
+
+function renderShoppingList(shoppingListItems: Array<{
+  id: string
+  kind: string
+  nome: string
+  unidade: string
+  quantidadeSugerida: string
+}> = []) {
+  return render(createElement(EstoqueAdminClient, {
+    insumos: [],
+    produtos: [],
+    fichas: [],
+    initialProdutoId: '',
+    shoppingListItems,
+    view: 'lista',
   }))
 }
 
@@ -83,8 +115,109 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+describe('manual shopping-list creation idempotency in the UI', () => {
+  it('reuses a UUID key when the same failed manual item is retried', async () => {
+    state.adicionarItemManualListaCompra
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined)
+
+    renderShoppingList()
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Guardanapos' } })
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '2' } })
+    const submit = screen.getByRole('button', { name: 'Adicionar item' })
+
+    fireEvent.click(submit)
+    await waitFor(() => expect(state.adicionarItemManualListaCompra).toHaveBeenCalledTimes(1))
+    fireEvent.click(submit)
+    await waitFor(() => expect(state.adicionarItemManualListaCompra).toHaveBeenCalledTimes(2))
+
+    expect(state.adicionarItemManualListaCompra).toHaveBeenNthCalledWith(1, {
+      nome: 'Guardanapos', quantidade: '2', unidade: 'kg', idempotencyKey: firstKey,
+    })
+    expect(state.adicionarItemManualListaCompra).toHaveBeenNthCalledWith(2, {
+      nome: 'Guardanapos', quantidade: '2', unidade: 'kg', idempotencyKey: firstKey,
+    })
+  })
+})
+
+describe('unified shopping-list operations in the UI', () => {
+  const shoppingItems = [
+    { id: 'automatic-1', kind: 'automatic', nome: 'Acucar', unidade: 'kg', quantidadeSugerida: '2.000' },
+    { id: 'manual-1', kind: 'manual', nome: 'Bandeja', unidade: 'unidade', quantidadeSugerida: '3.000' },
+    { id: 'automatic-2', kind: 'automatic', nome: 'Oleo', unidade: 'l', quantidadeSugerida: '1.500' },
+  ]
+
+  it('shows manual and automatic items in one alphabetical operational list', () => {
+    renderShoppingList([shoppingItems[2], shoppingItems[1], shoppingItems[0]])
+
+    const list = screen.getByLabelText('Itens da lista de compras')
+    expect(list.textContent).toContain('Acucar')
+    expect(list.textContent).toContain('Bandeja')
+    expect(list.textContent).toContain('Oleo')
+    expect(list.textContent.indexOf('Acucar')).toBeLessThan(list.textContent.indexOf('Bandeja'))
+    expect(list.textContent.indexOf('Bandeja')).toBeLessThan(list.textContent.indexOf('Oleo'))
+  })
+
+  it('copies every alphabetical list name, quantity, and unit as TXT', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    renderShoppingList([shoppingItems[1], shoppingItems[2], shoppingItems[0]])
+
+    const text = (screen.getByLabelText('Texto da lista de compras') as HTMLTextAreaElement).value
+    expect(text).toBe('Acucar - 2 kg\nBandeja - 3 unidade\nOleo - 1.5 l')
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar lista' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(text))
+  })
+
+  it('sends the selected compatible receipt unit through automatic confirmation', async () => {
+    renderShoppingList([shoppingItems[0]])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar entrada' }))
+    fireEvent.change(screen.getByLabelText('Unidade recebida'), { target: { value: 'g' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+
+    await waitFor(() => expect(state.confirmarItemListaCompra).toHaveBeenCalledWith({
+      itemId: 'automatic-1',
+      receivedQuantity: '2.000',
+      receivedUnit: 'g',
+      idempotencyKey: firstKey,
+    }))
+  })
+})
+
 describe('manual stock operation idempotency in the UI', () => {
-  it('reuses an entry key for the same failed payload and rotates it when the payload changes', async () => {
+  it('shows kg and liter thresholds in the selected purchase unit when editing', () => {
+    renderStock([ingredient, volumeIngredient])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar item Bacon' }))
+    expect(screen.getByLabelText('Estoque mínimo')).toHaveValue('2')
+    expect(screen.getByLabelText('Estoque ideal', { selector: '#editar-insumo-ideal' })).toHaveValue('10')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar item Óleo' }))
+    expect(screen.getByLabelText('Estoque mínimo')).toHaveValue('1.5')
+    expect(screen.getByLabelText('Estoque ideal', { selector: '#editar-insumo-ideal' })).toHaveValue('5')
+  })
+
+  it('shows and submits a current balance in its purchase unit', async () => {
+    state.ajustarEstoqueAtual.mockResolvedValue(undefined)
+    renderStock()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar estoque de Bacon' }))
+    const row = screen.getByText('Bacon').closest('tr')
+    if (!row) throw new Error('stock row not found')
+    expect(within(row).getByLabelText('Quantidade total de Bacon')).toHaveValue('5')
+    fireEvent.click(within(row).getByRole('button', { name: 'Confirmar' }))
+
+    await waitFor(() => expect(state.ajustarEstoqueAtual).toHaveBeenCalledWith(
+      'insumo-1',
+      '5',
+      firstKey,
+      'kg',
+    ))
+  })
+
+  it('sends the selected entry unit and rotates the key when that unit changes', async () => {
     state.registrarEntradaEstoque
       .mockRejectedValueOnce(new Error('offline'))
       .mockRejectedValueOnce(new Error('offline'))
@@ -92,24 +225,31 @@ describe('manual stock operation idempotency in the UI', () => {
 
     renderStock()
     const entry = screen.getByLabelText('Entrada para Bacon')
-    fireEvent.change(entry, { target: { value: '2' } })
+    fireEvent.change(entry, { target: { value: '500' } })
+    fireEvent.change(screen.getByLabelText('Unidade de entrada para Bacon'), {
+      target: { value: 'g' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarEntradaEstoque.mock.calls.slice(0, 2)).toEqual([
-      ['insumo-1', '2', firstKey],
-      ['insumo-1', '2', firstKey],
+      ['insumo-1', '500', firstKey, undefined, 'g'],
+      ['insumo-1', '500', firstKey, undefined, 'g'],
     ])
 
-    fireEvent.change(entry, { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Unidade de entrada para Bacon'), {
+      target: { value: 'kg' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(3))
     expect(state.registrarEntradaEstoque).toHaveBeenLastCalledWith(
       'insumo-1',
-      '3',
+      '500',
       secondKey,
+      undefined,
+      'kg',
     )
   })
 
@@ -133,6 +273,8 @@ describe('manual stock operation idempotency in the UI', () => {
       'insumo-1',
       '2',
       firstKey,
+      undefined,
+      'kg',
     )
 
     await act(async () => resolveEntry?.())
@@ -171,8 +313,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(state.registrarPerdaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarPerdaEstoque.mock.calls).toEqual([
-      ['insumo-1', '1', 'Vencimento', firstKey],
-      ['insumo-1', '1', 'Vencimento', firstKey],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
     ])
   })
 
@@ -244,8 +386,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(registerButtons[1])
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarEntradaEstoque.mock.calls).toEqual([
-      ['insumo-1', '2', firstKey],
-      ['insumo-2', '3', secondKey],
+      ['insumo-1', '2', firstKey, undefined, 'kg'],
+      ['insumo-2', '3', secondKey, undefined, 'kg'],
     ])
   })
 
@@ -271,8 +413,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(state.registrarPerdaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarPerdaEstoque.mock.calls).toEqual([
-      ['insumo-1', '1', 'Vencimento', firstKey],
-      ['insumo-1', '1', 'Vencimento', firstKey],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
     ])
 
     fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'contagem' } })
@@ -282,8 +424,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(state.realizarContagemEstoque).toHaveBeenCalledTimes(2))
     expect(state.realizarContagemEstoque.mock.calls).toEqual([
-      ['insumo-1', '2', secondKey],
-      ['insumo-1', '2', secondKey],
+      ['insumo-1', '2', secondKey, undefined, 'kg'],
+      ['insumo-1', '2', secondKey, undefined, 'kg'],
     ])
   })
 
@@ -304,8 +446,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Confirmar' }))
     await waitFor(() => expect(state.ajustarEstoqueAtual).toHaveBeenCalledTimes(2))
     expect(state.ajustarEstoqueAtual.mock.calls.slice(0, 2)).toEqual([
-      ['insumo-1', '8', firstKey],
-      ['insumo-1', '8', firstKey],
+      ['insumo-1', '8', firstKey, 'kg'],
+      ['insumo-1', '8', firstKey, 'kg'],
     ])
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar estoque de Bacon' }))
@@ -319,8 +461,9 @@ describe('manual stock operation idempotency in the UI', () => {
     await waitFor(() => expect(state.ajustarEstoqueAtual).toHaveBeenCalledTimes(3))
     expect(state.ajustarEstoqueAtual).toHaveBeenLastCalledWith(
       'insumo-1',
-      '5000.000',
+      '5',
       secondKey,
+      'kg',
     )
   })
 })

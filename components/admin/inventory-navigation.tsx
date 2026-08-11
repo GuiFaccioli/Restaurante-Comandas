@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 const links = [
-  { href: '/admin/estoque/insumos', label: 'Insumos' },
-  { href: '/admin/estoque/saldos', label: 'Estoque' },
+  { href: '/admin/estoque', label: 'Estoque' },
+  { href: '/admin/estoque/lista-de-compras', label: 'Lista de compras' },
   { href: '/admin/estoque/ficha-tecnica', label: 'Ficha técnica' },
 ]
 
@@ -17,7 +17,7 @@ export function InventoryNavigation() {
   return (
     <nav aria-label="Seções do estoque" className="flex flex-wrap gap-2 border-b pb-4">
       {links.map((link) => {
-        const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
+        const active = pathname === link.href
 
         return (
           <Link

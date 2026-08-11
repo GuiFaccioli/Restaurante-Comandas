@@ -1,10 +1,12 @@
-import { redirect } from 'next/navigation'
+import { requireAccess } from '@/lib/auth/access'
+import { EstoqueAdminClient } from './client'
+import { loadInventoryData } from './data'
 
-export default async function EstoqueAdminPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ produtoId?: string }>
-}) {
-  const params = await searchParams
-  redirect(params.produtoId ? `/admin/estoque/ficha-tecnica?produtoId=${encodeURIComponent(params.produtoId)}` : '/admin/estoque/insumos')
+export const dynamic = 'force-dynamic'
+
+export default async function EstoqueAdminPage() {
+  const { tenantId } = await requireAccess('admin')
+  const data = await loadInventoryData(tenantId)
+
+  return <EstoqueAdminClient {...data} initialProdutoId="" view="estoque" />
 }

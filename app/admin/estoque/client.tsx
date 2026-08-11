@@ -11,14 +11,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrencyInput } from '@/lib/money'
-import { ajustarEstoqueAtual, criarInsumo, editarInsumo, realizarContagemEstoque, registrarEntradaEstoque, registrarPerdaEstoque, removerInsumo, salvarFichaTecnica } from '@/lib/actions/estoque'
+import { adicionarItemManualListaCompra, ajustarEstoqueAtual, confirmarItemListaCompra, criarInsumo, editarInsumo, realizarContagemEstoque, registrarEntradaEstoque, registrarPerdaEstoque, removerInsumo, salvarFichaTecnica } from '@/lib/actions/estoque'
+import { movementUnitsFor, quantidadeBaseParaUnidade } from '@/lib/stock/units'
 
 type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; fatorCompraParaBase: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string; custoUnitario: string | null }
 
 type Produto = { id: string; nome: string; categoriaNome: string }
 type Ficha = { produtoId: string; insumoId: string; quantidade: string }
 type RecipeRow = { insumoId: string; quantidade: string }
-type InventoryView = 'insumos' | 'estoque' | 'ficha'
+type InventoryView = 'estoque' | 'ficha' | 'lista'
+type ShoppingListItem = { id: string; kind: string; nome: string; unidade: string; quantidadeSugerida: string }
 type ManualOperationIntent = { key: string; fingerprint: string }
 type ManualOperationPayload = {
   tipo: 'entrada' | 'perda' | 'contagem'
@@ -27,6 +29,7 @@ type ManualOperationPayload = {
   custo: string
   motivo: string
   observacao: string
+  unidade?: string
 }
 
 function manualOperationFingerprint(payload: ManualOperationPayload) {
@@ -37,6 +40,7 @@ function manualOperationFingerprint(payload: ManualOperationPayload) {
     payload.custo,
     payload.motivo,
     payload.observacao,
+    payload.unidade ?? '',
   ])
 }
 
@@ -136,7 +140,113 @@ function IngredientPicker({
   )
 }
 
-export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId, view }: { insumos: Insumo[]; produtos: Produto[]; fichas: Ficha[]; initialProdutoId: string; view: InventoryView }) {
+function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingListItem[] }) {
+  const router = useRouter()
+  const [confirmingItem, setConfirmingItem] = useState<ShoppingListItem | null>(null)
+  const [receivedQuantity, setReceivedQuantity] = useState('')
+  const [receivedUnit, setReceivedUnit] = useState('')
+  const [manualItem, setManualItem] = useState({ nome: '', quantidade: '', unidade: 'kg' })
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const intentsRef = useRef<Record<string, ManualOperationIntent>>({})
+  const manualItemIntentRef = useRef<ManualOperationIntent | null>(null)
+  const orderedItems = useMemo(
+    () => [...shoppingListItems].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    [shoppingListItems],
+  )
+  const shoppingListText = orderedItems
+    .map((item) => `${item.nome} - ${formatQuantity(item.quantidadeSugerida, item.unidade)}`)
+    .join('\n')
+
+  function receiptUnitsFor(item: ShoppingListItem) {
+    const baseUnit = item.unidade === 'kg' ? 'g' : item.unidade === 'l' ? 'ml' : item.unidade
+    return movementUnitsFor(baseUnit)
+  }
+
+  function openConfirmation(item: ShoppingListItem) {
+    if (busy) return
+    setActionError('')
+    setConfirmingItem(item)
+    setReceivedQuantity(item.quantidadeSugerida)
+    setReceivedUnit(item.unidade)
+  }
+
+  async function completeItem(item: ShoppingListItem, quantity?: string, unit?: string) {
+    if (busy) return
+    const fingerprint = JSON.stringify([item.id, quantity ?? 'manual', unit ?? ''])
+    const intent = intentForFingerprint(intentsRef.current[item.id], fingerprint)
+    intentsRef.current[item.id] = intent
+    setBusy(true)
+    setActionError('')
+    try {
+      await confirmarItemListaCompra({
+        itemId: item.id,
+        ...(item.kind === 'automatic' ? { receivedQuantity: quantity, receivedUnit: unit } : {}),
+        idempotencyKey: intent.key,
+      })
+      delete intentsRef.current[item.id]
+      setConfirmingItem(null)
+      router.refresh()
+      toast.success('Item concluído.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível concluir o item.'
+      setActionError(message)
+      toast.error(message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function addManualItem() {
+    if (busy) return
+    const fingerprint = JSON.stringify([manualItem.nome, manualItem.quantidade, manualItem.unidade])
+    const intent = intentForFingerprint(manualItemIntentRef.current, fingerprint)
+    manualItemIntentRef.current = intent
+    setBusy(true)
+    setActionError('')
+    try {
+      await adicionarItemManualListaCompra({ ...manualItem, idempotencyKey: intent.key })
+      manualItemIntentRef.current = null
+      setManualItem({ nome: '', quantidade: '', unidade: 'kg' })
+      router.refresh()
+      toast.success('Item adicionado à lista.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível adicionar o item.'
+      setActionError(message)
+      toast.error(message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copyShoppingList() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard indisponível')
+      await navigator.clipboard.writeText(shoppingListText)
+      toast.success('Lista copiada.')
+    } catch {
+      const message = 'Não foi possível copiar a lista.'
+      setActionError(message)
+      toast.error(message)
+    }
+  }
+
+  return <div className="mt-5 space-y-6">
+    {actionError ? <p role="alert" className="rounded-[var(--radius)] border border-[var(--action-destructive-outline)] p-3 text-sm text-[var(--action-destructive-foreground)]">{actionError}</p> : null}
+    <section className="space-y-3">
+      <div><h2 className="text-base font-semibold">Adicionar item manual</h2><p className="text-sm text-muted-foreground">Adicione compras que não dependem do saldo em estoque.</p></div>
+      <div className="grid gap-3 rounded-[var(--radius)] border bg-card p-4 sm:grid-cols-4 sm:items-end"><div className="space-y-1"><Label htmlFor="lista-manual-nome">Nome</Label><Input id="lista-manual-nome" value={manualItem.nome} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, nome: event.target.value })} /></div><div className="space-y-1"><Label htmlFor="lista-manual-quantidade">Quantidade</Label><Input id="lista-manual-quantidade" inputMode="decimal" value={manualItem.quantidade} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, quantidade: event.target.value })} /></div><div className="space-y-1"><Label htmlFor="lista-manual-unidade">Unidade</Label><select id="lista-manual-unidade" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={manualItem.unidade} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, unidade: event.target.value })}><option value="kg">Quilo</option><option value="g">Gramas</option><option value="unidade">Unidade</option><option value="ml">Mililitros</option><option value="l">Litros</option></select></div><Button type="button" intent="positive" appearance="solid" disabled={busy || !manualItem.nome.trim() || !manualItem.quantidade} onClick={addManualItem}>Adicionar item</Button></div>
+    </section>
+    <section className="space-y-3" aria-label="Itens da lista de compras">
+      <div><h2 className="text-base font-semibold">Itens para comprar</h2><p className="text-sm text-muted-foreground">Reposições automáticas e itens manuais em uma única lista.</p></div>
+      {orderedItems.length === 0 ? <AdminEmptyState title="Nenhum item pendente" description="Os itens abaixo do mínimo e as compras manuais aparecerão aqui." /> : <div className="divide-y rounded-[var(--radius)] border bg-card">{orderedItems.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">{item.kind === 'automatic' ? 'Sugestão: ' : ''}{formatQuantity(item.quantidadeSugerida, item.unidade)}</p></div><Button type="button" intent={item.kind === 'automatic' ? 'positive' : 'neutral'} appearance={item.kind === 'automatic' ? 'solid' : 'outline'} disabled={busy} onClick={() => item.kind === 'automatic' ? openConfirmation(item) : void completeItem(item)}>{item.kind === 'automatic' ? 'Confirmar entrada' : 'Concluir'}</Button></div>)}</div>}
+    </section>
+    <Dialog open={confirmingItem !== null} onOpenChange={(open) => { if (!open && !busy) setConfirmingItem(null) }}><DialogContent><DialogHeader><DialogTitle>Confirmar entrada</DialogTitle><DialogDescription>Revise a quantidade recebida antes de atualizar o saldo.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="lista-quantidade-recebida">Quantidade recebida</Label><Input id="lista-quantidade-recebida" inputMode="decimal" value={receivedQuantity} disabled={busy} onChange={(event) => setReceivedQuantity(event.target.value)} /></div><div className="space-y-1"><Label htmlFor="lista-unidade-recebida">Unidade recebida</Label><select id="lista-unidade-recebida" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={receivedUnit} disabled={busy} onChange={(event) => setReceivedUnit(event.target.value)}>{confirmingItem ? receiptUnitsFor(confirmingItem).map((unit) => <option key={unit} value={unit}>{unit}</option>) : null}</select></div></div><DialogFooter><Button type="button" intent="destructive" appearance="outline" disabled={busy} onClick={() => setConfirmingItem(null)}>Cancelar</Button><Button type="button" intent="positive" appearance="solid" aria-busy={busy} disabled={busy || !receivedQuantity || !receivedUnit} onClick={() => { if (confirmingItem) void completeItem(confirmingItem, receivedQuantity, receivedUnit) }}>Confirmar</Button></DialogFooter></DialogContent></Dialog>
+    <section className="space-y-2"><div><h2 className="text-base font-semibold">Texto da lista</h2><p className="text-sm text-muted-foreground">Copie e cole onde preferir.</p></div><textarea aria-label="Texto da lista de compras" readOnly value={shoppingListText} className="min-h-32 w-full rounded-[var(--radius)] border bg-muted/30 p-3 font-mono text-sm" /><Button type="button" intent="neutral" appearance="outline" disabled={!shoppingListText} onClick={() => void copyShoppingList()}>Copiar lista</Button></section>
+  </div>
+}
+
+export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItems, initialProdutoId, view }: { insumos: Insumo[]; produtos: Produto[]; fichas: Ficha[]; shoppingListItems: ShoppingListItem[]; initialProdutoId: string; view: InventoryView }) {
   const router = useRouter()
   const [selectedProdutoId, setSelectedProdutoId] = useState(initialProdutoId || produtos[0]?.id || '')
   const selectedProdutoIdRef = useRef(selectedProdutoId)
@@ -145,12 +255,14 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
   const [savingRecipe, setSavingRecipe] = useState(false)
   const [entryId, setEntryId] = useState<string | null>(null)
   const [entryValues, setEntryValues] = useState<Record<string, string>>({})
+  const [entryUnits, setEntryUnits] = useState<Record<string, string>>({})
   const entryOperationIntentsRef = useRef<Record<string, ManualOperationIntent>>({})
   const [editingStockId, setEditingStockId] = useState<string | null>(null)
   const [stockValue, setStockValue] = useState('')
   const stockAdjustmentIntentRef = useRef<ManualOperationIntent | null>(null)
   const [movementType, setMovementType] = useState<'entrada' | 'perda' | 'contagem'>('entrada')
   const [movementIngredientId, setMovementIngredientId] = useState(insumos[0]?.id ?? '')
+  const [movementUnit, setMovementUnit] = useState(insumos[0]?.unidadeCompra ?? 'unidade')
   const [movementQuantity, setMovementQuantity] = useState('')
   const [movementCost, setMovementCost] = useState('')
   const [movementReason, setMovementReason] = useState('')
@@ -176,7 +288,11 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
     if (manualStockBusy) return
     stockAdjustmentIntentRef.current = null
     setEditingStockId(item.id)
-    setStockValue(item.estoqueAtual)
+    setStockValue(quantidadeBaseParaUnidade(
+      item.estoqueAtual,
+      item.unidadeCompra,
+      item.unidadeBase,
+    ))
   }
 
   function cancelStockAdjustment() {
@@ -202,7 +318,13 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
   function openIngredientEdit(item: Insumo) {
     const cost = Number(item.custoUnitario) * Number(item.fatorCompraParaBase)
     setEditingIngredient(item)
-    setEditIngredientValues({ nome: item.nome, unidade: item.unidadeCompra, custoPorUnidade: item.custoUnitario === null ? '' : cost.toFixed(2).replace('.', ','), estoqueMinimo: String(item.estoqueMinimo ?? ''), estoqueIdeal: String(item.estoqueIdeal ?? '') })
+    setEditIngredientValues({
+      nome: item.nome,
+      unidade: item.unidadeCompra,
+      custoPorUnidade: item.custoUnitario === null ? '' : cost.toFixed(2).replace('.', ','),
+      estoqueMinimo: quantidadeBaseParaUnidade(item.estoqueMinimo, item.unidadeCompra, item.unidadeBase),
+      estoqueIdeal: quantidadeBaseParaUnidade(item.estoqueIdeal, item.unidadeCompra, item.unidadeBase),
+    })
   }
 
   async function handleEditIngredient() {
@@ -275,6 +397,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
   async function handleEntry(item: Insumo) {
     if (manualStockPendingRef.current) return
     const quantidade = entryValues[item.id] ?? ''
+    const unidade = entryUnits[item.id] ?? item.unidadeCompra
     const fingerprint = manualOperationFingerprint({
       tipo: 'entrada',
       insumoId: item.id,
@@ -282,6 +405,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
       custo: '',
       motivo: '',
       observacao: 'Entrada manual de estoque',
+      unidade,
     })
     const intent = intentForFingerprint(
       entryOperationIntentsRef.current[item.id],
@@ -290,7 +414,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
     entryOperationIntentsRef.current[item.id] = intent
     manualStockPendingRef.current = true
     setEntryId(item.id)
-    try { await registrarEntradaEstoque(item.id, quantidade, intent.key); delete entryOperationIntentsRef.current[item.id]; setEntryValues((current) => ({ ...current, [item.id]: '' })); router.refresh(); toast.success(`Entrada registrada para ${item.nome}.`) }
+    try { await registrarEntradaEstoque(item.id, quantidade, intent.key, undefined, unidade); delete entryOperationIntentsRef.current[item.id]; setEntryValues((current) => ({ ...current, [item.id]: '' })); setEntryUnits((current) => ({ ...current, [item.id]: item.unidadeCompra })); router.refresh(); toast.success(`Entrada registrada para ${item.nome}.`) }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a entrada.') }
     finally { manualStockPendingRef.current = false; setEntryId(null) }
   }
@@ -304,6 +428,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
       custo: '',
       motivo: 'Contagem física',
       observacao: 'Contagem manual do estoque',
+      unidade: item.unidadeCompra,
     })
     const intent = intentForFingerprint(
       stockAdjustmentIntentRef.current,
@@ -312,13 +437,21 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
     stockAdjustmentIntentRef.current = intent
     manualStockPendingRef.current = true
     setEntryId(item.id)
-    try { await ajustarEstoqueAtual(item.id, stockValue, intent.key); stockAdjustmentIntentRef.current = null; setEditingStockId(null); router.refresh(); toast.success('Estoque atualizado.') }
+    try { await ajustarEstoqueAtual(item.id, stockValue, intent.key, item.unidadeCompra); stockAdjustmentIntentRef.current = null; setEditingStockId(null); router.refresh(); toast.success('Estoque atualizado.') }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o estoque.') }
     finally { manualStockPendingRef.current = false; setEntryId(null) }
   }
 
   async function handleMovement() {
     if (!movementIngredientId || !movementQuantity || manualStockPendingRef.current) return
+    const movementIngredient = insumos.find((item) => item.id === movementIngredientId)
+    if (!movementIngredient) {
+      setMovementIngredientId(insumos[0]?.id ?? '')
+      setMovementUnit(insumos[0]?.unidadeCompra ?? 'unidade')
+      router.refresh()
+      toast.error('O item selecionado não está mais disponível. Atualize e selecione outro item.')
+      return
+    }
     const fingerprint = manualOperationFingerprint({
       tipo: movementType,
       insumoId: movementIngredientId,
@@ -326,6 +459,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
       custo: movementType === 'entrada' ? movementCost : '',
       motivo: movementType === 'perda' ? movementReason : movementType === 'contagem' ? 'Contagem física' : '',
       observacao: movementType === 'entrada' ? 'Entrada manual de estoque' : '',
+      unidade: movementUnit,
     })
     const intent = intentForFingerprint(
       movementOperationIntentRef.current,
@@ -336,9 +470,9 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
     movementPendingRef.current = true
     setMovementBusy(true)
     try {
-      if (movementType === 'entrada') await registrarEntradaEstoque(movementIngredientId, movementQuantity, intent.key, movementCost)
-      if (movementType === 'perda') await registrarPerdaEstoque(movementIngredientId, movementQuantity, movementReason, intent.key)
-      if (movementType === 'contagem') await realizarContagemEstoque(movementIngredientId, movementQuantity, intent.key)
+      if (movementType === 'entrada') await registrarEntradaEstoque(movementIngredientId, movementQuantity, intent.key, movementCost, movementUnit)
+      if (movementType === 'perda') await registrarPerdaEstoque(movementIngredientId, movementQuantity, movementReason, intent.key, undefined, movementUnit)
+      if (movementType === 'contagem') await realizarContagemEstoque(movementIngredientId, movementQuantity, intent.key, undefined, movementUnit)
       movementOperationIntentRef.current = null
       setMovementQuantity(''); setMovementCost(''); setMovementReason(''); router.refresh(); toast.success('Movimentação registrada.')
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a movimentação.') }
@@ -346,30 +480,32 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, initialProdutoId
   }
 
   const recipeProducts = produtos.filter((product) => fichas.some((recipe) => recipe.produtoId === product.id))
+  const movementIngredient = insumos.find((item) => item.id === movementIngredientId)
+  const movementUnits = movementIngredient ? movementUnitsFor(movementIngredient.unidadeBase) : []
 
   return (
     <AdminPage>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
           <div>
-          <h1 className="text-xl font-semibold tracking-tight">{view === 'insumos' ? 'Insumos' : view === 'estoque' ? 'Estoque' : 'Ficha técnica'}</h1>
-          {view !== 'insumos' ? <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">{view === 'estoque' ? 'Acompanhe saldos e registre movimentações.' : 'Defina os insumos consumidos por cada produto.'}</p> : null}
+          <h1 className="text-xl font-semibold tracking-tight">{view === 'estoque' ? 'Estoque' : view === 'lista' ? 'Lista de compras' : 'Ficha técnica'}</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">{view === 'estoque' ? 'Cadastre itens, acompanhe saldos e registre movimentações.' : view === 'lista' ? 'Organize as reposições sugeridas e compras avulsas.' : 'Defina os itens de estoque consumidos por cada produto.'}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-          {view === 'estoque' && insumos.length > 0 ? <details className="relative" onToggle={(event) => { if (movementPendingRef.current && !event.currentTarget.open) { event.currentTarget.open = true; return } if (!event.currentTarget.open) movementOperationIntentRef.current = null }}><summary aria-disabled={manualStockBusy} onClick={(event) => { if (manualStockPendingRef.current) event.preventDefault() }} className="flex min-h-9 cursor-pointer list-none items-center rounded-[var(--radius)] bg-[var(--action-positive)] px-3 text-sm font-medium text-[var(--action-positive-foreground)]">Registrar movimentação</summary><div className="absolute right-0 z-10 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-[var(--radius)] border bg-background p-4 shadow-sm"><Label htmlFor="movimento-tipo">Tipo</Label><select id="movimento-tipo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementType} disabled={manualStockBusy} onChange={(event) => setMovementType(event.target.value as typeof movementType)}><option value="entrada">Entrada</option><option value="perda">Perda</option><option value="contagem">Contagem</option></select><Label htmlFor="movimento-insumo">Insumo</Label><select id="movimento-insumo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementIngredientId} disabled={manualStockBusy} onChange={(event) => setMovementIngredientId(event.target.value)}>{insumos.map((item) => <option key={item.id} value={item.id}>{item.nome} · {item.unidadeBase}</option>)}</select><Label htmlFor="movimento-quantidade">Quantidade</Label><Input id="movimento-quantidade" inputMode="decimal" value={movementQuantity} disabled={manualStockBusy} onChange={(event) => setMovementQuantity(event.target.value)} placeholder="0" />{movementType === 'entrada' ? <><Label htmlFor="movimento-custo">Custo total (opcional)</Label><Input id="movimento-custo" inputMode="decimal" value={movementCost} disabled={manualStockBusy} onChange={(event) => setMovementCost(event.target.value)} placeholder="R$ 0,00" /></> : null}{movementType === 'perda' ? <><Label htmlFor="movimento-motivo">Motivo da perda</Label><Input id="movimento-motivo" value={movementReason} disabled={manualStockBusy} onChange={(event) => setMovementReason(event.target.value)} placeholder="Ex.: Vencimento" /></> : null}<Button type="button" intent="positive" appearance="solid" aria-busy={movementBusy} disabled={manualStockBusy || !movementQuantity || (movementType === 'perda' && !movementReason.trim())} onClick={handleMovement}>Confirmar</Button></div></details> : null}
+          {view === 'estoque' && insumos.length > 0 ? <details className="relative" onToggle={(event) => { if (movementPendingRef.current && !event.currentTarget.open) { event.currentTarget.open = true; return } if (event.currentTarget.open && !movementIngredient) { setMovementIngredientId(insumos[0]?.id ?? ''); setMovementUnit(insumos[0]?.unidadeCompra ?? 'unidade'); router.refresh(); toast.error('O item selecionado não está mais disponível. Atualize e selecione outro item.'); return } if (!event.currentTarget.open) movementOperationIntentRef.current = null }}><summary aria-disabled={manualStockBusy} onClick={(event) => { if (manualStockPendingRef.current) event.preventDefault() }} className="flex min-h-9 cursor-pointer list-none items-center rounded-[var(--radius)] bg-[var(--action-positive)] px-3 text-sm font-medium text-[var(--action-positive-foreground)]">Registrar movimentação</summary><div className="absolute right-0 z-10 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-[var(--radius)] border bg-background p-4 shadow-sm"><Label htmlFor="movimento-tipo">Tipo</Label><select id="movimento-tipo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementType} disabled={manualStockBusy} onChange={(event) => setMovementType(event.target.value as typeof movementType)}><option value="entrada">Entrada</option><option value="perda">Perda</option><option value="contagem">Contagem</option></select><Label htmlFor="movimento-insumo">Insumo</Label><select id="movimento-insumo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementIngredientId} disabled={manualStockBusy} onChange={(event) => { const next = insumos.find((item) => item.id === event.target.value); setMovementIngredientId(next?.id ?? ''); setMovementUnit(next?.unidadeCompra ?? 'unidade') }}>{insumos.map((item) => <option key={item.id} value={item.id}>{item.nome} · {item.unidadeBase}</option>)}</select><Label htmlFor="movimento-unidade">Unidade</Label><select id="movimento-unidade" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementUnit} disabled={manualStockBusy || !movementIngredient} onChange={(event) => setMovementUnit(event.target.value)}>{movementUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select><Label htmlFor="movimento-quantidade">Quantidade</Label><Input id="movimento-quantidade" inputMode="decimal" value={movementQuantity} disabled={manualStockBusy} onChange={(event) => setMovementQuantity(event.target.value)} placeholder="0" />{movementType === 'entrada' ? <><Label htmlFor="movimento-custo">Custo total (opcional)</Label><Input id="movimento-custo" inputMode="decimal" value={movementCost} disabled={manualStockBusy} onChange={(event) => setMovementCost(event.target.value)} placeholder="R$ 0,00" /></> : null}{movementType === 'perda' ? <><Label htmlFor="movimento-motivo">Motivo da perda</Label><Input id="movimento-motivo" value={movementReason} disabled={manualStockBusy} onChange={(event) => setMovementReason(event.target.value)} placeholder="Ex.: Vencimento" /></> : null}<Button type="button" intent="positive" appearance="solid" aria-busy={movementBusy} disabled={manualStockBusy || !movementIngredient || !movementQuantity || (movementType === 'perda' && !movementReason.trim())} onClick={handleMovement}>Confirmar</Button></div></details> : null}
           </div>
         </div>
 
-        {view === 'insumos' ? <div className="mt-5 max-w-5xl space-y-5"><div className="grid gap-4 rounded-[var(--radius)] border bg-card p-4 sm:grid-cols-[minmax(0,3fr)_12rem_12rem_auto] sm:items-end"><div className="space-y-1"><Label htmlFor="insumo-nome">Nome</Label><Input id="insumo-nome" value={newIngredient.nome} onChange={(event) => setNewIngredient({ ...newIngredient, nome: event.target.value })} placeholder="Ex.: Bacon" /></div><div className="space-y-1"><Label htmlFor="insumo-unidade">Unidade</Label><select id="insumo-unidade" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidade} onChange={(event) => setNewIngredient({ ...newIngredient, unidade: event.target.value })}><option value="kg">Quilo</option><option value="g">Gramas</option><option value="unidade">Unidade</option><option value="ml">Mililitros</option><option value="l">Litros</option></select></div><div className="space-y-1"><Label htmlFor="insumo-custo">Custo por unidade</Label><Input id="insumo-custo" inputMode="decimal" value={newIngredient.custoPorUnidade} onChange={(event) => setNewIngredient({ ...newIngredient, custoPorUnidade: formatCurrencyInput(event.target.value) })} placeholder="R$ 0,00" /></div><div className="space-y-1"><Label htmlFor="insumo-minimo">Estoque minimo</Label><Input id="insumo-minimo" inputMode="decimal" value={newIngredient.estoqueMinimo} onChange={(event) => setNewIngredient({ ...newIngredient, estoqueMinimo: event.target.value })} placeholder="0" /></div><div className="space-y-1"><Label htmlFor="insumo-ideal">Estoque ideal</Label><Input id="insumo-ideal" inputMode="decimal" value={newIngredient.estoqueIdeal} onChange={(event) => setNewIngredient({ ...newIngredient, estoqueIdeal: event.target.value })} placeholder="Opcional" /></div><Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={creating} disabled={creating || !newIngredient.nome.trim() || !newIngredient.custoPorUnidade} onClick={handleCreateIngredient}>Salvar insumo</Button></div><section className="space-y-3"><h2 className="text-base font-semibold">Insumos cadastrados</h2>{insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo cadastrado" description="Salve o primeiro insumo usando o formulário acima." /> : <div className="divide-y rounded-[var(--radius)] border bg-card">{insumos.map((item) => <div key={item.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_8rem_10rem_auto] sm:items-center"><div className="min-w-0"><p className="font-medium">{item.nome}</p></div><div className="text-left sm:text-right"><p className="text-xs text-muted-foreground">Unidade</p><p className="text-sm font-medium">{item.unidadeCompra}</p></div><div className="text-left sm:text-right"><p className="text-xs text-muted-foreground">Preço</p><p className="text-sm font-medium">{formatIngredientCost(item)} / {item.unidadeCompra}</p></div><div className="flex items-center gap-1 sm:justify-end"><Button type="button" size="icon-sm" intent="informational" appearance="ghost" aria-label={`Editar insumo ${item.nome}`} onClick={() => openIngredientEdit(item)}><Pencil aria-hidden="true" /></Button><Button type="button" size="icon-sm" intent="destructive" appearance="ghost" aria-label={`Excluir insumo ${item.nome}`} onClick={() => { setDeletingIngredient(item); setDeleteConfirmation('') }}><Trash2 aria-hidden="true" /></Button></div></div>)}</div>}</section></div> : view === 'estoque' ? <div className="mt-5 space-y-6">
+        {view === 'estoque' ? <><div className="mt-5 max-w-5xl space-y-5"><div className="grid gap-4 rounded-[var(--radius)] border bg-card p-4 sm:grid-cols-[minmax(0,3fr)_12rem_12rem_auto] sm:items-end"><div className="space-y-1"><Label htmlFor="insumo-nome">Nome</Label><Input id="insumo-nome" value={newIngredient.nome} onChange={(event) => setNewIngredient({ ...newIngredient, nome: event.target.value })} placeholder="Ex.: Bacon" /></div><div className="space-y-1"><Label htmlFor="insumo-unidade">Unidade</Label><select id="insumo-unidade" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={newIngredient.unidade} onChange={(event) => setNewIngredient({ ...newIngredient, unidade: event.target.value })}><option value="kg">Quilo</option><option value="g">Gramas</option><option value="unidade">Unidade</option><option value="ml">Mililitros</option><option value="l">Litros</option></select></div><div className="space-y-1"><Label htmlFor="insumo-custo">Custo por unidade</Label><Input id="insumo-custo" inputMode="decimal" value={newIngredient.custoPorUnidade} onChange={(event) => setNewIngredient({ ...newIngredient, custoPorUnidade: formatCurrencyInput(event.target.value) })} placeholder="R$ 0,00" /></div><div className="space-y-1"><Label htmlFor="insumo-minimo">Estoque minimo</Label><Input id="insumo-minimo" inputMode="decimal" value={newIngredient.estoqueMinimo} onChange={(event) => setNewIngredient({ ...newIngredient, estoqueMinimo: event.target.value })} placeholder="0" /></div><div className="space-y-1"><Label htmlFor="insumo-ideal">Estoque ideal</Label><Input id="insumo-ideal" inputMode="decimal" value={newIngredient.estoqueIdeal} onChange={(event) => setNewIngredient({ ...newIngredient, estoqueIdeal: event.target.value })} placeholder="Opcional" /></div><Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={creating} disabled={creating || !newIngredient.nome.trim() || !newIngredient.custoPorUnidade} onClick={handleCreateIngredient}>Salvar insumo</Button></div></div><div className="mt-5 space-y-6">
           <div className="max-w-md space-y-1"><Label htmlFor="buscar-insumo">Buscar insumo</Label><Input id="buscar-insumo" type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Nome do insumo" /></div>
-          {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo" description="Cadastre o primeiro insumo nesta página." /> : filteredInsumos.length === 0 ? <AdminEmptyState title="Nenhum resultado" description="Tente buscar por outro nome." /> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground"><th className="px-2 py-3 font-medium">Insumo</th><th className="px-2 py-3 font-medium">Estoque</th><th className="px-2 py-3 font-medium">Mínimo</th>{view === 'estoque' ? <th className="px-2 py-3 font-medium">Entrada</th> : null}</tr></thead><tbody className="divide-y">{filteredInsumos.map((item) => { const low = Number(item.estoqueAtual) <= Number(item.estoqueMinimo); const editing = editingStockId === item.id; return <tr key={item.id}><td className="px-2 py-3"><p className="font-medium">{item.nome}</p><p className="text-xs text-muted-foreground">{item.unidadeCompra} → {item.unidadeBase}</p></td><td className={`px-2 py-3 font-medium ${low ? 'text-[var(--action-warning-outline)]' : ''}`}>{view === 'estoque' && editing ? <div className="flex items-center gap-1"><Input aria-label={`Quantidade total de ${item.nome}`} className="w-28" inputMode="decimal" value={stockValue} disabled={manualStockBusy} onChange={(e) => setStockValue(e.target.value)} autoFocus /><Button type="button" size="sm" intent="positive" appearance="ghost" aria-busy={entryId === item.id} disabled={manualStockBusy} onClick={() => handleStockEdit(item)}>Confirmar</Button><Button type="button" size="sm" intent="destructive" appearance="ghost" disabled={manualStockBusy} onClick={cancelStockAdjustment}>Cancelar</Button></div> : <div className="flex items-center gap-1"><span>{formatQuantity(item.estoqueAtual, item.unidadeBase)}</span>{view === 'estoque' ? <Button type="button" size="icon-sm" intent="informational" appearance="ghost" aria-label={`Editar estoque de ${item.nome}`} disabled={manualStockBusy} onClick={() => openStockAdjustment(item)}><Pencil aria-hidden="true" /></Button> : null}</div>}</td><td className="px-2 py-3 text-muted-foreground">{formatQuantity(item.estoqueMinimo, item.unidadeBase)}</td>{view === 'estoque' ? <td className="px-2 py-3"><div className="flex items-center gap-2"><Input aria-label={`Entrada para ${item.nome}`} className="w-28" inputMode="decimal" value={entryValues[item.id] ?? ''} disabled={manualStockBusy} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /><Button type="button" size="sm" intent="neutral" appearance="outline" aria-busy={entryId === item.id} disabled={manualStockBusy || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar</Button></div></td> : null}</tr> })}</tbody></table></div>}
-        </div> : <div className="mt-5 space-y-5">
+          {insumos.length === 0 ? <AdminEmptyState title="Nenhum insumo" description="Cadastre o primeiro insumo nesta página." /> : filteredInsumos.length === 0 ? <AdminEmptyState title="Nenhum resultado" description="Tente buscar por outro nome." /> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground"><th className="px-2 py-3 font-medium">Item</th><th className="px-2 py-3 font-medium">Saldo atual</th><th className="px-2 py-3 font-medium">Mínimo</th><th className="px-2 py-3 font-medium">Ideal</th>{view === 'estoque' ? <th className="px-2 py-3 font-medium">Entrada</th> : null}</tr></thead><tbody className="divide-y">{filteredInsumos.map((item) => { const low = Number(item.estoqueAtual) <= Number(item.estoqueMinimo); const editing = editingStockId === item.id; const entryUnit = entryUnits[item.id] ?? item.unidadeCompra; return <tr key={item.id}><td className="px-2 py-3"><div className="flex items-center gap-1"><p className="font-medium">{item.nome}</p><Button type="button" size="icon-sm" intent="informational" appearance="ghost" aria-label={`Editar item ${item.nome}`} onClick={() => openIngredientEdit(item)}><Pencil aria-hidden="true" /></Button><Button type="button" size="icon-sm" intent="destructive" appearance="ghost" aria-label={`Excluir item ${item.nome}`} onClick={() => { setDeletingIngredient(item); setDeleteConfirmation('') }}><Trash2 aria-hidden="true" /></Button></div><p className="text-xs text-muted-foreground">{item.unidadeCompra} · {item.unidadeBase}</p></td><td className={`px-2 py-3 font-medium ${low ? 'text-[var(--action-warning-outline)]' : ''}`}>{view === 'estoque' && editing ? <div className="flex items-center gap-1"><Input aria-label={`Quantidade total de ${item.nome}`} className="w-28" inputMode="decimal" value={stockValue} disabled={manualStockBusy} onChange={(e) => setStockValue(e.target.value)} autoFocus /><Button type="button" size="sm" intent="positive" appearance="ghost" aria-busy={entryId === item.id} disabled={manualStockBusy} onClick={() => handleStockEdit(item)}>Confirmar</Button><Button type="button" size="sm" intent="destructive" appearance="ghost" disabled={manualStockBusy} onClick={cancelStockAdjustment}>Cancelar</Button></div> : <div className="flex items-center gap-1"><span>{formatQuantity(item.estoqueAtual, item.unidadeBase)}</span>{view === 'estoque' ? <Button type="button" size="icon-sm" intent="informational" appearance="ghost" aria-label={`Editar estoque de ${item.nome}`} disabled={manualStockBusy} onClick={() => openStockAdjustment(item)}><Pencil aria-hidden="true" /></Button> : null}</div>}</td><td className="px-2 py-3 text-muted-foreground">{formatQuantity(item.estoqueMinimo, item.unidadeBase)}</td><td className="px-2 py-3 text-muted-foreground">{formatQuantity(item.estoqueIdeal, item.unidadeBase)}</td>{view === 'estoque' ? <td className="px-2 py-3"><div className="flex items-center gap-2"><Input aria-label={`Entrada para ${item.nome}`} className="w-28" inputMode="decimal" value={entryValues[item.id] ?? ''} disabled={manualStockBusy} onChange={(e) => setEntryValues((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="0" /><select aria-label={`Unidade de entrada para ${item.nome}`} className="min-h-10 rounded-[var(--radius)] border bg-background px-2 text-sm" value={entryUnit} disabled={manualStockBusy} onChange={(e) => setEntryUnits((current) => ({ ...current, [item.id]: e.target.value }))}>{movementUnitsFor(item.unidadeBase).map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select><Button type="button" size="sm" intent="neutral" appearance="outline" aria-busy={entryId === item.id} disabled={manualStockBusy || !entryValues[item.id]} onClick={() => handleEntry(item)}>Registrar</Button></div></td> : null}</tr> })}</tbody></table></div>}
+        </div></> : view === 'lista' ? <ShoppingListView shoppingListItems={shoppingListItems} /> : <div className="mt-5 space-y-5">
           {!produtos.length ? <AdminEmptyState title="Nenhum produto" description="Cadastre um produto antes de criar a ficha técnica." /> : <>
           <section className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
             <div><h2 className="text-base font-semibold">Fichas registradas</h2><p className="text-sm text-muted-foreground">Selecione um produto para editar ou acompanhar os insumos definidos.</p></div>
             {recipeProducts.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma ficha técnica foi registrada ainda.</p> : <div className="grid gap-2 sm:grid-cols-2">{recipeProducts.map((product) => <button key={product.id} type="button" className="min-h-11 rounded-[var(--radius)] border px-3 py-2 text-left text-sm transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]" aria-pressed={selectedProdutoId === product.id} onClick={() => selectProduct(product.id)}><span className="font-medium">{product.nome}</span><span className="mt-1 block text-xs text-muted-foreground">{fichas.filter((recipe) => recipe.produtoId === product.id).length} insumo(s)</span></button>)}</div>}
           </section>
           <div className="flex flex-wrap items-end gap-3 border-b pb-5"><div className="min-w-[260px] flex-1 space-y-1"><Label htmlFor="ficha-produto">Produto</Label><select id="ficha-produto" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={selectedProdutoId} disabled={savingRecipe} aria-busy={savingRecipe} onChange={(e) => selectProduct(e.target.value)}>{produtos.map((product) => <option key={product.id} value={product.id}>{product.nome} · {product.categoriaNome}</option>)}</select></div></div><div className="flex flex-wrap gap-2"><Button type="button" intent="positive" appearance="solid" className="min-h-11" disabled={savingRecipe || !availableIngredients.length} onClick={() => setRows([...rows, { insumoId: availableIngredients[0]?.id ?? '', quantidade: '' }])}><Plus aria-hidden="true" /> Adicionar insumo</Button><Button type="button" intent="positive" appearance="solid" className="min-h-11" aria-busy={savingRecipe} disabled={savingRecipe || rows.some((row) => !row.insumoId || !row.quantidade)} onClick={handleSaveRecipe}><Save aria-hidden="true" /> Salvar</Button></div>
-          {rows.length === 0 ? <AdminEmptyState title={`Ficha vazia${selectedProduct ? ` · ${selectedProduct.nome}` : ''}`} description="Adicione os insumos consumidos por unidade." /> : <div className="space-y-2">{rows.map((row, index) => { const ingredient = insumos.find((item) => item.id === row.insumoId); const unit = ingredient?.unidadeBase ?? '—'; return <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end" key={`${row.insumoId}-${index}`}><div className="space-y-1"><Label htmlFor={`ficha-insumo-${index}`}>Insumo</Label><IngredientPicker id={`ficha-insumo-${index}`} value={row.insumoId} ingredients={insumos} excludedIds={rows.map((current) => current.insumoId)} onChange={(insumoId) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, insumoId } : current))} /></div><div className="space-y-1"><Label htmlFor={`ficha-quantidade-${index}`}>Quantidade ({unit})</Label><div className="flex items-center gap-2"><Input id={`ficha-quantidade-${index}`} inputMode="decimal" value={row.quantidade} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: e.target.value } : current))} placeholder="0" /><span className="min-w-9 text-sm text-muted-foreground">{unit}</span></div></div><Button type="button" intent="destructive" appearance="ghost" size="icon" className="size-11" aria-label={`Remover ${ingredient?.nome ?? 'insumo'}`} aria-busy={savingRecipe} disabled={savingRecipe} onClick={() => handleRemoveRecipeRow(index)}><Trash2 aria-hidden="true" /></Button></div> })}</div>}
+          {rows.length === 0 ? <AdminEmptyState title={`Ficha vazia${selectedProduct ? ` · ${selectedProduct.nome}` : ''}`} description="Adicione os insumos consumidos por unidade." /> : <div className="space-y-2">{rows.map((row, index) => { const ingredient = insumos.find((item) => item.id === row.insumoId); const unit = ingredient?.unidadeBase ?? '—'; return <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end" key={`${row.insumoId}-${index}`}><div className="space-y-1"><Label htmlFor={`ficha-insumo-${index}`}>Item de estoque</Label><IngredientPicker id={`ficha-insumo-${index}`} value={row.insumoId} ingredients={insumos} excludedIds={rows.map((current) => current.insumoId)} onChange={(insumoId) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, insumoId } : current))} /></div><div className="space-y-1"><Label htmlFor={`ficha-quantidade-${index}`}>Quantidade ({unit})</Label><div className="flex items-center gap-2"><Input id={`ficha-quantidade-${index}`} inputMode="decimal" value={row.quantidade} onChange={(e) => setRows(rows.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: e.target.value } : current))} placeholder="0" /><span className="min-w-9 text-sm text-muted-foreground">{unit}</span></div></div><Button type="button" intent="destructive" appearance="ghost" size="icon" className="size-11" aria-label={`Remover ${ingredient?.nome ?? 'insumo'}`} aria-busy={savingRecipe} disabled={savingRecipe} onClick={() => handleRemoveRecipeRow(index)}><Trash2 aria-hidden="true" /></Button></div> })}</div>}
           </>}
         </div>}
       <Dialog open={editingIngredient !== null} onOpenChange={(open) => { if (!open) setEditingIngredient(null) }}>
