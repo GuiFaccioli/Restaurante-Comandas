@@ -32,9 +32,9 @@ Além disso, a operação conta com:
 - bloqueio de consumo quando não há saldo suficiente;
 - custo médio ponderado para entradas com custo informado.
 
-### Próxima evolução: lista de compras informativa
+### Lista de compras integrada
 
-O modelo já mantém o estoque atual, mínimo e ideal. A próxima evolução prevista é gerar uma lista de compras informativa: quais insumos precisam ser repostos e quanto falta para voltar ao nível ideal. Ela apoiará a decisão de compra; não será uma ordem de compra nem alterará o estoque automaticamente.
+Quando um item chega ao estoque mínimo, o sistema cria uma sugestão para repor o saldo até o estoque ideal. A sugestão permanece estável enquanto está pendente, pode ser confirmada com a quantidade e unidade efetivamente recebidas e atualiza o estoque na mesma operação. Itens manuais aparecem na mesma lista, em ordem alfabética, e o texto completo pode ser copiado para outros canais.
 
 ## Pensado como produto, não só como CRUD
 
@@ -104,4 +104,4 @@ O seed cria um ambiente local inicial com restaurante, usuários, mesas e itens 
 ## Escopo atual
 
 - O caixa registra pagamentos operacionais; não processa gateway, PIX ou cartão.
-- A lista de compras informativa é uma evolução planejada e ainda não está implementada.
+- A lista de compras reúne sugestões automáticas e itens manuais; ela não emite pedidos para fornecedores.

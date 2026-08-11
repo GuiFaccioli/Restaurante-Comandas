@@ -53,6 +53,28 @@ describe('inventory and waiter menu workflows', () => {
     expect(client).toContain('crypto.randomUUID()')
   })
 
+  it('ships readable inventory copy and documents the implemented shopping list', () => {
+    const client = source('app/admin/estoque/client.tsx')
+    const readme = source('README.md')
+
+    for (const corruptCopy of [
+      'Item conclu?do.',
+      'N?o foi poss?vel concluir o item.',
+      'Item adicionado ? lista.',
+      'N?o foi poss?vel adicionar o item.',
+      '{item.unidadeCompra} ? {item.unidadeBase}',
+    ]) {
+      expect(client).not.toContain(corruptCopy)
+    }
+    expect(client).toContain('Item concluído.')
+    expect(client).toContain('Item adicionado à lista.')
+    expect(client).toContain('{item.unidadeCompra} · {item.unidadeBase}')
+    expect(readme).not.toContain('Próxima evolução: lista de compras informativa')
+    expect(readme).not.toContain('ainda não está implementada')
+    expect(readme).toContain('lista de compras')
+    expect(readme).toContain('itens manuais')
+  })
+
   it('keeps the waiter menu alphabetical and image-free without changing stock fields', () => {
     const page = source('app/garcom/mesa/[id]/page.tsx')
     const grid = source('components/garcom/menu-grid.tsx')
