@@ -30,6 +30,7 @@ export function ItemCard({ produto, recipes, balances, productStockControls }: P
   const preco = parseFloat(produto.preco)
   const availability = getProductAvailability(produto.id, items, recipes, balances, productStockControls)
   const atStockCap = availability.maxAdditionalQuantity === 0
+  const stockCapDescriptionId = `stock-cap-${produto.id}`
   const maxQuantity = availability.maxAdditionalQuantity === null
     ? undefined
     : (cartItem?.quantidade ?? 0) + availability.maxAdditionalQuantity
@@ -52,9 +53,10 @@ export function ItemCard({ produto, recipes, balances, productStockControls }: P
         <div className="flex items-center gap-2">
           <Button type="button" intent="neutral" appearance="outline" size="icon" className="size-11 p-0" aria-label={`Diminuir ${produto.nome}`} onClick={() => decrementItem(produto.id)}><Minus aria-hidden="true" /></Button>
           <span className="w-8 text-center text-sm font-medium">{cartItem.quantidade}</span>
-          <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${produto.nome}`} aria-disabled={atStockCap} onClick={handleAdd}><Plus aria-hidden="true" /></Button>
+          <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${produto.nome}`} aria-describedby={atStockCap ? stockCapDescriptionId : undefined} onClick={handleAdd}><Plus aria-hidden="true" /></Button>
+          {atStockCap ? <span id={stockCapDescriptionId} className="sr-only" role="status">Limite de estoque atingido para {produto.nome}.</span> : null}
         </div>
-      ) : <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11 w-full" onClick={handleAdd} aria-disabled={atStockCap}><Plus aria-hidden="true" /> Adicionar</Button>}
+      ) : <><Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11 w-full" onClick={handleAdd} aria-describedby={atStockCap ? stockCapDescriptionId : undefined}><Plus aria-hidden="true" /> Adicionar</Button>{atStockCap ? <span id={stockCapDescriptionId} className="sr-only" role="status">Limite de estoque atingido para {produto.nome}.</span> : null}</>}
     </article>
   )
 }

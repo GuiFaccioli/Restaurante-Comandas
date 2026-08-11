@@ -125,6 +125,7 @@ function CartItemRow({ item, recipes, balances, productStockControls, editingObs
   const cartItems = useCart((state) => state.items)
   const availability = getProductAvailability(item.produtoId, cartItems, recipes, balances, productStockControls)
   const atStockCap = availability.maxAdditionalQuantity === 0
+  const stockCapDescriptionId = `cart-stock-cap-${item.produtoId}`
   const maxQuantity = availability.maxAdditionalQuantity === null
     ? undefined
     : item.quantidade + availability.maxAdditionalQuantity
@@ -154,7 +155,8 @@ function CartItemRow({ item, recipes, balances, productStockControls, editingObs
       <div className="flex items-center gap-2">
         <Button type="button" intent="neutral" appearance="outline" size="icon" className="size-11" aria-label={`Diminuir ${item.nome}`} onClick={() => decrementItem(item.produtoId)}><Minus aria-hidden="true" /></Button>
         <span className="w-8 text-center text-sm font-medium">{item.quantidade}</span>
-        <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${item.nome}`} aria-disabled={atStockCap} onClick={handleAdd}><Plus aria-hidden="true" /></Button>
+        <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${item.nome}`} aria-describedby={atStockCap ? stockCapDescriptionId : undefined} onClick={handleAdd}><Plus aria-hidden="true" /></Button>
+        {atStockCap ? <span id={stockCapDescriptionId} className="sr-only" role="status">Limite de estoque atingido para {item.nome}.</span> : null}
         <Button type="button" intent="destructive" appearance="ghost" size="icon" className="size-11" aria-label={`Remover ${item.nome} do carrinho`} onClick={() => removeItem(item.produtoId)}><Trash2 aria-hidden="true" /></Button>
       </div>
     </div>

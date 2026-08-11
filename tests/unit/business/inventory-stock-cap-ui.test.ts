@@ -37,8 +37,10 @@ describe('inventory stock-cap feedback', () => {
     }))
 
     const addButton = screen.getByRole('button', { name: 'Adicionar mais Pizza' })
-    expect(addButton).toHaveAttribute('aria-disabled', 'true')
+    expect(addButton).not.toHaveAttribute('aria-disabled')
     expect(addButton).not.toBeDisabled()
+    expect(addButton).toHaveAttribute('aria-describedby', 'stock-cap-produto-1')
+    expect(screen.getByRole('status')).toHaveTextContent('Limite de estoque atingido para Pizza.')
 
     fireEvent.click(addButton)
 
