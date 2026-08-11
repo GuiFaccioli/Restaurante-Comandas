@@ -386,6 +386,12 @@ export async function createOrderInPostgresTransaction(
           controlledProductIds,
         ),
       ))
+  const productsWithRecipes = new Set(
+    recipeIngredientRefs.map((recipe) => recipe.produtoId),
+  )
+  if (controlledProductIds.some((produtoId) => !productsWithRecipes.has(produtoId))) {
+    throw new Error('Produto com controle de estoque sem ficha técnica')
+  }
   const ingredientIds = [
     ...new Set(recipeIngredientRefs.map((recipe) => recipe.insumoId)),
   ].sort()

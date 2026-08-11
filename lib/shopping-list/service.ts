@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { requireAccess } from '@/lib/auth/access'
 import { db, runInDbTransaction } from '@/lib/db/index'
 import { insumo, shoppingListItem } from '@/lib/db/schema'
@@ -11,6 +11,9 @@ import {
   parsePositiveDecimal,
   UNIDADES_COMPRA,
 } from '@/lib/stock/units'
+import { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
+
+export { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
 
 export type CompleteShoppingListItemInput = {
   itemId: string
@@ -34,57 +37,6 @@ function validateIdempotencyKey(value: unknown): string {
   return key
 }
 
-export async function reconcileShoppingListInPostgresTransaction(
-  tx: PostgresStockTransaction,
-  tenantId: string,
-  insumoId: string,
-): Promise<void> {
-  const [item] = await tx.select({
-    id: insumo.id,
-    nome: insumo.nome,
-    unidadeCompra: insumo.unidadeCompra,
-    fatorCompraParaBase: insumo.fatorCompraParaBase,
-    estoqueAtual: insumo.estoqueAtual,
-    estoqueIdeal: insumo.estoqueIdeal,
-    estoqueMinimo: insumo.estoqueMinimo,
-  }).from(insumo).where(and(
-    eq(insumo.id, insumoId),
-    eq(insumo.tenantId, tenantId),
-    eq(insumo.ativo, true),
-  )).for('update')
-  if (!item) throw new Error('Insumo não encontrado')
-
-  const current = Number(item.estoqueAtual)
-  const minimum = Number(item.estoqueMinimo)
-  const needed = Number(item.estoqueIdeal) - current
-  const factor = Number(item.fatorCompraParaBase)
-  if (
-    !Number.isFinite(current) || !Number.isFinite(minimum) ||
-    !Number.isFinite(needed) || !Number.isFinite(factor) || factor <= 0 ||
-    current > minimum || needed <= 0
-  ) return
-
-  const [existing] = await tx.select({ id: shoppingListItem.id })
-    .from(shoppingListItem)
-    .where(and(
-      eq(shoppingListItem.tenantId, tenantId),
-      eq(shoppingListItem.insumoId, insumoId),
-      eq(shoppingListItem.kind, 'automatic'),
-    ))
-    .limit(1)
-  if (existing) return
-
-  await tx.insert(shoppingListItem).values({
-    id: crypto.randomUUID(),
-    tenantId,
-    kind: 'automatic',
-    insumoId,
-    nome: item.nome,
-    unidade: item.unidadeCompra,
-    quantidadeSugerida: (needed / factor).toFixed(3),
-  })
-}
-
 export async function addManualShoppingListItem(
   input: AddManualShoppingListItemInput,
 ): Promise<void> {
@@ -103,6 +55,7 @@ export async function addManualShoppingListItem(
     chaveIdempotencia: key,
   }).onConflictDoNothing({
     target: [shoppingListItem.tenantId, shoppingListItem.chaveIdempotencia],
+    where: sql`${shoppingListItem.chaveIdempotencia} IS NOT NULL`,
   })
 }
 

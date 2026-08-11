@@ -33,9 +33,41 @@ describe('getProductAvailability', () => {
   })
 
   it('returns uncontrolled availability when the product has no recipe', () => {
-    expect(getProductAvailability('produto-sem-receita', [], recipes, balances)).toEqual({
+    expect(getProductAvailability(
+      'produto-sem-receita',
+      [],
+      recipes,
+      balances,
+      [{ id: 'produto-sem-receita', controleEstoque: false }],
+    )).toEqual({
       maxAdditionalQuantity: null,
       limitingItemName: null,
+    })
+  })
+
+  it('marks a stock-controlled product without a recipe unavailable', () => {
+    expect(getProductAvailability(
+      'produto-sem-receita',
+      [],
+      recipes,
+      balances,
+      [{ id: 'produto-sem-receita', controleEstoque: true }],
+    )).toEqual({
+      maxAdditionalQuantity: 0,
+      limitingItemName: 'Ficha técnica não cadastrada',
+    })
+  })
+
+  it('uses fixed-scale integer math at decimal capacity boundaries', () => {
+    expect(getProductAvailability(
+      'dose',
+      [],
+      [{ produtoId: 'dose', insumoId: 'xarope', quantidade: '0.100' }],
+      [{ id: 'xarope', nome: 'Xarope', estoqueAtual: '0.300' }],
+      [{ id: 'dose', controleEstoque: true }],
+    )).toEqual({
+      maxAdditionalQuantity: 3,
+      limitingItemName: 'Xarope',
     })
   })
 })

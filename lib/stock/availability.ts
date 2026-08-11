@@ -1,3 +1,5 @@
+import { stockQuantityToMillis } from '@/lib/stock/quantity'
+
 export type ReceitaDisponibilidade = { produtoId: string; insumoId: string; quantidade: string }
 export type SaldoInsumo = { id: string; estoqueAtual: string }
 
@@ -18,7 +20,10 @@ export function getProductAvailability(
 
   const productRecipes = recipes.filter((recipe) => recipe.produtoId === produtoId)
   if (productRecipes.length === 0) {
-    return { maxAdditionalQuantity: null, limitingItemName: null }
+    return {
+      maxAdditionalQuantity: 0,
+      limitingItemName: 'Ficha técnica não cadastrada',
+    }
   }
 
   const demandByItem = new Map<string, number>()
@@ -28,7 +33,8 @@ export function getProductAvailability(
       if (recipe.produtoId !== cartItem.produtoId) continue
       demandByItem.set(
         recipe.insumoId,
-        (demandByItem.get(recipe.insumoId) ?? 0) + Number(recipe.quantidade) * cartItem.quantidade,
+        (demandByItem.get(recipe.insumoId) ?? 0) +
+          stockQuantityToMillis(recipe.quantidade) * cartItem.quantidade,
       )
     }
   }
@@ -37,7 +43,8 @@ export function getProductAvailability(
   for (const recipe of productRecipes) {
     requirementByItem.set(
       recipe.insumoId,
-      (requirementByItem.get(recipe.insumoId) ?? 0) + Number(recipe.quantidade),
+      (requirementByItem.get(recipe.insumoId) ?? 0) +
+        stockQuantityToMillis(recipe.quantidade),
     )
   }
 
@@ -47,7 +54,8 @@ export function getProductAvailability(
 
   for (const [insumoId, requirement] of requirementByItem) {
     const balance = balanceByItem.get(insumoId)
-    const remaining = (balance ? Number(balance.estoqueAtual) : 0) - (demandByItem.get(insumoId) ?? 0)
+    const remaining = (balance ? stockQuantityToMillis(balance.estoqueAtual) : 0) -
+      (demandByItem.get(insumoId) ?? 0)
     const candidate = Math.max(0, Math.floor(remaining / requirement))
     if (candidate < maxAdditionalQuantity) {
       maxAdditionalQuantity = candidate

@@ -93,6 +93,7 @@ describe('manual shopping-list item idempotency', () => {
     }))
     expect(onConflictDoNothing).toHaveBeenCalledWith(expect.objectContaining({
       target: expect.arrayContaining([expect.anything(), expect.anything()]),
+      where: expect.anything(),
     }))
   })
 })
@@ -569,10 +570,10 @@ describe('produtoTemEstoque', () => {
     ])).toBe(false)
   })
 
-  it('ignores recipes for another product', () => {
+  it('marks a controlled product without its own recipe unavailable', () => {
     expect(produtoTemEstoque('prod-1', [
       { produtoId: 'prod-2', insumoId: 'cheese', quantidade: '999' },
-    ], [{ id: 'cheese', estoqueAtual: '0' }])).toBe(true)
+    ], [{ id: 'cheese', estoqueAtual: '0' }])).toBe(false)
   })
 })
 

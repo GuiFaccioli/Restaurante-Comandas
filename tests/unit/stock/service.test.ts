@@ -104,6 +104,60 @@ beforeEach(() => {
 })
 
 describe('applyStockMovement transaction boundary', () => {
+  it('creates the automatic shopping-list entry in the stock transaction', async () => {
+    const inserted: Array<Record<string, unknown>> = []
+    let selectCount = 0
+    const tx = {
+      select: vi.fn(() => {
+        selectCount += 1
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => {
+              if (selectCount === 1 || selectCount === 3) return Promise.resolve([])
+              if (selectCount === 2) {
+                return { for: vi.fn(async () => [{
+                  nome: 'Cheese', estoqueAtual: '3.000', custoUnitario: '2.0000',
+                }]) }
+              }
+              if (selectCount === 4) {
+                return { for: vi.fn(async () => [{
+                  id: 'ingredient-1', nome: 'Cheese', unidadeCompra: 'kg',
+                  fatorCompraParaBase: '1000.000', estoqueAtual: '2.000',
+                  estoqueIdeal: '10.000', estoqueMinimo: '2.000',
+                }]) }
+              }
+              return { limit: vi.fn(async () => []) }
+            }),
+          })),
+        }
+      }),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn(async () => undefined) })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: Record<string, unknown>) => {
+          inserted.push(values)
+        }),
+      })),
+    }
+    runInDbTransactionMock.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(tx),
+    )
+
+    await applyStockMovement({
+      ...movementInput(),
+      tipo: 'perda',
+      quantidade: -1,
+    })
+
+    expect(inserted).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        tenantId: 'tenant-1', kind: 'automatic',
+        insumoId: 'ingredient-1', quantidadeSugerida: '0.008',
+      }),
+    ]))
+  })
+
   it('rolls back the stock update when the movement insert fails', async () => {
       const readState = installTransactionHarness(
         { estoqueAtual: '10.000', movementKeys: [] },
@@ -182,6 +236,24 @@ describe('applyStockMovement concurrency and physical counts', () => {
                     }]
                     return {
                       for: lockFor,
+                      then: (
+                        resolve: (value: typeof rows) => unknown,
+                        reject: (reason: unknown) => unknown,
+                      ) => Promise.resolve(rows).then(resolve, reject),
+                    }
+                  }
+                  if (selectCount === 4) {
+                    const rows = [{
+                      id: 'ingredient-1',
+                      nome: 'Cheese',
+                      unidadeCompra: 'kg',
+                      fatorCompraParaBase: '1000.000',
+                      estoqueAtual: '10.000',
+                      estoqueIdeal: '10.000',
+                      estoqueMinimo: '2.000',
+                    }]
+                    return {
+                      for: vi.fn(async () => rows),
                       then: (
                         resolve: (value: typeof rows) => unknown,
                         reject: (reason: unknown) => unknown,

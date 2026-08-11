@@ -92,6 +92,35 @@ beforeEach(() => {
 })
 
 describe('PostgreSQL order consumption', () => {
+  it('rejects a stock-controlled product without a recipe before creating the order', async () => {
+    const table = lockedQuery([{ numero: 7 }])
+    const attendance = lockedQuery([{
+      id: 'atendimento-1', mesaId: 'mesa-1', status: 'open' as const,
+    }])
+    const product = lockedQuery([{
+      nome: 'Pizza', preco: '42.00', categoriaNome: 'Pratos',
+      controleEstoque: true,
+    }])
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(table)
+        .mockReturnValueOnce(attendance)
+        .mockReturnValueOnce(product)
+        .mockReturnValueOnce(selectedRows([]))
+        .mockReturnValueOnce(orderedRows([])),
+      insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+    }
+
+    await expect(createOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', mesaId: 'mesa-1',
+      atendimentoId: 'atendimento-1',
+      items: [{ produtoId: 'produto-1', quantidade: 1 }],
+    })).rejects.toThrow('Produto com controle de estoque sem ficha técnica')
+
+    expect(tx.insert).not.toHaveBeenCalled()
+    expect(mocks.applyStockMovementInPostgresTransaction).not.toHaveBeenCalled()
+  })
+
   it('locks tenant-scoped tables and products in deterministic product-id order', async () => {
     const table = lockedQuery([{ numero: 7 }])
     const attendance = lockedQuery([{ id: 'atendimento-1', mesaId: 'mesa-1', status: 'open' as const }])
