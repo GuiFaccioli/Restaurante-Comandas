@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrencyInput } from '@/lib/money'
 import { adicionarItemManualListaCompra, ajustarEstoqueAtual, confirmarItemListaCompra, criarInsumo, editarInsumo, realizarContagemEstoque, registrarEntradaEstoque, registrarPerdaEstoque, removerInsumo, salvarFichaTecnica } from '@/lib/actions/estoque'
-import { movementUnitsFor } from '@/lib/stock/units'
+import { movementUnitsFor, quantidadeBaseParaUnidade } from '@/lib/stock/units'
 
 type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; fatorCompraParaBase: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string; custoUnitario: string | null }
 
@@ -288,7 +288,11 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     if (manualStockBusy) return
     stockAdjustmentIntentRef.current = null
     setEditingStockId(item.id)
-    setStockValue(item.estoqueAtual)
+    setStockValue(quantidadeBaseParaUnidade(
+      item.estoqueAtual,
+      item.unidadeCompra,
+      item.unidadeBase,
+    ))
   }
 
   function cancelStockAdjustment() {
@@ -314,7 +318,13 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
   function openIngredientEdit(item: Insumo) {
     const cost = Number(item.custoUnitario) * Number(item.fatorCompraParaBase)
     setEditingIngredient(item)
-    setEditIngredientValues({ nome: item.nome, unidade: item.unidadeCompra, custoPorUnidade: item.custoUnitario === null ? '' : cost.toFixed(2).replace('.', ','), estoqueMinimo: String(item.estoqueMinimo ?? ''), estoqueIdeal: String(item.estoqueIdeal ?? '') })
+    setEditIngredientValues({
+      nome: item.nome,
+      unidade: item.unidadeCompra,
+      custoPorUnidade: item.custoUnitario === null ? '' : cost.toFixed(2).replace('.', ','),
+      estoqueMinimo: quantidadeBaseParaUnidade(item.estoqueMinimo, item.unidadeCompra, item.unidadeBase),
+      estoqueIdeal: quantidadeBaseParaUnidade(item.estoqueIdeal, item.unidadeCompra, item.unidadeBase),
+    })
   }
 
   async function handleEditIngredient() {
@@ -418,6 +428,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       custo: '',
       motivo: 'Contagem física',
       observacao: 'Contagem manual do estoque',
+      unidade: item.unidadeCompra,
     })
     const intent = intentForFingerprint(
       stockAdjustmentIntentRef.current,
@@ -426,7 +437,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     stockAdjustmentIntentRef.current = intent
     manualStockPendingRef.current = true
     setEntryId(item.id)
-    try { await ajustarEstoqueAtual(item.id, stockValue, intent.key); stockAdjustmentIntentRef.current = null; setEditingStockId(null); router.refresh(); toast.success('Estoque atualizado.') }
+    try { await ajustarEstoqueAtual(item.id, stockValue, intent.key, item.unidadeCompra); stockAdjustmentIntentRef.current = null; setEditingStockId(null); router.refresh(); toast.success('Estoque atualizado.') }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o estoque.') }
     finally { manualStockPendingRef.current = false; setEntryId(null) }
   }

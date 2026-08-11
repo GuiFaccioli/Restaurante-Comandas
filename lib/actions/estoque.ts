@@ -99,13 +99,20 @@ export async function registrarEntradaEstoque(id: string, quantidadeCompra: stri
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'entrada', quantidade, custoUnitario: custoTotal === null ? null : custoTotal / quantidade, chaveIdempotencia: chave, observacao: 'Entrada manual de estoque' })
 }
 
-export async function ajustarEstoqueAtual(id: string, quantidadeBase: string, chaveIdempotencia: string): Promise<void> {
+export async function ajustarEstoqueAtual(id: string, quantidadeInformada: string, chaveIdempotencia: string, unidadeMovimento?: string): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('admin')
   const chave = validarChaveIdempotente(chaveIdempotencia)
-  const quantidade = Number(quantidadeBase.replace(',', '.'))
-  if (!Number.isFinite(quantidade) || quantidade < 0) throw new Error('Informe uma quantidade válida')
-  const [item] = await db.select({ id: insumo.id }).from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
+  const [item] = await db.select({
+    id: insumo.id,
+    unidadeCompra: insumo.unidadeCompra,
+    unidadeBase: insumo.unidadeBase,
+  }).from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
+  const quantidade = Number(normalizarQuantidadeBase(
+    quantidadeInformada,
+    unidadeMovimento ?? item.unidadeBase,
+    item.unidadeBase,
+  ))
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'contagem', quantidade, chaveIdempotencia: chave, motivo: 'Contagem física', observacao: 'Contagem manual do estoque' })
 }
 

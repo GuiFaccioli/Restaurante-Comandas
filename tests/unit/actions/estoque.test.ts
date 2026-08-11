@@ -359,12 +359,36 @@ describe('physical stock counts', () => {
       '11111111-1111-4111-8111-111111111111',
     )
 
-    expect(selectMock).toHaveBeenCalledWith({ id: insumo.id })
+    expect(selectMock).toHaveBeenCalledWith({
+      id: insumo.id,
+      unidadeCompra: insumo.unidadeCompra,
+      unidadeBase: insumo.unidadeBase,
+    })
     expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
       tenantId: 'tenant-1',
       insumoId: 'insumo-1',
       tipo: 'contagem',
       quantidade: 10,
+    }))
+  })
+
+  it('normalizes a purchase-unit adjustment before persisting the canonical balance', async () => {
+    mockStockItem({
+      id: 'insumo-1',
+      estoqueAtual: '999.000',
+      unidadeCompra: 'kg',
+      unidadeBase: 'g',
+    })
+
+    await ajustarEstoqueAtual(
+      'insumo-1',
+      '2',
+      '11111111-1111-4111-8111-111111111111',
+      'kg',
+    )
+
+    expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
+      quantidade: 2000,
     }))
   })
 

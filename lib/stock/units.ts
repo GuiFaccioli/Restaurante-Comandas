@@ -31,6 +31,19 @@ export function normalizarQuantidadeBase(quantidade: string, unidadeCompra: stri
   return (amount * factor).toFixed(3)
 }
 
+export function quantidadeBaseParaUnidade(
+  quantidadeBase: string,
+  unidadeCompra: string,
+  unidadeBase: string,
+): string {
+  assertUnits(unidadeBase, unidadeCompra)
+  const amount = parseDecimal(quantidadeBase, 'Quantidade')
+  const factor = UNIT_FACTORS[unidadeCompra as UnidadeCompra]
+    / UNIT_FACTORS[unidadeBase as UnidadeCompra]
+  const converted = amount / factor
+  return converted.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+}
+
 export function fatorCompraParaBase(unidadeCompra: UnidadeCompra, unidadeBase: UnidadeBase): string {
   return (UNIT_FACTORS[unidadeCompra] / UNIT_FACTORS[unidadeBase]).toFixed(3)
 }
