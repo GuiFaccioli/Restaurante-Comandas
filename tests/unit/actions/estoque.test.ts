@@ -154,7 +154,7 @@ describe('criarInsumo', () => {
       })
       .mockReturnValueOnce(emptyAutomaticQuery())
     runInDbTransactionMock.mockImplementation(async ({ postgresOperation }) => (
-      postgresOperation({ insert: db.insert, select })
+      postgresOperation({ insert: db.insert, select, execute: vi.fn() })
     ))
   })
 
@@ -688,6 +688,7 @@ describe('shopping-list operations', () => {
         id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
         estoqueAtual: '2000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
       }, undefined),
+      execute: vi.fn(),
       insert: vi.fn(() => ({ values: insertValues })),
     }
 
@@ -708,6 +709,7 @@ describe('shopping-list operations', () => {
         id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
         estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
       }, { id: 'row-1' }),
+      execute: vi.fn(),
       insert,
     }
 
@@ -716,7 +718,7 @@ describe('shopping-list operations', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
-  it('locks the automatic suggestion before the ingredient', async () => {
+  it('acquires a stable reconciliation lock before the automatic suggestion and ingredient', async () => {
     const lockOrder: string[] = []
     const automaticRowQuery = {
       limit: vi.fn(async () => [{ id: 'row-1' }]),
@@ -739,12 +741,19 @@ describe('shopping-list operations', () => {
           })),
         })),
       })),
+      execute: vi.fn(async () => {
+        lockOrder.push('reconciliation-key')
+      }),
       insert: vi.fn(),
     }
 
     await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
 
-    expect(lockOrder).toEqual(['shopping-list', 'insumo'])
+    expect(lockOrder).toEqual([
+      'reconciliation-key',
+      'shopping-list',
+      'insumo',
+    ])
     expect(tx.insert).not.toHaveBeenCalled()
   })
 
@@ -755,6 +764,7 @@ describe('shopping-list operations', () => {
         id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
         estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
       }, { id: 'row-1' }),
+      execute: vi.fn(),
       delete: vi.fn(() => ({ where: deleteWhere })),
       insert: vi.fn(),
     }
@@ -771,6 +781,7 @@ describe('shopping-list operations', () => {
         id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
         estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
       }, undefined),
+      execute: vi.fn(),
       delete: vi.fn(),
       insert: vi.fn(),
     }
@@ -792,6 +803,13 @@ describe('shopping-list operations', () => {
       select: vi.fn()
         .mockReturnValueOnce({
           from: vi.fn(() => ({
+            where: vi.fn(async () => [{
+              id: 'row-1', kind: 'automatic', insumoId: 'insumo-1', quantidadeSugerida: '8.000',
+            }]),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
             where: vi.fn(() => ({
               for: vi.fn(async () => [{
                 id: 'row-1', kind: 'automatic', insumoId: 'insumo-1', quantidadeSugerida: '8.000',
@@ -811,6 +829,7 @@ describe('shopping-list operations', () => {
         .mockImplementation(reconciliationQuery),
       delete: vi.fn(() => ({ where: deleteWhere })),
       insert: vi.fn(() => ({ values: vi.fn() })),
+      execute: vi.fn(),
     }
     runInDbTransactionMock.mockImplementationOnce(
       (operations: TransactionOperations) => operations.postgresOperation(tx),
@@ -835,13 +854,19 @@ describe('shopping-list operations', () => {
   it('removes a manual item without creating a stock movement', async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined)
     const tx = {
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            for: vi.fn(async () => [{ id: 'row-1', kind: 'manual', insumoId: null }]),
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(async () => [{ id: 'row-1', kind: 'manual', insumoId: null }]),
           })),
-        })),
-      })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async () => [{ id: 'row-1', kind: 'manual', insumoId: null }]),
+            })),
+          })),
+        }),
       delete: vi.fn(() => ({ where: deleteWhere })),
     }
     runInDbTransactionMock.mockImplementationOnce(
@@ -860,7 +885,7 @@ describe('shopping-list operations', () => {
     const tx = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
-          where: vi.fn(() => ({ for: vi.fn(async () => []) })),
+          where: vi.fn(async () => []),
         })),
       })),
       delete: vi.fn(() => ({ where: deleteWhere })),

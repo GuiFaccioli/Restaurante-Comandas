@@ -32,17 +32,23 @@ function installTransactionHarness(
       let selectCount = 0
 
       const transaction = {
+        execute: vi.fn(async () => undefined),
         select: vi.fn(() => {
           selectCount += 1
           return {
             from: vi.fn(() => ({
               where: vi.fn(() => {
-                if (selectCount === 1 || selectCount === 3) {
+                if (selectCount === 1 || selectCount === 4) {
                   return Promise.resolve(
                     pendingState.movementKeys.includes('movement-1')
                       ? [{ id: 'existing-movement' }]
                       : [],
                   )
+                }
+                if (selectCount === 2) {
+                  return {
+                    for: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+                  }
                 }
                 const rows = [{
                   id: 'ingredient-1',
@@ -108,18 +114,24 @@ describe('applyStockMovement transaction boundary', () => {
     const inserted: Array<Record<string, unknown>> = []
     let selectCount = 0
     const tx = {
+      execute: vi.fn(async () => undefined),
       select: vi.fn(() => {
         selectCount += 1
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => {
-              if (selectCount === 1 || selectCount === 3) return Promise.resolve([])
-              if (selectCount === 2) {
+              if (selectCount === 1 || selectCount === 4) return Promise.resolve([])
+              if (selectCount === 2 || selectCount === 5 || selectCount === 7) {
+                return {
+                  for: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+                }
+              }
+              if (selectCount === 3) {
                 return { for: vi.fn(async () => [{
                   nome: 'Cheese', estoqueAtual: '3.000', custoUnitario: '2.0000',
                 }]) }
               }
-              if (selectCount === 4) {
+              if (selectCount === 6) {
                 return { for: vi.fn(async () => [{
                   id: 'ingredient-1', nome: 'Cheese', unidadeCompra: 'kg',
                   fatorCompraParaBase: '1000.000', estoqueAtual: '2.000',
@@ -219,6 +231,9 @@ describe('applyStockMovement concurrency and physical counts', () => {
       (operations: TransactionOperations) => {
         let selectCount = 0
         const transaction = {
+          execute: vi.fn(async () => {
+            events.push('reconciliation-key')
+          }),
           select: vi.fn(() => {
             selectCount += 1
             return {
@@ -229,6 +244,12 @@ describe('applyStockMovement concurrency and physical counts', () => {
                     return Promise.resolve([])
                   }
                   if (selectCount === 2) {
+                    events.push('automatic-row')
+                    return {
+                      for: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+                    }
+                  }
+                  if (selectCount === 3) {
                     const rows = [{
                       nome: 'Cheese',
                       estoqueAtual: '10.000',
@@ -242,7 +263,13 @@ describe('applyStockMovement concurrency and physical counts', () => {
                       ) => Promise.resolve(rows).then(resolve, reject),
                     }
                   }
-                  if (selectCount === 4) {
+                  if (selectCount === 5 || selectCount === 7) {
+                    events.push('automatic-row')
+                    return {
+                      for: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+                    }
+                  }
+                  if (selectCount === 6) {
                     const rows = [{
                       id: 'ingredient-1',
                       nome: 'Cheese',
@@ -299,10 +326,16 @@ describe('applyStockMovement concurrency and physical counts', () => {
     expect(harness.lockFor).toHaveBeenCalledWith('update')
     expect(harness.readEvents()).toEqual([
       'idempotency-before-lock',
+      'reconciliation-key',
+      'automatic-row',
       'lock:update',
       'idempotency-after-lock',
       'update',
       'insert',
+      'reconciliation-key',
+      'automatic-row',
+      'reconciliation-key',
+      'automatic-row',
     ])
   })
 

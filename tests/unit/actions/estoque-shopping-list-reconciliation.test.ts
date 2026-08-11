@@ -47,9 +47,13 @@ describe('ingredient changes reconcile the shopping list atomically', () => {
   })
 
   it('removes a stale automatic suggestion after editing an ingredient to no longer qualify', async () => {
-    const where = vi.fn().mockResolvedValue(undefined)
+    const lockOrder: string[] = []
+    const where = vi.fn(async () => { lockOrder.push('insumo') })
     const update = vi.fn(() => ({ set: vi.fn(() => ({ where })) }))
     const tx = { update }
+    lockAutomaticMock.mockImplementation(async () => {
+      lockOrder.push('shopping-list')
+    })
     runInDbTransactionMock.mockImplementation(async ({ postgresOperation }) => (
       postgresOperation(tx)
     ))
@@ -60,5 +64,6 @@ describe('ingredient changes reconcile the shopping list atomically', () => {
     })
 
     expect(reconcileMock).toHaveBeenCalledWith(tx, 'tenant-1', 'insumo-1')
+    expect(lockOrder).toEqual(['shopping-list', 'insumo'])
   })
 })

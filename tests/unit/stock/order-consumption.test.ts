@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
   inArray: vi.fn((left: unknown, right: unknown) => ({ left, right })),
   applyStockMovementInPostgresTransaction: vi.fn(),
+  lockAutomaticShoppingListItemInPostgresTransaction: vi.fn(),
   lockStockItemInPostgresTransaction: vi.fn(),
 }))
 
@@ -21,6 +22,11 @@ vi.mock('@/lib/stock/service', () => ({
   lockStockItemInPostgresTransaction: mocks.lockStockItemInPostgresTransaction,
   stockMillisToDecimal: (millis: number) => `${millis / 1_000}.000`,
   stockQuantityToMillis: (value: string | number) => Math.round(Number(value) * 1_000),
+}))
+
+vi.mock('@/lib/shopping-list/reconciliation', () => ({
+  lockAutomaticShoppingListItemInPostgresTransaction:
+    mocks.lockAutomaticShoppingListItemInPostgresTransaction,
 }))
 
 import * as schema from '@/lib/db/schema'
@@ -84,6 +90,9 @@ function controlledOrderSelections() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.lockAutomaticShoppingListItemInPostgresTransaction.mockResolvedValue(
+    undefined,
+  )
   mocks.lockStockItemInPostgresTransaction.mockResolvedValue({
     nome: 'Queijo',
     estoqueAtual: '10.000',
@@ -199,6 +208,36 @@ describe('PostgreSQL order consumption', () => {
       tx, 'tenant-1', 'insumo-1',
     )
     expect(mocks.applyStockMovementInPostgresTransaction).not.toHaveBeenCalled()
+  })
+
+  it('acquires the shopping-list lock before the ingredient lock during consumption', async () => {
+    const lockOrder: string[] = []
+    const selections = controlledOrderSelections()
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(selections[0])
+        .mockReturnValueOnce(selections[1])
+        .mockReturnValueOnce(selections[2])
+        .mockReturnValueOnce(selections[3])
+        .mockReturnValueOnce(selections[4])
+        .mockReturnValueOnce(selections[5]),
+      insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+    }
+    mocks.lockAutomaticShoppingListItemInPostgresTransaction
+      .mockImplementation(async () => { lockOrder.push('shopping-list') })
+    mocks.lockStockItemInPostgresTransaction
+      .mockImplementation(async () => {
+        lockOrder.push('insumo')
+        return { nome: 'Queijo', estoqueAtual: '10.000', custoUnitario: '2.0000' }
+      })
+
+    await createOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', mesaId: 'mesa-1',
+      atendimentoId: 'atendimento-1',
+      items: [{ produtoId: 'produto-1', quantidade: 1 }],
+    })
+
+    expect(lockOrder).toEqual(['shopping-list', 'insumo'])
   })
 
   it('consumes at creation and reverses a cancelled new order once', async () => {

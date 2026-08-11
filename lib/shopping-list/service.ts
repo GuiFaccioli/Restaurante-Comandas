@@ -11,7 +11,10 @@ import {
   parsePositiveDecimal,
   UNIDADES_COMPRA,
 } from '@/lib/stock/units'
-import { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
+import {
+  acquireShoppingListReconciliationLock,
+  reconcileShoppingListInPostgresTransaction,
+} from '@/lib/shopping-list/reconciliation'
 
 export { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
 
@@ -69,6 +72,25 @@ export async function completeShoppingListItem(
 
   await runInDbTransaction({
     postgresOperation: async (tx) => {
+      const [candidate] = await tx.select({
+        id: shoppingListItem.id,
+        kind: shoppingListItem.kind,
+        insumoId: shoppingListItem.insumoId,
+        quantidadeSugerida: shoppingListItem.quantidadeSugerida,
+      }).from(shoppingListItem).where(and(
+        eq(shoppingListItem.id, input.itemId),
+        eq(shoppingListItem.tenantId, tenantId),
+      ))
+      if (!candidate) return
+
+      if (candidate.kind === 'automatic' && candidate.insumoId) {
+        await acquireShoppingListReconciliationLock(
+          tx,
+          tenantId,
+          candidate.insumoId,
+        )
+      }
+
       const [row] = await tx.select({
         id: shoppingListItem.id,
         kind: shoppingListItem.kind,

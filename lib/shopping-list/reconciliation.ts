@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { insumo, shoppingListItem } from '@/lib/db/schema'
 import {
@@ -9,11 +9,24 @@ import type { PostgresStockTransaction } from '@/lib/stock/service'
 
 type AutomaticShoppingListItem = { id: string } | undefined
 
+export async function acquireShoppingListReconciliationLock(
+  tx: PostgresStockTransaction,
+  tenantId: string,
+  insumoId: string,
+): Promise<void> {
+  await tx.execute(sql`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended(${`${tenantId}:${insumoId}`}, 0)
+    )
+  `)
+}
+
 export async function lockAutomaticShoppingListItemInPostgresTransaction(
   tx: PostgresStockTransaction,
   tenantId: string,
   insumoId: string,
 ): Promise<AutomaticShoppingListItem> {
+  await acquireShoppingListReconciliationLock(tx, tenantId, insumoId)
   const [existing] = await tx.select({ id: shoppingListItem.id })
     .from(shoppingListItem)
     .where(and(

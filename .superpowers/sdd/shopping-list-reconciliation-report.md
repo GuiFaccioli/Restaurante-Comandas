@@ -33,3 +33,14 @@ Automatic shopping-list rows were only read after the eligibility guard. A direc
   - Output: 2 test files passed, 41 tests passed.
 - `npm run build`
   - Output: Next.js production build and TypeScript check passed.
+
+## Absent-row-safe lock follow-up
+- Added a transaction-scoped PostgreSQL advisory lock derived from `tenantId:insumoId` before automatic-row and ingredient locks.
+- Completion reads an automatic row without locking, acquires the advisory lock, then re-reads it with `FOR UPDATE`; this keeps its lock order consistent with stock mutations.
+- Regression harnesses now cover direct movement, ingredient edit, order consumption, and the missing-row recheck sequence.
+
+### Commands
+- `npm test -- tests/unit/stock/service.test.ts tests/unit/stock/order-consumption.test.ts tests/unit/actions/estoque.test.ts tests/unit/actions/estoque-shopping-list-reconciliation.test.ts`
+  - Output: 4 test files passed, 59 tests passed.
+- `npm run build`
+  - Output: Next.js production build and TypeScript check passed.
