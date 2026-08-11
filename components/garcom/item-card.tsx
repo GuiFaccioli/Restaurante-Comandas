@@ -52,9 +52,9 @@ export function ItemCard({ produto, recipes, balances, productStockControls }: P
         <div className="flex items-center gap-2">
           <Button type="button" intent="neutral" appearance="outline" size="icon" className="size-11 p-0" aria-label={`Diminuir ${produto.nome}`} onClick={() => decrementItem(produto.id)}><Minus aria-hidden="true" /></Button>
           <span className="w-8 text-center text-sm font-medium">{cartItem.quantidade}</span>
-          <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${produto.nome}`} onClick={handleAdd} disabled={atStockCap}><Plus aria-hidden="true" /></Button>
+          <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${produto.nome}`} aria-disabled={atStockCap} onClick={handleAdd}><Plus aria-hidden="true" /></Button>
         </div>
-      ) : <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11 w-full" onClick={handleAdd} disabled={atStockCap}><Plus aria-hidden="true" /> Adicionar</Button>}
+      ) : <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11 w-full" onClick={handleAdd} aria-disabled={atStockCap}><Plus aria-hidden="true" /> Adicionar</Button>}
     </article>
   )
 }

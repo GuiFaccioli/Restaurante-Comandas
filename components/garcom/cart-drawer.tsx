@@ -154,7 +154,7 @@ function CartItemRow({ item, recipes, balances, productStockControls, editingObs
       <div className="flex items-center gap-2">
         <Button type="button" intent="neutral" appearance="outline" size="icon" className="size-11" aria-label={`Diminuir ${item.nome}`} onClick={() => decrementItem(item.produtoId)}><Minus aria-hidden="true" /></Button>
         <span className="w-8 text-center text-sm font-medium">{item.quantidade}</span>
-        <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${item.nome}`} onClick={handleAdd} disabled={atStockCap}><Plus aria-hidden="true" /></Button>
+        <Button type="button" intent="positive" appearance="soft" size="icon" className="size-11" aria-label={`Adicionar mais ${item.nome}`} aria-disabled={atStockCap} onClick={handleAdd}><Plus aria-hidden="true" /></Button>
         <Button type="button" intent="destructive" appearance="ghost" size="icon" className="size-11" aria-label={`Remover ${item.nome} do carrinho`} onClick={() => removeItem(item.produtoId)}><Trash2 aria-hidden="true" /></Button>
       </div>
     </div>

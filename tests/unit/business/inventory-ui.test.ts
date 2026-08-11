@@ -35,6 +35,11 @@ describe('inventory and waiter menu workflows', () => {
     expect(navigation).not.toContain("label: 'Insumos'")
     expect(navigation).toContain('const active = pathname === link.href')
     expect(navigation).not.toContain('pathname.startsWith')
+
+    const adminLayout = source('app/admin/layout.tsx')
+    expect(adminLayout).toContain("href: '/admin/estoque'")
+    expect(adminLayout).not.toContain('/admin/estoque/insumos')
+    expect(adminLayout).not.toContain('Insumos')
   })
 
   it('loads and presents a separate shopping list view with idempotent confirmation', () => {
