@@ -9,7 +9,10 @@ import {
   type LockedStockItem,
   type PostgresStockTransaction,
 } from '@/lib/stock/service'
-import { lockAutomaticShoppingListItemInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
+import {
+  lockAutomaticShoppingListItemInPostgresTransaction,
+  reconcileShoppingListInPostgresTransaction,
+} from '@/lib/shopping-list/reconciliation'
 
 export type OrderItemInput = {
   produtoId: string
@@ -216,7 +219,16 @@ async function consumePreparedSnapshots(
       itemPedidoId: movement.itemPedidoId,
       chaveIdempotencia: movement.chaveIdempotencia,
       observacao: 'Consumo no aceite do pedido',
-    })
+    }, { reconcileShoppingList: false })
+  }
+  for (const insumoId of [...new Set(
+    movements.map((movement) => movement.insumoId),
+  )].sort()) {
+    await reconcileShoppingListInPostgresTransaction(
+      tx,
+      input.tenantId,
+      insumoId,
+    )
   }
 }
 
@@ -563,7 +575,16 @@ async function reverseSnapshotInPostgresTransaction(
       itemPedidoId: movement.itemPedidoId,
       chaveIdempotencia: movement.chaveIdempotencia,
       observacao: 'Estorno por cancelamento do pedido',
-    })
+    }, { reconcileShoppingList: false })
+  }
+  for (const insumoId of [...new Set(
+    movements.map((movement) => movement.insumoId),
+  )].sort()) {
+    await reconcileShoppingListInPostgresTransaction(
+      tx,
+      input.tenantId,
+      insumoId,
+    )
   }
 }
 

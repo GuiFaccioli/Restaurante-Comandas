@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   applyStockMovementInPostgresTransaction: vi.fn(),
   lockAutomaticShoppingListItemInPostgresTransaction: vi.fn(),
   lockStockItemInPostgresTransaction: vi.fn(),
+  reconcileShoppingListInPostgresTransaction: vi.fn(),
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -27,6 +28,8 @@ vi.mock('@/lib/stock/service', () => ({
 vi.mock('@/lib/shopping-list/reconciliation', () => ({
   lockAutomaticShoppingListItemInPostgresTransaction:
     mocks.lockAutomaticShoppingListItemInPostgresTransaction,
+  reconcileShoppingListInPostgresTransaction:
+    mocks.reconcileShoppingListInPostgresTransaction,
 }))
 
 import * as schema from '@/lib/db/schema'
@@ -68,7 +71,7 @@ function orderedRows<T>(rows: T[]) {
   }
 }
 
-function controlledOrderSelections() {
+function controlledOrderSelections(recipeQuantity = '3.000') {
   return [
     lockedQuery([{ numero: 7 }]),
     lockedQuery([{
@@ -83,7 +86,7 @@ function controlledOrderSelections() {
       id: 'insumo-1', tenantId: 'tenant-1', ativo: true,
     }]),
     orderedRows([{
-      produtoId: 'produto-1', insumoId: 'insumo-1', quantidade: '3.000',
+      produtoId: 'produto-1', insumoId: 'insumo-1', quantidade: recipeQuantity,
     }]),
   ] as const
 }
@@ -93,6 +96,7 @@ beforeEach(() => {
   mocks.lockAutomaticShoppingListItemInPostgresTransaction.mockResolvedValue(
     undefined,
   )
+  mocks.reconcileShoppingListInPostgresTransaction.mockResolvedValue(undefined)
   mocks.lockStockItemInPostgresTransaction.mockResolvedValue({
     nome: 'Queijo',
     estoqueAtual: '10.000',
@@ -244,6 +248,63 @@ describe('PostgreSQL order consumption', () => {
     ])
   })
 
+  it('reconciles one shared ingredient only after all order snapshots reach the final balance', async () => {
+    const selections = controlledOrderSelections('1.000')
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(selections[0])
+        .mockReturnValueOnce(selections[1])
+        .mockReturnValueOnce(selections[2])
+        .mockReturnValueOnce(selections[3])
+        .mockReturnValueOnce(selections[4])
+        .mockReturnValueOnce(selections[5]),
+      insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+    }
+    let balanceMillis = 10_000
+    const suggestions: string[] = []
+    mocks.applyStockMovementInPostgresTransaction.mockImplementation(
+      async (_tx, input: { quantidade: number }) => {
+        balanceMillis += Math.round(input.quantidade * 1_000)
+        return { applied: true }
+      },
+    )
+    mocks.reconcileShoppingListInPostgresTransaction.mockImplementation(
+      async () => {
+        suggestions.push(((10_000 - balanceMillis) / 1_000).toFixed(3))
+      },
+    )
+
+    await createOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', mesaId: 'mesa-1',
+      atendimentoId: 'atendimento-1',
+      items: [
+        { produtoId: 'produto-1', quantidade: 1 },
+        { produtoId: 'produto-1', quantidade: 1 },
+      ],
+    })
+
+    expect(balanceMillis).toBe(8_000)
+    expect(suggestions).toEqual(['2.000'])
+    expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledTimes(2)
+    expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenNthCalledWith(
+      1,
+      tx,
+      expect.objectContaining({ insumoId: 'insumo-1', quantidade: -1 }),
+      { reconcileShoppingList: false },
+    )
+    expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenNthCalledWith(
+      2,
+      tx,
+      expect.objectContaining({ insumoId: 'insumo-1', quantidade: -1 }),
+      { reconcileShoppingList: false },
+    )
+    expect(mocks.reconcileShoppingListInPostgresTransaction).toHaveBeenCalledWith(
+      tx,
+      'tenant-1',
+      'insumo-1',
+    )
+  })
+
   it('coordinates sorted ingredient preflight locks before acquiring each ingredient row', async () => {
     const lockOrder: string[] = []
     const table = lockedQuery([{ numero: 7 }])
@@ -375,6 +436,7 @@ describe('PostgreSQL order consumption', () => {
         tenantId: 'tenant-1', pedidoId: created.id, insumoId: 'insumo-1',
         tipo: 'saida', quantidade: -3,
       }),
+      { reconcileShoppingList: false },
     )
     expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledWith(
       tx,
@@ -382,6 +444,7 @@ describe('PostgreSQL order consumption', () => {
         tenantId: 'tenant-1', pedidoId: created.id, insumoId: 'insumo-1',
         tipo: 'estorno', quantidade: 3,
       }),
+      { reconcileShoppingList: false },
     )
     expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledTimes(2)
     const consumption = mocks.applyStockMovementInPostgresTransaction.mock.calls[0][1]
@@ -453,6 +516,7 @@ describe('PostgreSQL order consumption', () => {
         insumoId: 'insumo-2', itemPedidoId: 'item-2', tipo: 'saida', quantidade: -1,
         chaveIdempotencia: 'consumo:tenant-1:pedido:pedido-1:item:item-2:insumo:insumo-2',
       }),
+      { reconcileShoppingList: false },
     )
     expect(updateWhere).toHaveBeenCalledTimes(1)
   })
@@ -625,6 +689,7 @@ describe('PostgreSQL order consumption', () => {
         insumoId: 'insumo-1', itemPedidoId: 'item-1', tipo: 'estorno', quantidade: 2,
         chaveIdempotencia: 'estorno:tenant-1:pedido:pedido-1:item:item-1:insumo:insumo-1',
       }),
+      { reconcileShoppingList: false },
     )
   })
 
