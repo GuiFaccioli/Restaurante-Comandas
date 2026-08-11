@@ -123,7 +123,7 @@ describe('manual shopping-list creation idempotency in the UI', () => {
 })
 
 describe('manual stock operation idempotency in the UI', () => {
-  it('reuses an entry key for the same failed payload and rotates it when the payload changes', async () => {
+  it('sends the selected entry unit and rotates the key when that unit changes', async () => {
     state.registrarEntradaEstoque
       .mockRejectedValueOnce(new Error('offline'))
       .mockRejectedValueOnce(new Error('offline'))
@@ -131,24 +131,31 @@ describe('manual stock operation idempotency in the UI', () => {
 
     renderStock()
     const entry = screen.getByLabelText('Entrada para Bacon')
-    fireEvent.change(entry, { target: { value: '2' } })
+    fireEvent.change(entry, { target: { value: '500' } })
+    fireEvent.change(screen.getByLabelText('Unidade de entrada para Bacon'), {
+      target: { value: 'g' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarEntradaEstoque.mock.calls.slice(0, 2)).toEqual([
-      ['insumo-1', '2', firstKey],
-      ['insumo-1', '2', firstKey],
+      ['insumo-1', '500', firstKey, undefined, 'g'],
+      ['insumo-1', '500', firstKey, undefined, 'g'],
     ])
 
-    fireEvent.change(entry, { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Unidade de entrada para Bacon'), {
+      target: { value: 'kg' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(3))
     expect(state.registrarEntradaEstoque).toHaveBeenLastCalledWith(
       'insumo-1',
-      '3',
+      '500',
       secondKey,
+      undefined,
+      'kg',
     )
   })
 
@@ -172,6 +179,8 @@ describe('manual stock operation idempotency in the UI', () => {
       'insumo-1',
       '2',
       firstKey,
+      undefined,
+      'kg',
     )
 
     await act(async () => resolveEntry?.())
@@ -210,8 +219,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(state.registrarPerdaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarPerdaEstoque.mock.calls).toEqual([
-      ['insumo-1', '1', 'Vencimento', firstKey],
-      ['insumo-1', '1', 'Vencimento', firstKey],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
     ])
   })
 
@@ -283,8 +292,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(registerButtons[1])
     await waitFor(() => expect(state.registrarEntradaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarEntradaEstoque.mock.calls).toEqual([
-      ['insumo-1', '2', firstKey],
-      ['insumo-2', '3', secondKey],
+      ['insumo-1', '2', firstKey, undefined, 'kg'],
+      ['insumo-2', '3', secondKey, undefined, 'kg'],
     ])
   })
 
@@ -310,8 +319,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(state.registrarPerdaEstoque).toHaveBeenCalledTimes(2))
     expect(state.registrarPerdaEstoque.mock.calls).toEqual([
-      ['insumo-1', '1', 'Vencimento', firstKey],
-      ['insumo-1', '1', 'Vencimento', firstKey],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
+      ['insumo-1', '1', 'Vencimento', firstKey, undefined, 'kg'],
     ])
 
     fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'contagem' } })
@@ -321,8 +330,8 @@ describe('manual stock operation idempotency in the UI', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(state.realizarContagemEstoque).toHaveBeenCalledTimes(2))
     expect(state.realizarContagemEstoque.mock.calls).toEqual([
-      ['insumo-1', '2', secondKey],
-      ['insumo-1', '2', secondKey],
+      ['insumo-1', '2', secondKey, undefined, 'kg'],
+      ['insumo-1', '2', secondKey, undefined, 'kg'],
     ])
   })
 
