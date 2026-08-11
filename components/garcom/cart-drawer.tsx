@@ -22,6 +22,16 @@ type Props = {
   productStockControls: ProdutoControleEstoque[]
 }
 
+const ORDER_CONFIRMATION_ERROR =
+  'Não foi possível confirmar o pedido. Tente novamente.'
+
+export function getOrderConfirmationErrorMessage(error: unknown): string {
+  return error instanceof Error &&
+    error.message.startsWith('Não há estoque suficiente para ')
+    ? error.message
+    : ORDER_CONFIRMATION_ERROR
+}
+
 export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, recipes, balances, productStockControls }: Props) {
   const { items, total, removeItem, addItem, decrementItem, clearCart, setObservacao } = useCart()
   const [sending, setSending] = useState(false)
@@ -43,8 +53,9 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, r
       )
     } catch (error) {
       console.error('Failed to confirm order', error)
-      setError('Não foi possível confirmar o pedido. Tente novamente.')
-      toast.error('Não foi possível confirmar o pedido.')
+      const message = getOrderConfirmationErrorMessage(error)
+      setError(message)
+      toast.error(message)
       return
     } finally {
       setSending(false)

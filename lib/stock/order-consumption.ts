@@ -6,6 +6,7 @@ import {
   lockStockItemInPostgresTransaction,
   stockMillisToDecimal,
   stockQuantityToMillis,
+  type LockedStockItem,
   type PostgresStockTransaction,
 } from '@/lib/stock/service'
 
@@ -98,13 +99,14 @@ function validateRecipeQuantity(quantity: string): number {
 }
 
 function idempotencyKey(
+  movement: 'consumo' | 'estorno',
   tenantId: string,
   pedidoId: string,
   itemPedidoId: string,
   insumoId: string,
 ): string {
   return [
-    'consumo',
+    movement,
     tenantId,
     'pedido',
     pedidoId,
@@ -116,6 +118,7 @@ function idempotencyKey(
 }
 
 function prepareSnapshotMovements(
+  movement: 'consumo' | 'estorno',
   tenantId: string,
   pedidoId: string,
   snapshots: Array<{
@@ -130,6 +133,7 @@ function prepareSnapshotMovements(
       return {
         ...snapshot,
         chaveIdempotencia: idempotencyKey(
+          movement,
           tenantId,
           pedidoId,
           snapshot.itemPedidoId,
@@ -155,6 +159,59 @@ function aggregateDemand(
     )
   }
   return demand
+}
+
+async function lockStockForMovements(
+  tx: PostgresStockTransaction,
+  tenantId: string,
+  movements: SnapshotMovement[],
+): Promise<Map<string, LockedStockItem>> {
+  const locked = new Map<string, LockedStockItem>()
+  for (const insumoId of [
+    ...new Set(movements.map((movement) => movement.insumoId)),
+  ].sort()) {
+    locked.set(
+      insumoId,
+      await lockStockItemInPostgresTransaction(tx, tenantId, insumoId),
+    )
+  }
+  return locked
+}
+
+async function consumePreparedSnapshots(
+  tx: PostgresStockTransaction,
+  input: { tenantId: string; usuarioId: string; pedidoId: string },
+  movements: SnapshotMovement[],
+): Promise<void> {
+  const demand = aggregateDemand(movements)
+  const locked = await lockStockForMovements(
+    tx,
+    input.tenantId,
+    movements,
+  )
+  for (const [insumoId, quantity] of demand) {
+    const item = locked.get(insumoId)
+    if (!item || stockQuantityToMillis(item.estoqueAtual) < quantity) {
+      throw new Error(
+        `Não há estoque suficiente para ${item?.nome ?? 'o insumo'}`,
+      )
+    }
+  }
+
+  for (const movement of movements) {
+    await applyStockMovementInPostgresTransaction(tx, {
+      tenantId: input.tenantId,
+      usuarioId: input.usuarioId,
+      insumoId: movement.insumoId,
+      tipo: 'saida',
+      quantidade:
+        -stockQuantityToMillis(movement.quantidadeTotal) / 1_000,
+      pedidoId: input.pedidoId,
+      itemPedidoId: movement.itemPedidoId,
+      chaveIdempotencia: movement.chaveIdempotencia,
+      observacao: 'Consumo no aceite do pedido',
+    })
+  }
 }
 
 function validateTransition(
@@ -355,6 +412,11 @@ export async function createOrderInPostgresTransaction(
     atualizadoEm: now,
   })
 
+  const snapshots: Array<{
+    itemPedidoId: string
+    insumoId: string
+    quantidadeTotal: string
+  }> = []
   for (const { item, product } of preparedItems) {
     const itemPedidoId = crypto.randomUUID()
     await tx.insert(pgSchema.itemPedido).values({
@@ -382,8 +444,25 @@ export async function createOrderInPostgresTransaction(
         insumoId: recipe.insumoId,
         quantidadeTotal,
       })
+      snapshots.push({
+        itemPedidoId,
+        insumoId: recipe.insumoId,
+        quantidadeTotal,
+      })
     }
   }
+
+  const movements = prepareSnapshotMovements(
+    'consumo',
+    input.tenantId,
+    pedidoId,
+    snapshots,
+  )
+  await consumePreparedSnapshots(tx, {
+    tenantId: input.tenantId,
+    usuarioId: input.usuarioId,
+    pedidoId,
+  }, movements)
 
   return buildCreatedOrder(
     pedidoId,
@@ -392,9 +471,9 @@ export async function createOrderInPostgresTransaction(
   )
 }
 
-async function consumeSnapshotInPostgresTransaction(
+async function reverseSnapshotInPostgresTransaction(
   tx: PostgresStockTransaction,
-  input: TransitionOrderInput,
+  input: CancelOrderInput,
 ): Promise<void> {
   const snapshots = await tx
     .select({
@@ -408,54 +487,24 @@ async function consumeSnapshotInPostgresTransaction(
       eq(pgSchema.itemPedidoInsumo.pedidoId, input.pedidoId),
     ))
   const movements = prepareSnapshotMovements(
+    'estorno',
     input.tenantId,
     input.pedidoId,
     snapshots,
   )
-  const keys = movements.map((movement) => movement.chaveIdempotencia)
-  const existing = keys.length === 0
-    ? []
-    : await tx
-      .select({ chaveIdempotencia: pgSchema.movimentoEstoque.chaveIdempotencia })
-      .from(pgSchema.movimentoEstoque)
-      .where(and(
-        eq(pgSchema.movimentoEstoque.tenantId, input.tenantId),
-        inArray(pgSchema.movimentoEstoque.chaveIdempotencia, keys),
-      ))
-  const existingKeys = new Set(
-    existing.map((movement) => movement.chaveIdempotencia),
-  )
-  const pending = movements.filter(
-    (movement) => !existingKeys.has(movement.chaveIdempotencia),
-  )
-  const demand = aggregateDemand(pending)
+  await lockStockForMovements(tx, input.tenantId, movements)
 
-  for (const insumoId of [...demand.keys()].sort()) {
-    const item = await lockStockItemInPostgresTransaction(
-      tx,
-      input.tenantId,
-      insumoId,
-    )
-    if (
-      stockQuantityToMillis(item.estoqueAtual) <
-      (demand.get(insumoId) ?? 0)
-    ) {
-      throw new Error(`Não há estoque suficiente para ${item.nome}`)
-    }
-  }
-
-  for (const movement of pending) {
+  for (const movement of movements) {
     await applyStockMovementInPostgresTransaction(tx, {
       tenantId: input.tenantId,
-      usuarioId: input.usuarioId,
       insumoId: movement.insumoId,
-      tipo: 'saida',
+      tipo: 'estorno',
       quantidade:
-        -stockQuantityToMillis(movement.quantidadeTotal) / 1_000,
+        stockQuantityToMillis(movement.quantidadeTotal) / 1_000,
       pedidoId: input.pedidoId,
       itemPedidoId: movement.itemPedidoId,
       chaveIdempotencia: movement.chaveIdempotencia,
-      observacao: 'Consumo enviado para preparo',
+      observacao: 'Estorno por cancelamento do pedido',
     })
   }
 }
@@ -475,13 +524,6 @@ export async function transitionOrderInPostgresTransaction(
   if (!current) throw new Error('Pedido não encontrado')
   const noOp = validateTransition(current.status, input.targetStatus)
   if (noOp) return noOp
-
-  if (
-    current.status === 'novo' &&
-    (input.targetStatus === 'em_preparo' || input.targetStatus === 'entregue')
-  ) {
-    await consumeSnapshotInPostgresTransaction(tx, input)
-  }
 
   const now = new Date()
   await tx
@@ -553,6 +595,8 @@ export async function cancelOrderInPostgresTransaction(
   if (current.status !== 'novo') {
     throw new Error('Só pedidos novos podem ser cancelados')
   }
+
+  await reverseSnapshotInPostgresTransaction(tx, input)
 
   await tx
     .update(pgSchema.pedido)
