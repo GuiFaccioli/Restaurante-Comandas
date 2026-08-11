@@ -59,6 +59,27 @@ describe('Drizzle schema', () => {
   })
 
   describe('stock tables', () => {
+    it('backfills qualifying automatic shopping-list rows during release', () => {
+      const migrationPath = join(
+        process.cwd(),
+        'db/migrations/202608111000_backfill_automatic_shopping_list.sql',
+      )
+
+      expect(existsSync(migrationPath)).toBe(true)
+      if (!existsSync(migrationPath)) return
+
+      const migration = readFileSync(migrationPath, 'utf8')
+      expect(migration).toContain('INSERT INTO shopping_list_item')
+      expect(migration).toContain("'automatic'")
+      expect(migration).toContain('insumo.ativo = true')
+      expect(migration).toContain('insumo.estoque_atual <= insumo.estoque_minimo')
+      expect(migration).toContain('insumo.estoque_ideal > insumo.estoque_atual')
+      expect(migration).toContain('insumo.fator_compra_para_base > 0')
+      expect(migration).toContain(
+        'ON CONFLICT (tenant_id, insumo_id) WHERE kind = \'automatic\' DO NOTHING',
+      )
+    })
+
     it('declares tenant-scoped shopping-list items', () => {
       expect(Object.keys(shoppingListItem)).toEqual(expect.arrayContaining([
         'id', 'tenantId', 'kind', 'insumoId', 'nome', 'unidade', 'quantidadeSugerida', 'chaveIdempotencia', 'criadoEm',
