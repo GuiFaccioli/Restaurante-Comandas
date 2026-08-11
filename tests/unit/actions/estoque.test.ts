@@ -130,6 +130,23 @@ describe('normalizarQuantidadeBase', () => {
 })
 
 describe('criarInsumo', () => {
+  beforeEach(() => {
+    const select = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          for: vi.fn(async () => [{
+            id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+            estoqueAtual: '0.000', estoqueIdeal: '10000.000', estoqueMinimo: '3000.000',
+          }]),
+          limit: vi.fn(async () => []),
+        })),
+      })),
+    }))
+    runInDbTransactionMock.mockImplementation(async ({ postgresOperation }) => (
+      postgresOperation({ insert: db.insert, select })
+    ))
+  })
+
   it('normalizes names and creates a tenant-scoped ingredient', async () => {
     const returning = vi.fn().mockResolvedValue([{ id: 'insumo-1' }])
     ;(db.insert as any).mockReturnValue({ values: vi.fn().mockReturnValue({ returning }) })
@@ -701,6 +718,63 @@ describe('shopping-list operations', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
+  it('removes an automatic suggestion when direct replenishment raises stock above minimum', async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined)
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async () => [{
+                id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+                estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+              }]),
+            })),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({ limit: vi.fn(async () => [{ id: 'row-1' }]) })),
+          })),
+        }),
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      insert: vi.fn(),
+    }
+
+    await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
+
+    expect(deleteWhere).toHaveBeenCalledTimes(1)
+    expect(tx.insert).not.toHaveBeenCalled()
+  })
+
+  it('does not change the shopping list when a dequalified item has no automatic row', async () => {
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async () => [{
+                id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+                estoqueAtual: '3000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+              }]),
+            })),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+          })),
+        }),
+      delete: vi.fn(),
+      insert: vi.fn(),
+    }
+
+    await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
+
+    expect(tx.delete).not.toHaveBeenCalled()
+    expect(tx.insert).not.toHaveBeenCalled()
+  })
+
   it('records an edited automatic receipt in its selected compatible unit and removes its row atomically', async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined)
     const applyInTransaction = vi.fn().mockResolvedValue({ applied: true })
@@ -737,6 +811,11 @@ describe('shopping-list operations', () => {
                 estoqueMinimo: '2000.000',
               }]),
             })),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({ limit: vi.fn(async () => []) })),
           })),
         }),
       delete: vi.fn(() => ({ where: deleteWhere })),

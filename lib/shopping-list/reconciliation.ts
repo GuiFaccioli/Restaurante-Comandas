@@ -32,11 +32,6 @@ export async function reconcileShoppingListInPostgresTransaction(
   const idealMillis = stockQuantityToMillis(item.estoqueIdeal)
   const factorMillis = stockQuantityToMillis(item.fatorCompraParaBase)
   const neededMillis = idealMillis - currentMillis
-  if (
-    factorMillis <= 0 ||
-    currentMillis > minimumMillis ||
-    neededMillis <= 0
-  ) return
 
   const [existing] = await tx.select({ id: shoppingListItem.id })
     .from(shoppingListItem)
@@ -46,6 +41,20 @@ export async function reconcileShoppingListInPostgresTransaction(
       eq(shoppingListItem.kind, 'automatic'),
     ))
     .limit(1)
+
+  if (
+    factorMillis <= 0 ||
+    currentMillis > minimumMillis ||
+    neededMillis <= 0
+  ) {
+    if (existing) {
+      await tx.delete(shoppingListItem).where(and(
+        eq(shoppingListItem.id, existing.id),
+        eq(shoppingListItem.tenantId, tenantId),
+      ))
+    }
+    return
+  }
   if (existing) return
 
   const suggestedMillis = Math.round(

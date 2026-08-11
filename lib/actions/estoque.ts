@@ -6,6 +6,7 @@ import { fichaTecnicaItem, insumo, movimentoEstoque, produto } from '@/lib/db/sc
 import { requireAccess } from '@/lib/auth/access'
 import { fatorCompraParaBase, normalizarQuantidadeBase, parsePositiveDecimal, type UnidadeBase, type UnidadeCompra } from '@/lib/stock/units'
 import { applyStockMovement } from '@/lib/stock/service'
+import { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/reconciliation'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
 import {
   addManualShoppingListItem,
@@ -72,7 +73,17 @@ export async function criarInsumo(input: CriarInsumoInput): Promise<{ id: string
   const custoInformado = input.custoPorUnidade?.trim() ? Number(normalizeCurrencyToDecimal(input.custoPorUnidade)) : null
   if (custoInformado !== null && (!Number.isFinite(custoInformado) || custoInformado < 0)) throw new Error('Informe um custo por unidade válido')
   const custoUnitario = custoInformado === null ? null : (custoInformado / fator).toFixed(4)
-  const [created] = await db.insert(insumo).values({ id: crypto.randomUUID(), tenantId, nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueAtual: '0.000', estoqueIdeal, estoqueMinimo, custoUnitario, ativo: true }).returning({ id: insumo.id })
+  const created = await runInDbTransaction({
+    postgresOperation: async (tx) => {
+      const [createdIngredient] = await tx.insert(insumo).values({ id: crypto.randomUUID(), tenantId, nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueAtual: '0.000', estoqueIdeal, estoqueMinimo, custoUnitario, ativo: true }).returning({ id: insumo.id })
+      await reconcileShoppingListInPostgresTransaction(
+        tx,
+        tenantId,
+        createdIngredient.id,
+      )
+      return createdIngredient
+    },
+  })
   return { id: created.id }
 }
 export async function registrarEntradaEstoque(id: string, quantidadeCompra: string, chaveIdempotencia: string, custoTotalCompra?: string, unidadeMovimento?: string): Promise<void> {
@@ -135,7 +146,12 @@ export async function editarInsumo(id: string, input: EditarInsumoInput): Promis
   const fator = Number(fatorCompraParaBase(purchaseUnit, baseUnit))
   const custoInformado = input.custoPorUnidade?.trim() ? Number(normalizeCurrencyToDecimal(input.custoPorUnidade)) : null
   if (custoInformado !== null && (!Number.isFinite(custoInformado) || custoInformado < 0)) throw new Error('Informe um custo por unidade válido')
-  await db.update(insumo).set({ nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueIdeal, estoqueMinimo, ...(custoInformado === null ? {} : { custoUnitario: (custoInformado / fator).toFixed(4) }) }).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
+  await runInDbTransaction({
+    postgresOperation: async (tx) => {
+      await tx.update(insumo).set({ nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueIdeal, estoqueMinimo, ...(custoInformado === null ? {} : { custoUnitario: (custoInformado / fator).toFixed(4) }) }).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
+      await reconcileShoppingListInPostgresTransaction(tx, tenantId, id)
+    },
+  })
 }
 
 export async function removerInsumo(id: string, nomeConfirmacao: string): Promise<void> {
