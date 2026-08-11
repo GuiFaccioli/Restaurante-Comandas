@@ -214,6 +214,44 @@ async function consumePreparedSnapshots(
   }
 }
 
+async function existingMovementKeys(
+  tx: PostgresStockTransaction,
+  tenantId: string,
+  movements: SnapshotMovement[],
+): Promise<Set<string>> {
+  const keys = movements.map((movement) => movement.chaveIdempotencia)
+  if (keys.length === 0) return new Set()
+
+  const existing = await tx
+    .select({ chaveIdempotencia: pgSchema.movimentoEstoque.chaveIdempotencia })
+    .from(pgSchema.movimentoEstoque)
+    .where(and(
+      eq(pgSchema.movimentoEstoque.tenantId, tenantId),
+      inArray(pgSchema.movimentoEstoque.chaveIdempotencia, keys),
+    ))
+  return new Set(existing.map((movement) => movement.chaveIdempotencia))
+}
+
+async function loadSnapshotMovements(
+  tx: PostgresStockTransaction,
+  tenantId: string,
+  pedidoId: string,
+  movement: 'consumo' | 'estorno',
+): Promise<SnapshotMovement[]> {
+  const snapshots = await tx
+    .select({
+      itemPedidoId: pgSchema.itemPedidoInsumo.itemPedidoId,
+      insumoId: pgSchema.itemPedidoInsumo.insumoId,
+      quantidadeTotal: pgSchema.itemPedidoInsumo.quantidadeTotal,
+    })
+    .from(pgSchema.itemPedidoInsumo)
+    .where(and(
+      eq(pgSchema.itemPedidoInsumo.tenantId, tenantId),
+      eq(pgSchema.itemPedidoInsumo.pedidoId, pedidoId),
+    ))
+  return prepareSnapshotMovements(movement, tenantId, pedidoId, snapshots)
+}
+
 function validateTransition(
   currentStatus: StatusPedido,
   targetStatus: StatusPedido,
@@ -475,22 +513,24 @@ async function reverseSnapshotInPostgresTransaction(
   tx: PostgresStockTransaction,
   input: CancelOrderInput,
 ): Promise<void> {
-  const snapshots = await tx
-    .select({
-      itemPedidoId: pgSchema.itemPedidoInsumo.itemPedidoId,
-      insumoId: pgSchema.itemPedidoInsumo.insumoId,
-      quantidadeTotal: pgSchema.itemPedidoInsumo.quantidadeTotal,
-    })
-    .from(pgSchema.itemPedidoInsumo)
-    .where(and(
-      eq(pgSchema.itemPedidoInsumo.tenantId, input.tenantId),
-      eq(pgSchema.itemPedidoInsumo.pedidoId, input.pedidoId),
-    ))
+  const consumptionMovements = await loadSnapshotMovements(
+    tx,
+    input.tenantId,
+    input.pedidoId,
+    'consumo',
+  )
+  const committedKeys = await existingMovementKeys(
+    tx,
+    input.tenantId,
+    consumptionMovements,
+  )
   const movements = prepareSnapshotMovements(
     'estorno',
     input.tenantId,
     input.pedidoId,
-    snapshots,
+    consumptionMovements.filter((movement) => (
+      committedKeys.has(movement.chaveIdempotencia)
+    )),
   )
   await lockStockForMovements(tx, input.tenantId, movements)
 
@@ -524,6 +564,30 @@ export async function transitionOrderInPostgresTransaction(
   if (!current) throw new Error('Pedido não encontrado')
   const noOp = validateTransition(current.status, input.targetStatus)
   if (noOp) return noOp
+
+  if (
+    current.status === 'novo' &&
+    (input.targetStatus === 'em_preparo' || input.targetStatus === 'entregue')
+  ) {
+    const movements = await loadSnapshotMovements(
+      tx,
+      input.tenantId,
+      input.pedidoId,
+      'consumo',
+    )
+    const committedKeys = await existingMovementKeys(
+      tx,
+      input.tenantId,
+      movements,
+    )
+    await consumePreparedSnapshots(
+      tx,
+      input,
+      movements.filter((movement) => !committedKeys.has(
+        movement.chaveIdempotencia,
+      )),
+    )
+  }
 
   const now = new Date()
   await tx

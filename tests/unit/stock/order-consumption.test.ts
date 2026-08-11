@@ -189,6 +189,13 @@ describe('PostgreSQL order consumption', () => {
         }]),
       })),
     }
+    const committedConsumption = {
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{
+          chaveIdempotencia: `consumo:tenant-1:pedido:${inserted.find((values) => values.status === 'novo')?.id}:item:${inserted.find((values) => values.produtoId)?.id}:insumo:insumo-1`,
+        }]),
+      })),
+    }
     const cancelledOrder = lockedQuery([{ status: 'cancelado' as const }])
     const tx = {
       select: vi.fn()
@@ -200,6 +207,7 @@ describe('PostgreSQL order consumption', () => {
         .mockReturnValueOnce(selections[5])
         .mockReturnValueOnce(lockedQuery([{ status: 'novo' as const }]))
         .mockReturnValueOnce(cancellationSnapshots)
+        .mockReturnValueOnce(committedConsumption)
         .mockReturnValueOnce(cancelledOrder),
       insert,
       update: vi.fn(() => ({
@@ -248,9 +256,18 @@ describe('PostgreSQL order consumption', () => {
 
   it('does not consume again when a new order enters preparation', async () => {
     const current = lockedQuery([{ status: 'novo' as const }])
+    const snapshots = [{
+      itemPedidoId: 'item-1', insumoId: 'insumo-1', quantidadeTotal: '2.000',
+    }]
+    const existingConsumption = selectedRows([{
+      chaveIdempotencia: 'consumo:tenant-1:pedido:pedido-1:item:item-1:insumo:insumo-1',
+    }])
     const updateWhere = vi.fn(async () => undefined)
     const tx = {
-      select: vi.fn().mockReturnValueOnce(current),
+      select: vi.fn()
+        .mockReturnValueOnce(current)
+        .mockReturnValueOnce(selectedRows(snapshots))
+        .mockReturnValueOnce(existingConsumption),
       update: vi.fn(() => ({ set: vi.fn(() => ({ where: updateWhere })) })),
     }
 
@@ -261,6 +278,44 @@ describe('PostgreSQL order consumption', () => {
 
     expect(mocks.lockStockItemInPostgresTransaction).not.toHaveBeenCalled()
     expect(mocks.applyStockMovementInPostgresTransaction).not.toHaveBeenCalled()
+    expect(updateWhere).toHaveBeenCalledTimes(1)
+  })
+
+  it('consumes only missing snapshot movements when a legacy new order enters preparation', async () => {
+    const current = lockedQuery([{ status: 'novo' as const }])
+    const snapshots = [
+      { itemPedidoId: 'item-1', insumoId: 'insumo-1', quantidadeTotal: '2.000' },
+      { itemPedidoId: 'item-2', insumoId: 'insumo-2', quantidadeTotal: '1.000' },
+    ]
+    const existingConsumption = selectedRows([{
+      chaveIdempotencia: 'consumo:tenant-1:pedido:pedido-1:item:item-1:insumo:insumo-1',
+    }])
+    const updateWhere = vi.fn(async () => undefined)
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(current)
+        .mockReturnValueOnce(selectedRows(snapshots))
+        .mockReturnValueOnce(existingConsumption),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: updateWhere })) })),
+    }
+
+    await expect(transitionOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', pedidoId: 'pedido-1',
+      targetStatus: 'em_preparo',
+    })).resolves.toEqual({ changed: true, status: 'em_preparo' })
+
+    expect(mocks.lockStockItemInPostgresTransaction).toHaveBeenCalledTimes(1)
+    expect(mocks.lockStockItemInPostgresTransaction).toHaveBeenCalledWith(
+      tx, 'tenant-1', 'insumo-2',
+    )
+    expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledTimes(1)
+    expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        insumoId: 'insumo-2', itemPedidoId: 'item-2', tipo: 'saida', quantidade: -1,
+        chaveIdempotencia: 'consumo:tenant-1:pedido:pedido-1:item:item-2:insumo:insumo-2',
+      }),
+    )
     expect(updateWhere).toHaveBeenCalledTimes(1)
   })
 
@@ -375,6 +430,64 @@ describe('PostgreSQL order consumption', () => {
       expect.objectContaining({ status: 'cancelado' }),
       expect.objectContaining({ status: 'cancelled' }),
     ])
+  })
+
+  it('cancels a legacy new order without reversing snapshots that were never consumed', async () => {
+    const current = lockedQuery([{ status: 'novo' as const }])
+    const snapshots = [{
+      itemPedidoId: 'item-1', insumoId: 'insumo-1', quantidadeTotal: '2.000',
+    }]
+    const updateWhere = vi.fn(async () => undefined)
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(current)
+        .mockReturnValueOnce(selectedRows(snapshots))
+        .mockReturnValueOnce(selectedRows([])),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: updateWhere })) })),
+    }
+
+    await expect(cancelOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', pedidoId: 'pedido-1',
+    })).resolves.toEqual({ changed: true, status: 'cancelado' })
+
+    expect(mocks.lockStockItemInPostgresTransaction).not.toHaveBeenCalled()
+    expect(mocks.applyStockMovementInPostgresTransaction).not.toHaveBeenCalled()
+    expect(updateWhere).toHaveBeenCalledTimes(1)
+  })
+
+  it('reverses only committed consumption when cancelling a partially consumed legacy new order', async () => {
+    const current = lockedQuery([{ status: 'novo' as const }])
+    const snapshots = [
+      { itemPedidoId: 'item-1', insumoId: 'insumo-1', quantidadeTotal: '2.000' },
+      { itemPedidoId: 'item-2', insumoId: 'insumo-2', quantidadeTotal: '1.000' },
+    ]
+    const existingConsumption = selectedRows([{
+      chaveIdempotencia: 'consumo:tenant-1:pedido:pedido-1:item:item-1:insumo:insumo-1',
+    }])
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(current)
+        .mockReturnValueOnce(selectedRows(snapshots))
+        .mockReturnValueOnce(existingConsumption),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+    }
+
+    await expect(cancelOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', pedidoId: 'pedido-1',
+    })).resolves.toEqual({ changed: true, status: 'cancelado' })
+
+    expect(mocks.lockStockItemInPostgresTransaction).toHaveBeenCalledTimes(1)
+    expect(mocks.lockStockItemInPostgresTransaction).toHaveBeenCalledWith(
+      tx, 'tenant-1', 'insumo-1',
+    )
+    expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledTimes(1)
+    expect(mocks.applyStockMovementInPostgresTransaction).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        insumoId: 'insumo-1', itemPedidoId: 'item-1', tipo: 'estorno', quantidade: 2,
+        chaveIdempotencia: 'estorno:tenant-1:pedido:pedido-1:item:item-1:insumo:insumo-1',
+      }),
+    )
   })
 
 })
