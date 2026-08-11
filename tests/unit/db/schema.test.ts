@@ -75,6 +75,7 @@ describe('Drizzle schema', () => {
       expect(migration).toContain('insumo.estoque_atual <= insumo.estoque_minimo')
       expect(migration).toContain('insumo.estoque_ideal > insumo.estoque_atual')
       expect(migration).toContain('insumo.fator_compra_para_base > 0')
+      expect(migration).toContain('CEIL(')
       expect(migration).toContain(
         'ON CONFLICT (tenant_id, insumo_id) WHERE kind = \'automatic\' DO NOTHING',
       )

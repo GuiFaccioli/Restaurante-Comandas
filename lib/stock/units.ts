@@ -50,7 +50,11 @@ export function quantidadeBaseParaUnidade(
   const factor = UNIT_FACTORS[unidadeCompra as UnidadeCompra]
     / UNIT_FACTORS[unidadeBase as UnidadeCompra]
   const converted = amount / factor
-  return converted.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+  const decimalPlaces = factor > 1 ? 6 : 3
+  return converted
+    .toFixed(decimalPlaces)
+    .replace(/0+$/, '')
+    .replace(/\.$/, '')
 }
 
 export function fatorCompraParaBase(unidadeCompra: UnidadeCompra, unidadeBase: UnidadeBase): string {

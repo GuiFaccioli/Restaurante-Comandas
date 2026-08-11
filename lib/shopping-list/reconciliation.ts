@@ -107,7 +107,7 @@ export async function reconcileShoppingListInPostgresTransaction(
     existing = undefined
   }
 
-  const suggestedMillis = Math.round(
+  const suggestedMillis = Math.ceil(
     neededMillis * 1_000 / factorMillis,
   )
   if (!Number.isSafeInteger(suggestedMillis) || suggestedMillis <= 0) {

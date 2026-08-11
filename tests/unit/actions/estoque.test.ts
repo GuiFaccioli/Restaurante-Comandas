@@ -33,7 +33,7 @@ vi.mock('@/lib/stock/service', () => ({
 
 import { db } from '@/lib/db/index'
 import { insumo, produto as postgresProduto, shoppingListItem } from '@/lib/db/schema'
-import { normalizarQuantidadeBase, UNIDADES_BASE } from '@/lib/stock/units'
+import { normalizarQuantidadeBase, quantidadeBaseParaUnidade, UNIDADES_BASE } from '@/lib/stock/units'
 import { produtoTemEstoque } from '@/lib/stock/availability'
 import {
   ajustarEstoqueAtual,
@@ -110,6 +110,13 @@ describe('server action boundary', () => {
 })
 
 describe('normalizarQuantidadeBase', () => {
+  it('round-trips canonical fractional grams through kilograms without loss', () => {
+    const displayed = quantidadeBaseParaUnidade('1234.567', 'kg', 'g')
+
+    expect(displayed).toBe('1.234567')
+    expect(normalizarQuantidadeBase(displayed, 'kg', 'g')).toBe('1234.567')
+  })
+
   it('converts purchase kilograms to grams', () => {
     expect(normalizarQuantidadeBase('2', 'kg', 'g')).toBe('2000.000')
   })
@@ -789,6 +796,25 @@ describe('shopping-list operations', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
+  it('rounds a positive sub-gram purchase deficit up to a confirmable suggestion', async () => {
+    const insertValues = vi.fn().mockResolvedValue(undefined)
+    const tx = {
+      select: reconciliationSelect({
+        id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+        estoqueAtual: '1.000', estoqueIdeal: '1.001', estoqueMinimo: '1.000',
+      }, undefined),
+      execute: vi.fn(),
+      insert: vi.fn(() => ({ values: insertValues })),
+    }
+
+    await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
+
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
+      quantidadeSugerida: '0.001',
+      unidade: 'kg',
+    }))
+  })
+
   it('keeps a frozen automatic suggestion when the edited unit family stays compatible', async () => {
     const insert = vi.fn()
     const deleteRow = vi.fn()
@@ -963,6 +989,60 @@ describe('shopping-list operations', () => {
       chaveIdempotencia: `shopping-list:row-1:${key}`,
     }))
     expect(deleteWhere).toHaveBeenCalledTimes(1)
+  })
+
+  it('defaults an automatic receipt to the frozen suggestion unit after a compatible unit edit', async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined)
+    const applyInTransaction = vi.fn().mockResolvedValue({ applied: true })
+    const reconciliationQuery = reconciliationSelect({
+      id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'g', fatorCompraParaBase: '1.000',
+      estoqueAtual: '9000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+    }, undefined)
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(async () => [{
+              id: 'row-1', kind: 'automatic', insumoId: 'insumo-1',
+              quantidadeSugerida: '8.000', unidade: 'kg',
+            }]),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async () => [{
+                id: 'row-1', kind: 'automatic', insumoId: 'insumo-1',
+                quantidadeSugerida: '8.000', unidade: 'kg',
+              }]),
+            })),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async () => [{
+                id: 'insumo-1', unidadeCompra: 'g', unidadeBase: 'g',
+              }]),
+            })),
+          })),
+        })
+        .mockImplementation(reconciliationQuery),
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      insert: vi.fn(() => ({ values: vi.fn() })),
+      execute: vi.fn(),
+    }
+    runInDbTransactionMock.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(tx),
+    )
+    const stock = await import('@/lib/stock/service')
+    vi.mocked(stock.applyStockMovementInPostgresTransaction).mockImplementationOnce(applyInTransaction)
+
+    await completeShoppingListItem({ itemId: 'row-1', idempotencyKey: key })
+
+    expect(applyInTransaction).toHaveBeenCalledWith(tx, expect.objectContaining({
+      quantidade: 8000,
+    }))
   })
 
   it('removes a manual item without creating a stock movement', async () => {

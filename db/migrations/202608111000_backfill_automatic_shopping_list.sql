@@ -12,11 +12,12 @@ SELECT
   insumo.id,
   insumo.nome,
   insumo.unidade_compra,
-  ROUND(
-    (insumo.estoque_ideal - insumo.estoque_atual)
-      / insumo.fator_compra_para_base,
-    3
-  )
+  CEIL(
+    (
+      (insumo.estoque_ideal - insumo.estoque_atual)
+        / insumo.fator_compra_para_base
+    ) * 1000
+  ) / 1000
 FROM insumo
 WHERE insumo.ativo = true
   AND insumo.estoque_atual <= insumo.estoque_minimo

@@ -96,6 +96,7 @@ export async function completeShoppingListItem(
         kind: shoppingListItem.kind,
         insumoId: shoppingListItem.insumoId,
         quantidadeSugerida: shoppingListItem.quantidadeSugerida,
+        unidade: shoppingListItem.unidade,
       }).from(shoppingListItem).where(and(
         eq(shoppingListItem.id, input.itemId),
         eq(shoppingListItem.tenantId, tenantId),
@@ -126,7 +127,7 @@ export async function completeShoppingListItem(
 
       const received = normalizarQuantidadeBase(
         input.receivedQuantity ?? row.quantidadeSugerida,
-        input.receivedUnit ?? item.unidadeCompra,
+        input.receivedUnit ?? row.unidade,
         item.unidadeBase,
       )
       await applyStockMovementInPostgresTransaction(tx, {
