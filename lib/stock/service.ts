@@ -12,21 +12,33 @@ import {
   stockMillisToDecimal,
   stockQuantityToMillis,
 } from '@/lib/stock/quantity'
+import { normalizarQuantidadeBase } from '@/lib/stock/units'
 
 export { stockMillisToDecimal, stockQuantityToMillis } from '@/lib/stock/quantity'
 
-export type ApplyStockMovementInput = {
+type StockMovementCommonInput = {
   tenantId: string
   usuarioId?: string | null
   insumoId: string
   tipo: TipoMovimentoEstoque
-  quantidade: number
   chaveIdempotencia: string
   pedidoId?: string | null
   itemPedidoId?: string | null
   motivo?: string | null
   observacao?: string | null
+}
+
+export type ApplyStockMovementInput = StockMovementCommonInput & {
+  quantidade: number
   custoUnitario?: number | null
+}
+
+export type ApplyStockMovementInUnitInput = StockMovementCommonInput & {
+  quantidadeInformada: string
+  unidadeMovimento?: string
+  unidadePadrao: 'base' | 'compra'
+  sinal?: 1 | -1
+  custoTotal?: number | null
 }
 
 export type AppliedStockMovement = {
@@ -46,6 +58,16 @@ export type LockedStockItem = {
   nome: string
   estoqueAtual: string
   custoUnitario: string | null
+  unidadeBase: string
+  unidadeCompra: string
+}
+
+export type ApplyStockMovementOptions = {
+  reconcileShoppingList?: boolean
+}
+
+type LockStockItemOptions = {
+  activeOnly?: boolean
 }
 
 type StockMovementValues = {
@@ -99,6 +121,49 @@ function validateInput(input: ApplyStockMovementInput): void {
     (!Number.isFinite(input.custoUnitario) || input.custoUnitario < 0)
   ) {
     throw new Error('O custo unitário é inválido')
+  }
+}
+
+function validateCommonInput(input: StockMovementCommonInput): void {
+  if (!input.tenantId || !input.insumoId || !input.chaveIdempotencia.trim()) {
+    throw new Error('Movimentação de estoque inválida')
+  }
+}
+
+function normalizeUnitMovement(
+  input: ApplyStockMovementInUnitInput,
+  item: LockedStockItem,
+): ApplyStockMovementInput {
+  const {
+    quantidadeInformada,
+    unidadeMovimento,
+    unidadePadrao,
+    sinal = 1,
+    custoTotal,
+    ...common
+  } = input
+  if (
+    custoTotal !== null &&
+    custoTotal !== undefined &&
+    (!Number.isFinite(custoTotal) || custoTotal < 0)
+  ) {
+    throw new Error('O custo total é inválido')
+  }
+  const defaultUnit = unidadePadrao === 'base'
+    ? item.unidadeBase
+    : item.unidadeCompra
+  const absoluteQuantity = Number(normalizarQuantidadeBase(
+    quantidadeInformada,
+    unidadeMovimento ?? defaultUnit,
+    item.unidadeBase,
+  ))
+  const quantidade = absoluteQuantity * sinal
+  return {
+    ...common,
+    quantidade,
+    custoUnitario: custoTotal === null || custoTotal === undefined
+      ? null
+      : custoTotal / absoluteQuantity,
   }
 }
 
@@ -201,17 +266,21 @@ export async function lockStockItemInPostgresTransaction(
   tx: PostgresStockTransaction,
   tenantId: string,
   insumoId: string,
+  options: LockStockItemOptions = {},
 ): Promise<LockedStockItem> {
   const [item] = await tx
     .select({
       nome: pgSchema.insumo.nome,
       estoqueAtual: pgSchema.insumo.estoqueAtual,
       custoUnitario: pgSchema.insumo.custoUnitario,
+      unidadeBase: pgSchema.insumo.unidadeBase,
+      unidadeCompra: pgSchema.insumo.unidadeCompra,
     })
     .from(pgSchema.insumo)
     .where(and(
       eq(pgSchema.insumo.id, insumoId),
       eq(pgSchema.insumo.tenantId, tenantId),
+      ...(options.activeOnly ? [eq(pgSchema.insumo.ativo, true)] : []),
     ))
     .for('update')
   if (!item) throw new Error('Insumo não encontrado')
@@ -221,6 +290,7 @@ export async function lockStockItemInPostgresTransaction(
 export async function applyStockMovementInPostgresTransaction(
   tx: PostgresStockTransaction,
   input: ApplyStockMovementInput,
+  options: ApplyStockMovementOptions = {},
 ): Promise<AppliedStockMovement> {
   validateInput(input)
 
@@ -268,17 +338,42 @@ export async function applyStockMovementInPostgresTransaction(
       eq(pgSchema.insumo.tenantId, input.tenantId),
     ))
   await tx.insert(pgSchema.movimentoEstoque).values(values.movementValues)
-  await reconcileShoppingListInPostgresTransaction(
-    tx,
-    input.tenantId,
-    input.insumoId,
-  )
+  if (options.reconcileShoppingList !== false) {
+    await reconcileShoppingListInPostgresTransaction(
+      tx,
+      input.tenantId,
+      input.insumoId,
+    )
+  }
   return appliedResult(values)
 }
 
 export async function applyStockMovement(
-  input: ApplyStockMovementInput,
+  input: ApplyStockMovementInput | ApplyStockMovementInUnitInput,
 ): Promise<AppliedStockMovement> {
+  if ('quantidadeInformada' in input) {
+    validateCommonInput(input)
+    return await runInDbTransaction({
+      postgresOperation: async (tx) => {
+        await lockAutomaticShoppingListItemInPostgresTransaction(
+          tx,
+          input.tenantId,
+          input.insumoId,
+        )
+        const item = await lockStockItemInPostgresTransaction(
+          tx,
+          input.tenantId,
+          input.insumoId,
+          { activeOnly: true },
+        )
+        return applyStockMovementInPostgresTransaction(
+          tx,
+          normalizeUnitMovement(input, item),
+        )
+      },
+    })
+  }
+
   validateInput(input)
 
   return await runInDbTransaction({

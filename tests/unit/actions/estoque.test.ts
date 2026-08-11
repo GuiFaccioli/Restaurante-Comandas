@@ -252,19 +252,6 @@ describe('manual stock operation idempotency', () => {
   const firstKey = '11111111-1111-4111-8111-111111111111'
   const secondKey = '22222222-2222-4222-8222-222222222222'
 
-  function mockStockItem() {
-    dbSelectMock.mockReturnValueOnce({
-      from: vi.fn(() => ({
-        where: vi.fn(async () => [{
-          id: 'insumo-1',
-          estoqueAtual: '999.000',
-          unidadeCompra: 'kg',
-          unidadeBase: 'g',
-        }]),
-      })),
-    })
-  }
-
   it.each([
     ['entrada sem chave', () => registrarEntradaEstoque('insumo-1', '2', undefined as never)],
     ['entrada com chave vazia', () => registrarEntradaEstoque('insumo-1', '2', '')],
@@ -279,9 +266,6 @@ describe('manual stock operation idempotency', () => {
   })
 
   it('forwards the same session tenant and key when an entry is retried', async () => {
-    mockStockItem()
-    mockStockItem()
-
     await registrarEntradaEstoque('insumo-1', '2', firstKey)
     await registrarEntradaEstoque('insumo-1', '2', firstKey)
 
@@ -299,9 +283,6 @@ describe('manual stock operation idempotency', () => {
   })
 
   it('forwards a different key for a new manual entry', async () => {
-    mockStockItem()
-    mockStockItem()
-
     await registrarEntradaEstoque('insumo-1', '2', firstKey)
     await registrarEntradaEstoque('insumo-1', '2', secondKey)
 
@@ -314,10 +295,6 @@ describe('manual stock operation idempotency', () => {
   })
 
   it('protects loss, count, and exposed adjustment with caller keys', async () => {
-    mockStockItem()
-    mockStockItem()
-    mockStockItem()
-
     await registrarPerdaEstoque('insumo-1', '1', 'Vencimento', firstKey)
     await realizarContagemEstoque('insumo-1', '2', firstKey)
     await ajustarEstoqueAtual('insumo-1', '10', firstKey)
@@ -338,55 +315,24 @@ describe('manual stock operation idempotency', () => {
 })
 
 describe('physical stock counts', () => {
-  function mockStockItem(item: {
-    id: string
-    estoqueAtual: string
-    unidadeCompra: string
-    unidadeBase: string
-  }) {
-    dbSelectMock.mockReturnValueOnce({
-      from: vi.fn(() => ({
-        where: vi.fn(async () => [item]),
-      })),
-    })
-    return dbSelectMock
-  }
-
-  it('passes the absolute adjusted balance to the stock service without using a stale read', async () => {
-    const selectMock = mockStockItem({
-      id: 'insumo-1',
-      estoqueAtual: '999.000',
-      unidadeCompra: 'kg',
-      unidadeBase: 'g',
-    })
-
+  it('passes the raw adjusted balance to the transactional stock service without a stale read', async () => {
     await ajustarEstoqueAtual(
       'insumo-1',
       '10',
       '11111111-1111-4111-8111-111111111111',
     )
 
-    expect(selectMock).toHaveBeenCalledWith({
-      id: insumo.id,
-      unidadeCompra: insumo.unidadeCompra,
-      unidadeBase: insumo.unidadeBase,
-    })
+    expect(dbSelectMock).not.toHaveBeenCalled()
     expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
       tenantId: 'tenant-1',
       insumoId: 'insumo-1',
       tipo: 'contagem',
-      quantidade: 10,
+      quantidadeInformada: '10',
+      unidadePadrao: 'base',
     }))
   })
 
-  it('normalizes a purchase-unit adjustment before persisting the canonical balance', async () => {
-    mockStockItem({
-      id: 'insumo-1',
-      estoqueAtual: '999.000',
-      unidadeCompra: 'kg',
-      unidadeBase: 'g',
-    })
-
+  it('passes the selected purchase unit into the locked adjustment transaction', async () => {
     await ajustarEstoqueAtual(
       'insumo-1',
       '2',
@@ -395,18 +341,13 @@ describe('physical stock counts', () => {
     )
 
     expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
-      quantidade: 2000,
+      quantidadeInformada: '2',
+      unidadeMovimento: 'kg',
+      unidadePadrao: 'base',
     }))
   })
 
-  it('normalizes the found amount but leaves the transactional delta to the stock service', async () => {
-    const selectMock = mockStockItem({
-      id: 'insumo-1',
-      estoqueAtual: '999.000',
-      unidadeCompra: 'kg',
-      unidadeBase: 'g',
-    })
-
+  it('passes the raw physical count and purchase-unit default into the transaction', async () => {
     await realizarContagemEstoque(
       'insumo-1',
       '2',
@@ -414,16 +355,13 @@ describe('physical stock counts', () => {
       'Inventário mensal',
     )
 
-    expect(selectMock).toHaveBeenCalledWith({
-      id: insumo.id,
-      unidadeCompra: insumo.unidadeCompra,
-      unidadeBase: insumo.unidadeBase,
-    })
+    expect(dbSelectMock).not.toHaveBeenCalled()
     expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
       tenantId: 'tenant-1',
       insumoId: 'insumo-1',
       tipo: 'contagem',
-      quantidade: 2000,
+      quantidadeInformada: '2',
+      unidadePadrao: 'compra',
       observacao: 'Inventário mensal',
     }))
   })
@@ -1100,63 +1038,30 @@ describe('shopping-list operations', () => {
 describe('manual stock movement units', () => {
   const key = '11111111-1111-4111-8111-111111111111'
 
-  function mockActiveStockItem(unidadeCompra: string, unidadeBase: string) {
-    dbSelectMock.mockReset()
-    dbSelectMock.mockReturnValueOnce({
-      from: vi.fn(() => ({
-        where: vi.fn(async () => [{
-          id: 'insumo-1', unidadeCompra, unidadeBase,
-        }]),
-      })),
-    })
-  }
-
-  it('registers a 500 g loss for an ingredient purchased in kilograms as 500 base grams', async () => {
-    mockActiveStockItem('kg', 'g')
-
+  it('passes a 500 g loss to the transactional unit converter', async () => {
     await registrarPerdaEstoque('insumo-1', '500', 'Vencimento', key, undefined, 'g')
 
     expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
-      tipo: 'perda', quantidade: -500,
+      tipo: 'perda', quantidadeInformada: '500', unidadeMovimento: 'g',
+      unidadePadrao: 'compra', sinal: -1,
     }))
   })
 
-  it('registers a 2 L entry for an ingredient stored in milliliters as 2000 base milliliters', async () => {
-    mockActiveStockItem('ml', 'ml')
-
+  it('passes a 2 L entry to the transactional unit converter', async () => {
     await registrarEntradaEstoque('insumo-1', '2', key, undefined, 'l')
 
     expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
-      tipo: 'entrada', quantidade: 2000,
+      tipo: 'entrada', quantidadeInformada: '2', unidadeMovimento: 'l',
+      unidadePadrao: 'compra',
     }))
   })
 
-  it('rejects a movement unit from another measurement family on the server', async () => {
-    mockActiveStockItem('ml', 'ml')
-
-    await expect(registrarEntradaEstoque('insumo-1', '2', key, undefined, 'kg'))
-      .rejects.toThrow('As unidades de compra e estoque precisam ser compatíveis')
-    expect(applyStockMovement).not.toHaveBeenCalled()
-  })
-
-  it('does not create a loss movement when the selected item is no longer active', async () => {
-    dbSelectMock.mockReset()
-    dbSelectMock.mockReturnValueOnce({
-      from: vi.fn(() => ({ where: vi.fn(async () => []) })),
-    })
-
-    await expect(registrarPerdaEstoque('removed-item', '1', 'Vencimento', key, undefined, 'kg'))
-      .rejects.toThrow('Insumo não encontrado')
-    expect(applyStockMovement).not.toHaveBeenCalled()
-  })
-
-  it('registers a valid loss as a negative movement', async () => {
-    mockActiveStockItem('kg', 'g')
-
+  it('preserves the selected kilogram unit and negative loss intent', async () => {
     await registrarPerdaEstoque('insumo-1', '1', 'Vencimento', key, undefined, 'kg')
 
     expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
-      tipo: 'perda', quantidade: -1000,
+      tipo: 'perda', quantidadeInformada: '1', unidadeMovimento: 'kg',
+      unidadePadrao: 'compra', sinal: -1,
     }))
   })
 })
