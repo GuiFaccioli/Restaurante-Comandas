@@ -799,3 +799,68 @@ describe('shopping-list operations', () => {
     expect(deleteWhere).not.toHaveBeenCalled()
   })
 })
+
+
+describe('manual stock movement units', () => {
+  const key = '11111111-1111-4111-8111-111111111111'
+
+  function mockActiveStockItem(unidadeCompra: string, unidadeBase: string) {
+    dbSelectMock.mockReset()
+    dbSelectMock.mockReturnValueOnce({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{
+          id: 'insumo-1', unidadeCompra, unidadeBase,
+        }]),
+      })),
+    })
+  }
+
+  it('registers a 500 g loss for an ingredient purchased in kilograms as 500 base grams', async () => {
+    mockActiveStockItem('kg', 'g')
+
+    await registrarPerdaEstoque('insumo-1', '500', 'Vencimento', key, undefined, 'g')
+
+    expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
+      tipo: 'perda', quantidade: -500,
+    }))
+  })
+
+  it('registers a 2 L entry for an ingredient stored in milliliters as 2000 base milliliters', async () => {
+    mockActiveStockItem('ml', 'ml')
+
+    await registrarEntradaEstoque('insumo-1', '2', key, undefined, 'l')
+
+    expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
+      tipo: 'entrada', quantidade: 2000,
+    }))
+  })
+
+  it('rejects a movement unit from another measurement family on the server', async () => {
+    mockActiveStockItem('ml', 'ml')
+
+    await expect(registrarEntradaEstoque('insumo-1', '2', key, undefined, 'kg'))
+      .rejects.toThrow('As unidades de compra e estoque precisam ser compatíveis')
+    expect(applyStockMovement).not.toHaveBeenCalled()
+  })
+
+  it('does not create a loss movement when the selected item is no longer active', async () => {
+    dbSelectMock.mockReset()
+    dbSelectMock.mockReturnValueOnce({
+      from: vi.fn(() => ({ where: vi.fn(async () => []) })),
+    })
+
+    await expect(registrarPerdaEstoque('removed-item', '1', 'Vencimento', key, undefined, 'kg'))
+      .rejects.toThrow('Insumo não encontrado')
+    expect(applyStockMovement).not.toHaveBeenCalled()
+  })
+
+  it('registers a valid loss as a negative movement', async () => {
+    mockActiveStockItem('kg', 'g')
+
+    await registrarPerdaEstoque('insumo-1', '1', 'Vencimento', key, undefined, 'kg')
+
+    expect(applyStockMovement).toHaveBeenCalledWith(expect.objectContaining({
+      tipo: 'perda', quantidade: -1000,
+    }))
+  })
+})

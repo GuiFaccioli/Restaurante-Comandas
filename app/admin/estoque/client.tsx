@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrencyInput } from '@/lib/money'
 import { adicionarItemManualListaCompra, ajustarEstoqueAtual, confirmarItemListaCompra, criarInsumo, editarInsumo, realizarContagemEstoque, registrarEntradaEstoque, registrarPerdaEstoque, removerInsumo, salvarFichaTecnica } from '@/lib/actions/estoque'
+import { movementUnitsFor } from '@/lib/stock/units'
 
 type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; fatorCompraParaBase: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string; custoUnitario: string | null }
 
@@ -28,6 +29,7 @@ type ManualOperationPayload = {
   custo: string
   motivo: string
   observacao: string
+  unidade?: string
 }
 
 function manualOperationFingerprint(payload: ManualOperationPayload) {
@@ -38,6 +40,7 @@ function manualOperationFingerprint(payload: ManualOperationPayload) {
     payload.custo,
     payload.motivo,
     payload.observacao,
+    payload.unidade ?? '',
   ])
 }
 
@@ -235,6 +238,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
   const stockAdjustmentIntentRef = useRef<ManualOperationIntent | null>(null)
   const [movementType, setMovementType] = useState<'entrada' | 'perda' | 'contagem'>('entrada')
   const [movementIngredientId, setMovementIngredientId] = useState(insumos[0]?.id ?? '')
+  const [movementUnit, setMovementUnit] = useState(insumos[0]?.unidadeCompra ?? 'unidade')
   const [movementQuantity, setMovementQuantity] = useState('')
   const [movementCost, setMovementCost] = useState('')
   const [movementReason, setMovementReason] = useState('')
@@ -403,6 +407,14 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
 
   async function handleMovement() {
     if (!movementIngredientId || !movementQuantity || manualStockPendingRef.current) return
+    const movementIngredient = insumos.find((item) => item.id === movementIngredientId)
+    if (!movementIngredient) {
+      setMovementIngredientId(insumos[0]?.id ?? '')
+      setMovementUnit(insumos[0]?.unidadeCompra ?? 'unidade')
+      router.refresh()
+      toast.error('O item selecionado não está mais disponível. Atualize e selecione outro item.')
+      return
+    }
     const fingerprint = manualOperationFingerprint({
       tipo: movementType,
       insumoId: movementIngredientId,
@@ -410,6 +422,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       custo: movementType === 'entrada' ? movementCost : '',
       motivo: movementType === 'perda' ? movementReason : movementType === 'contagem' ? 'Contagem física' : '',
       observacao: movementType === 'entrada' ? 'Entrada manual de estoque' : '',
+      unidade: movementUnit,
     })
     const intent = intentForFingerprint(
       movementOperationIntentRef.current,
@@ -420,9 +433,9 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     movementPendingRef.current = true
     setMovementBusy(true)
     try {
-      if (movementType === 'entrada') await registrarEntradaEstoque(movementIngredientId, movementQuantity, intent.key, movementCost)
-      if (movementType === 'perda') await registrarPerdaEstoque(movementIngredientId, movementQuantity, movementReason, intent.key)
-      if (movementType === 'contagem') await realizarContagemEstoque(movementIngredientId, movementQuantity, intent.key)
+      if (movementType === 'entrada') await registrarEntradaEstoque(movementIngredientId, movementQuantity, intent.key, movementCost, movementUnit)
+      if (movementType === 'perda') await registrarPerdaEstoque(movementIngredientId, movementQuantity, movementReason, intent.key, undefined, movementUnit)
+      if (movementType === 'contagem') await realizarContagemEstoque(movementIngredientId, movementQuantity, intent.key, undefined, movementUnit)
       movementOperationIntentRef.current = null
       setMovementQuantity(''); setMovementCost(''); setMovementReason(''); router.refresh(); toast.success('Movimentação registrada.')
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a movimentação.') }
@@ -430,6 +443,8 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
   }
 
   const recipeProducts = produtos.filter((product) => fichas.some((recipe) => recipe.produtoId === product.id))
+  const movementIngredient = insumos.find((item) => item.id === movementIngredientId)
+  const movementUnits = movementIngredient ? movementUnitsFor(movementIngredient.unidadeBase) : []
 
   return (
     <AdminPage>
@@ -439,7 +454,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">{view === 'estoque' ? 'Cadastre itens, acompanhe saldos e registre movimentações.' : view === 'lista' ? 'Organize as reposições sugeridas e compras avulsas.' : 'Defina os itens de estoque consumidos por cada produto.'}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-          {view === 'estoque' && insumos.length > 0 ? <details className="relative" onToggle={(event) => { if (movementPendingRef.current && !event.currentTarget.open) { event.currentTarget.open = true; return } if (!event.currentTarget.open) movementOperationIntentRef.current = null }}><summary aria-disabled={manualStockBusy} onClick={(event) => { if (manualStockPendingRef.current) event.preventDefault() }} className="flex min-h-9 cursor-pointer list-none items-center rounded-[var(--radius)] bg-[var(--action-positive)] px-3 text-sm font-medium text-[var(--action-positive-foreground)]">Registrar movimentação</summary><div className="absolute right-0 z-10 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-[var(--radius)] border bg-background p-4 shadow-sm"><Label htmlFor="movimento-tipo">Tipo</Label><select id="movimento-tipo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementType} disabled={manualStockBusy} onChange={(event) => setMovementType(event.target.value as typeof movementType)}><option value="entrada">Entrada</option><option value="perda">Perda</option><option value="contagem">Contagem</option></select><Label htmlFor="movimento-insumo">Insumo</Label><select id="movimento-insumo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementIngredientId} disabled={manualStockBusy} onChange={(event) => setMovementIngredientId(event.target.value)}>{insumos.map((item) => <option key={item.id} value={item.id}>{item.nome} · {item.unidadeBase}</option>)}</select><Label htmlFor="movimento-quantidade">Quantidade</Label><Input id="movimento-quantidade" inputMode="decimal" value={movementQuantity} disabled={manualStockBusy} onChange={(event) => setMovementQuantity(event.target.value)} placeholder="0" />{movementType === 'entrada' ? <><Label htmlFor="movimento-custo">Custo total (opcional)</Label><Input id="movimento-custo" inputMode="decimal" value={movementCost} disabled={manualStockBusy} onChange={(event) => setMovementCost(event.target.value)} placeholder="R$ 0,00" /></> : null}{movementType === 'perda' ? <><Label htmlFor="movimento-motivo">Motivo da perda</Label><Input id="movimento-motivo" value={movementReason} disabled={manualStockBusy} onChange={(event) => setMovementReason(event.target.value)} placeholder="Ex.: Vencimento" /></> : null}<Button type="button" intent="positive" appearance="solid" aria-busy={movementBusy} disabled={manualStockBusy || !movementQuantity || (movementType === 'perda' && !movementReason.trim())} onClick={handleMovement}>Confirmar</Button></div></details> : null}
+          {view === 'estoque' && insumos.length > 0 ? <details className="relative" onToggle={(event) => { if (movementPendingRef.current && !event.currentTarget.open) { event.currentTarget.open = true; return } if (event.currentTarget.open && !movementIngredient) { setMovementIngredientId(insumos[0]?.id ?? ''); setMovementUnit(insumos[0]?.unidadeCompra ?? 'unidade'); router.refresh(); toast.error('O item selecionado não está mais disponível. Atualize e selecione outro item.'); return } if (!event.currentTarget.open) movementOperationIntentRef.current = null }}><summary aria-disabled={manualStockBusy} onClick={(event) => { if (manualStockPendingRef.current) event.preventDefault() }} className="flex min-h-9 cursor-pointer list-none items-center rounded-[var(--radius)] bg-[var(--action-positive)] px-3 text-sm font-medium text-[var(--action-positive-foreground)]">Registrar movimentação</summary><div className="absolute right-0 z-10 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-[var(--radius)] border bg-background p-4 shadow-sm"><Label htmlFor="movimento-tipo">Tipo</Label><select id="movimento-tipo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementType} disabled={manualStockBusy} onChange={(event) => setMovementType(event.target.value as typeof movementType)}><option value="entrada">Entrada</option><option value="perda">Perda</option><option value="contagem">Contagem</option></select><Label htmlFor="movimento-insumo">Insumo</Label><select id="movimento-insumo" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementIngredientId} disabled={manualStockBusy} onChange={(event) => { const next = insumos.find((item) => item.id === event.target.value); setMovementIngredientId(next?.id ?? ''); setMovementUnit(next?.unidadeCompra ?? 'unidade') }}>{insumos.map((item) => <option key={item.id} value={item.id}>{item.nome} · {item.unidadeBase}</option>)}</select><Label htmlFor="movimento-unidade">Unidade</Label><select id="movimento-unidade" className="min-h-10 rounded-[var(--radius)] border bg-background px-3 text-sm" value={movementUnit} disabled={manualStockBusy || !movementIngredient} onChange={(event) => setMovementUnit(event.target.value)}>{movementUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select><Label htmlFor="movimento-quantidade">Quantidade</Label><Input id="movimento-quantidade" inputMode="decimal" value={movementQuantity} disabled={manualStockBusy} onChange={(event) => setMovementQuantity(event.target.value)} placeholder="0" />{movementType === 'entrada' ? <><Label htmlFor="movimento-custo">Custo total (opcional)</Label><Input id="movimento-custo" inputMode="decimal" value={movementCost} disabled={manualStockBusy} onChange={(event) => setMovementCost(event.target.value)} placeholder="R$ 0,00" /></> : null}{movementType === 'perda' ? <><Label htmlFor="movimento-motivo">Motivo da perda</Label><Input id="movimento-motivo" value={movementReason} disabled={manualStockBusy} onChange={(event) => setMovementReason(event.target.value)} placeholder="Ex.: Vencimento" /></> : null}<Button type="button" intent="positive" appearance="solid" aria-busy={movementBusy} disabled={manualStockBusy || !movementIngredient || !movementQuantity || (movementType === 'perda' && !movementReason.trim())} onClick={handleMovement}>Confirmar</Button></div></details> : null}
           </div>
         </div>
 

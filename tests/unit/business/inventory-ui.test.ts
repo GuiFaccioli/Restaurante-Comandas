@@ -64,4 +64,23 @@ describe('inventory and waiter menu workflows', () => {
     expect(card).toContain('estoqueInsuficiente')
     expect(card).toContain('addItem')
   })
+
+  it('keeps movement operations scoped to the currently loaded active inventory', () => {
+    const client = source('app/admin/estoque/client.tsx')
+    const staleSelectionGuard = client.indexOf("const movementIngredient = insumos.find((item) => item.id === movementIngredientId)")
+    const lossCall = client.indexOf('registrarPerdaEstoque(movementIngredientId, movementQuantity, movementReason')
+
+    expect(staleSelectionGuard).toBeGreaterThan(-1)
+    expect(client).toContain('if (!movementIngredient) {')
+    expect(client).toContain("toast.error('O item selecionado não está mais disponível. Atualize e selecione outro item.')")
+    expect(staleSelectionGuard).toBeLessThan(lossCall)
+  })
+
+  it('offers only units compatible with the selected stock item in movement registration', () => {
+    const client = source('app/admin/estoque/client.tsx')
+
+    expect(client).toContain('movementUnitsFor(movementIngredient.unidadeBase)')
+    expect(client).toContain('id="movimento-unidade"')
+    expect(client).toContain('value={movementUnit}')
+  })
 })

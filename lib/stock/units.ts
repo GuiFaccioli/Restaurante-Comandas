@@ -6,6 +6,13 @@ export type UnidadeCompra = (typeof UNIDADES_COMPRA)[number]
 const UNIT_FACTORS: Record<UnidadeCompra, number> = { g: 1, kg: 1000, ml: 1, l: 1000, unidade: 1 }
 const UNIT_FAMILIES: Record<UnidadeCompra, 'peso' | 'volume' | 'contagem'> = { g: 'peso', kg: 'peso', ml: 'volume', l: 'volume', unidade: 'contagem' }
 
+export function movementUnitsFor(unidadeBase: string): UnidadeCompra[] {
+  if (unidadeBase === 'g') return ['g', 'kg']
+  if (unidadeBase === 'ml') return ['ml', 'l']
+  if (unidadeBase === 'unidade') return ['unidade']
+  throw new Error('Unidade de estoque inválida')
+}
+
 function parseDecimal(value: string | undefined, label: string, allowZero = true): number {
   const parsed = Number((value ?? '0').replace(',', '.'))
   if (!Number.isFinite(parsed) || (allowZero ? parsed < 0 : parsed <= 0)) throw new Error(`${label} inválido`)

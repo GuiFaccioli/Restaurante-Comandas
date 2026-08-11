@@ -75,12 +75,12 @@ export async function criarInsumo(input: CriarInsumoInput): Promise<{ id: string
   const [created] = await db.insert(insumo).values({ id: crypto.randomUUID(), tenantId, nome, unidadeBase: baseUnit, unidadeCompra: purchaseUnit, fatorCompraParaBase: fator.toFixed(3), estoqueAtual: '0.000', estoqueIdeal, estoqueMinimo, custoUnitario, ativo: true }).returning({ id: insumo.id })
   return { id: created.id }
 }
-export async function registrarEntradaEstoque(id: string, quantidadeCompra: string, chaveIdempotencia: string, custoTotalCompra?: string): Promise<void> {
+export async function registrarEntradaEstoque(id: string, quantidadeCompra: string, chaveIdempotencia: string, custoTotalCompra?: string, unidadeMovimento?: string): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('admin')
   const chave = validarChaveIdempotente(chaveIdempotencia)
   const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
-  const quantidade = Number(normalizarQuantidadeBase(quantidadeCompra, item.unidadeCompra, item.unidadeBase))
+  const quantidade = Number(normalizarQuantidadeBase(quantidadeCompra, unidadeMovimento ?? item.unidadeCompra, item.unidadeBase))
   const custoTotal = custoTotalCompra?.trim() ? Number(parsePositiveDecimal(custoTotalCompra, 'Custo total')) : null
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'entrada', quantidade, custoUnitario: custoTotal === null ? null : custoTotal / quantidade, chaveIdempotencia: chave, observacao: 'Entrada manual de estoque' })
 }
@@ -95,17 +95,17 @@ export async function ajustarEstoqueAtual(id: string, quantidadeBase: string, ch
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'contagem', quantidade, chaveIdempotencia: chave, motivo: 'Contagem física', observacao: 'Contagem manual do estoque' })
 }
 
-export async function registrarPerdaEstoque(id: string, quantidadeCompra: string, motivo: string, chaveIdempotencia: string, observacao?: string): Promise<void> {
+export async function registrarPerdaEstoque(id: string, quantidadeCompra: string, motivo: string, chaveIdempotencia: string, observacao?: string, unidadeMovimento?: string): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('admin')
   const chave = validarChaveIdempotente(chaveIdempotencia)
   const [item] = await db.select().from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
   if (!motivo.trim()) throw new Error('Informe o motivo da perda')
-  const quantidade = Number(normalizarQuantidadeBase(quantidadeCompra, item.unidadeCompra, item.unidadeBase))
+  const quantidade = Number(normalizarQuantidadeBase(quantidadeCompra, unidadeMovimento ?? item.unidadeCompra, item.unidadeBase))
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'perda', quantidade: -quantidade, chaveIdempotencia: chave, motivo, observacao: observacao ?? null })
 }
 
-export async function realizarContagemEstoque(id: string, quantidadeEncontradaCompra: string, chaveIdempotencia: string, observacao?: string): Promise<void> {
+export async function realizarContagemEstoque(id: string, quantidadeEncontradaCompra: string, chaveIdempotencia: string, observacao?: string, unidadeMovimento?: string): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('admin')
   const chave = validarChaveIdempotente(chaveIdempotencia)
   const [item] = await db.select({
@@ -114,7 +114,7 @@ export async function realizarContagemEstoque(id: string, quantidadeEncontradaCo
     unidadeBase: insumo.unidadeBase,
   }).from(insumo).where(and(eq(insumo.id, id), eq(insumo.tenantId, tenantId), eq(insumo.ativo, true)))
   if (!item) throw new Error('Insumo não encontrado')
-  const encontrada = Number(normalizarQuantidadeBase(quantidadeEncontradaCompra, item.unidadeCompra, item.unidadeBase))
+  const encontrada = Number(normalizarQuantidadeBase(quantidadeEncontradaCompra, unidadeMovimento ?? item.unidadeCompra, item.unidadeBase))
   await applyStockMovement({ tenantId, usuarioId, insumoId: id, tipo: 'contagem', quantidade: encontrada, chaveIdempotencia: chave, motivo: 'Contagem física', observacao: observacao ?? null })
 }
 
