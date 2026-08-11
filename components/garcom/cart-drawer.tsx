@@ -99,7 +99,7 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, r
           <Button type="button" intent="positive" appearance="solid" size="lg" className="min-h-11 w-full" onClick={handleConfirmar} aria-busy={sending} disabled={sending || items.length === 0}>
             {sending ? 'Confirmando...' : 'Confirmar pedido'}
           </Button>
-          <Button type="button" intent="destructive" appearance="outline" size="lg" className="min-h-11 w-full" onClick={onClose} disabled={sending}>
+          <Button type="button" intent="neutral" appearance="outline" size="lg" className="min-h-11 w-full" onClick={onClose} disabled={sending}>
             Cancelar
           </Button>
         </DrawerFooter>
