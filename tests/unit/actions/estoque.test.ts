@@ -701,7 +701,7 @@ describe('shopping-list operations', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
-  it('records an edited automatic receipt and removes its row atomically', async () => {
+  it('records an edited automatic receipt in its selected compatible unit and removes its row atomically', async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined)
     const applyInTransaction = vi.fn().mockResolvedValue({ applied: true })
     const tx = {
@@ -748,10 +748,15 @@ describe('shopping-list operations', () => {
     const stock = await import('@/lib/stock/service')
     vi.mocked(stock.applyStockMovementInPostgresTransaction).mockImplementationOnce(applyInTransaction)
 
-    await completeShoppingListItem({ itemId: 'row-1', receivedQuantity: '7', idempotencyKey: key })
+    await completeShoppingListItem({
+      itemId: 'row-1',
+      receivedQuantity: '7',
+      receivedUnit: 'g',
+      idempotencyKey: key,
+    })
 
     expect(applyInTransaction).toHaveBeenCalledWith(tx, expect.objectContaining({
-      tenantId: 'tenant-1', usuarioId: 'user-1', insumoId: 'insumo-1', tipo: 'entrada', quantidade: 7000,
+      tenantId: 'tenant-1', usuarioId: 'user-1', insumoId: 'insumo-1', tipo: 'entrada', quantidade: 7,
       chaveIdempotencia: `shopping-list:row-1:${key}`,
     }))
     expect(deleteWhere).toHaveBeenCalledTimes(1)
@@ -776,6 +781,8 @@ describe('shopping-list operations', () => {
     await completeShoppingListItem({ itemId: 'row-1', idempotencyKey: key })
 
     expect(deleteWhere).toHaveBeenCalledTimes(1)
+    const stock = await import('@/lib/stock/service')
+    expect(stock.applyStockMovementInPostgresTransaction).not.toHaveBeenCalled()
   })
 
   it('treats a repeated completion after the row is removed as a no-op', async () => {

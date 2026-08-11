@@ -144,22 +144,36 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
   const router = useRouter()
   const [confirmingItem, setConfirmingItem] = useState<ShoppingListItem | null>(null)
   const [receivedQuantity, setReceivedQuantity] = useState('')
+  const [receivedUnit, setReceivedUnit] = useState('')
   const [manualItem, setManualItem] = useState({ nome: '', quantidade: '', unidade: 'kg' })
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const intentsRef = useRef<Record<string, ManualOperationIntent>>({})
   const manualItemIntentRef = useRef<ManualOperationIntent | null>(null)
+  const orderedItems = useMemo(
+    () => [...shoppingListItems].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    [shoppingListItems],
+  )
+  const shoppingListText = orderedItems
+    .map((item) => `${item.nome} - ${formatQuantity(item.quantidadeSugerida, item.unidade)}`)
+    .join('\n')
+
+  function receiptUnitsFor(item: ShoppingListItem) {
+    const baseUnit = item.unidade === 'kg' ? 'g' : item.unidade === 'l' ? 'ml' : item.unidade
+    return movementUnitsFor(baseUnit)
+  }
 
   function openConfirmation(item: ShoppingListItem) {
     if (busy) return
     setActionError('')
     setConfirmingItem(item)
     setReceivedQuantity(item.quantidadeSugerida)
+    setReceivedUnit(item.unidade)
   }
 
-  async function completeItem(item: ShoppingListItem, quantity?: string) {
+  async function completeItem(item: ShoppingListItem, quantity?: string, unit?: string) {
     if (busy) return
-    const fingerprint = JSON.stringify([item.id, quantity ?? 'manual'])
+    const fingerprint = JSON.stringify([item.id, quantity ?? 'manual', unit ?? ''])
     const intent = intentForFingerprint(intentsRef.current[item.id], fingerprint)
     intentsRef.current[item.id] = intent
     setBusy(true)
@@ -167,7 +181,7 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
     try {
       await confirmarItemListaCompra({
         itemId: item.id,
-        ...(item.kind === 'automatic' ? { receivedQuantity: quantity } : {}),
+        ...(item.kind === 'automatic' ? { receivedQuantity: quantity, receivedUnit: unit } : {}),
         idempotencyKey: intent.key,
       })
       delete intentsRef.current[item.id]
@@ -205,21 +219,30 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
     }
   }
 
-  const automaticItems = shoppingListItems.filter((item) => item.kind === 'automatic')
-  const manualItems = shoppingListItems.filter((item) => item.kind === 'manual')
+  async function copyShoppingList() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard indisponível')
+      await navigator.clipboard.writeText(shoppingListText)
+      toast.success('Lista copiada.')
+    } catch {
+      const message = 'Não foi possível copiar a lista.'
+      setActionError(message)
+      toast.error(message)
+    }
+  }
 
   return <div className="mt-5 space-y-6">
     {actionError ? <p role="alert" className="rounded-[var(--radius)] border border-[var(--action-destructive-outline)] p-3 text-sm text-[var(--action-destructive-foreground)]">{actionError}</p> : null}
     <section className="space-y-3">
-      <div><h2 className="text-base font-semibold">Reposi??o autom?tica</h2><p className="text-sm text-muted-foreground">Itens sugeridos quando o saldo fica abaixo do m?nimo.</p></div>
-      {automaticItems.length === 0 ? <AdminEmptyState title="Nenhuma reposi??o pendente" description="Os itens abaixo do m?nimo aparecer?o aqui." /> : <div className="divide-y rounded-[var(--radius)] border bg-card">{automaticItems.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">Sugest?o: {formatQuantity(item.quantidadeSugerida, item.unidade)}</p></div><Button type="button" intent="positive" appearance="solid" disabled={busy} onClick={() => openConfirmation(item)}>Confirmar entrada</Button></div>)}</div>}
-    </section>
-    <section className="space-y-3">
-      <div><h2 className="text-base font-semibold">Itens manuais</h2><p className="text-sm text-muted-foreground">Adicione compras que n?o dependem do saldo em estoque.</p></div>
+      <div><h2 className="text-base font-semibold">Adicionar item manual</h2><p className="text-sm text-muted-foreground">Adicione compras que não dependem do saldo em estoque.</p></div>
       <div className="grid gap-3 rounded-[var(--radius)] border bg-card p-4 sm:grid-cols-4 sm:items-end"><div className="space-y-1"><Label htmlFor="lista-manual-nome">Nome</Label><Input id="lista-manual-nome" value={manualItem.nome} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, nome: event.target.value })} /></div><div className="space-y-1"><Label htmlFor="lista-manual-quantidade">Quantidade</Label><Input id="lista-manual-quantidade" inputMode="decimal" value={manualItem.quantidade} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, quantidade: event.target.value })} /></div><div className="space-y-1"><Label htmlFor="lista-manual-unidade">Unidade</Label><select id="lista-manual-unidade" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={manualItem.unidade} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, unidade: event.target.value })}><option value="kg">Quilo</option><option value="g">Gramas</option><option value="unidade">Unidade</option><option value="ml">Mililitros</option><option value="l">Litros</option></select></div><Button type="button" intent="positive" appearance="solid" disabled={busy || !manualItem.nome.trim() || !manualItem.quantidade} onClick={addManualItem}>Adicionar item</Button></div>
-      {manualItems.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item manual pendente.</p> : <div className="divide-y rounded-[var(--radius)] border bg-card">{manualItems.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">{formatQuantity(item.quantidadeSugerida, item.unidade)}</p></div><Button type="button" intent="neutral" appearance="outline" disabled={busy} onClick={() => completeItem(item)}>Concluir</Button></div>)}</div>}
     </section>
-    <Dialog open={confirmingItem !== null} onOpenChange={(open) => { if (!open && !busy) setConfirmingItem(null) }}><DialogContent><DialogHeader><DialogTitle>Confirmar entrada</DialogTitle><DialogDescription>Revise a quantidade recebida antes de atualizar o saldo.</DialogDescription></DialogHeader><div className="space-y-1"><Label htmlFor="lista-quantidade-recebida">Quantidade recebida</Label><Input id="lista-quantidade-recebida" inputMode="decimal" value={receivedQuantity} disabled={busy} onChange={(event) => setReceivedQuantity(event.target.value)} /></div><DialogFooter><Button type="button" intent="destructive" appearance="outline" disabled={busy} onClick={() => setConfirmingItem(null)}>Cancelar</Button><Button type="button" intent="positive" appearance="solid" aria-busy={busy} disabled={busy || !receivedQuantity} onClick={() => { if (confirmingItem) void completeItem(confirmingItem, receivedQuantity) }}>Confirmar</Button></DialogFooter></DialogContent></Dialog>
+    <section className="space-y-3" aria-label="Itens da lista de compras">
+      <div><h2 className="text-base font-semibold">Itens para comprar</h2><p className="text-sm text-muted-foreground">Reposições automáticas e itens manuais em uma única lista.</p></div>
+      {orderedItems.length === 0 ? <AdminEmptyState title="Nenhum item pendente" description="Os itens abaixo do mínimo e as compras manuais aparecerão aqui." /> : <div className="divide-y rounded-[var(--radius)] border bg-card">{orderedItems.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">{item.kind === 'automatic' ? 'Sugestão: ' : ''}{formatQuantity(item.quantidadeSugerida, item.unidade)}</p></div><Button type="button" intent={item.kind === 'automatic' ? 'positive' : 'neutral'} appearance={item.kind === 'automatic' ? 'solid' : 'outline'} disabled={busy} onClick={() => item.kind === 'automatic' ? openConfirmation(item) : void completeItem(item)}>{item.kind === 'automatic' ? 'Confirmar entrada' : 'Concluir'}</Button></div>)}</div>}
+    </section>
+    <Dialog open={confirmingItem !== null} onOpenChange={(open) => { if (!open && !busy) setConfirmingItem(null) }}><DialogContent><DialogHeader><DialogTitle>Confirmar entrada</DialogTitle><DialogDescription>Revise a quantidade recebida antes de atualizar o saldo.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="lista-quantidade-recebida">Quantidade recebida</Label><Input id="lista-quantidade-recebida" inputMode="decimal" value={receivedQuantity} disabled={busy} onChange={(event) => setReceivedQuantity(event.target.value)} /></div><div className="space-y-1"><Label htmlFor="lista-unidade-recebida">Unidade recebida</Label><select id="lista-unidade-recebida" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={receivedUnit} disabled={busy} onChange={(event) => setReceivedUnit(event.target.value)}>{confirmingItem ? receiptUnitsFor(confirmingItem).map((unit) => <option key={unit} value={unit}>{unit}</option>) : null}</select></div></div><DialogFooter><Button type="button" intent="destructive" appearance="outline" disabled={busy} onClick={() => setConfirmingItem(null)}>Cancelar</Button><Button type="button" intent="positive" appearance="solid" aria-busy={busy} disabled={busy || !receivedQuantity || !receivedUnit} onClick={() => { if (confirmingItem) void completeItem(confirmingItem, receivedQuantity, receivedUnit) }}>Confirmar</Button></DialogFooter></DialogContent></Dialog>
+    <section className="space-y-2"><div><h2 className="text-base font-semibold">Texto da lista</h2><p className="text-sm text-muted-foreground">Copie e cole onde preferir.</p></div><textarea aria-label="Texto da lista de compras" readOnly value={shoppingListText} className="min-h-32 w-full rounded-[var(--radius)] border bg-muted/30 p-3 font-mono text-sm" /><Button type="button" intent="neutral" appearance="outline" disabled={!shoppingListText} onClick={() => void copyShoppingList()}>Copiar lista</Button></section>
   </div>
 }
 

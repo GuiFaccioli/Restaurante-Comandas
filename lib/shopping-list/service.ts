@@ -18,6 +18,7 @@ export { reconcileShoppingListInPostgresTransaction } from '@/lib/shopping-list/
 export type CompleteShoppingListItemInput = {
   itemId: string
   receivedQuantity?: string
+  receivedUnit?: string
   idempotencyKey: string
 }
 
@@ -103,7 +104,7 @@ export async function completeShoppingListItem(
 
       const received = normalizarQuantidadeBase(
         input.receivedQuantity ?? row.quantidadeSugerida,
-        item.unidadeCompra,
+        input.receivedUnit ?? item.unidadeCompra,
         item.unidadeBase,
       )
       await applyStockMovementInPostgresTransaction(tx, {

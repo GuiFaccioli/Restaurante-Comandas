@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   registrarPerdaEstoque: vi.fn(),
   realizarContagemEstoque: vi.fn(),
   adicionarItemManualListaCompra: vi.fn(),
+  confirmarItemListaCompra: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -35,6 +36,7 @@ vi.mock('@/lib/actions/estoque', () => ({
   registrarPerdaEstoque: state.registrarPerdaEstoque,
   removerInsumo: vi.fn(),
   salvarFichaTecnica: vi.fn(),
+  confirmarItemListaCompra: state.confirmarItemListaCompra,
 }))
 
 import { EstoqueAdminClient } from '@/app/admin/estoque/client'
@@ -74,13 +76,19 @@ function renderStock(insumos = [ingredient]) {
   }))
 }
 
-function renderShoppingList() {
+function renderShoppingList(shoppingListItems: Array<{
+  id: string
+  kind: string
+  nome: string
+  unidade: string
+  quantidadeSugerida: string
+}> = []) {
   return render(createElement(EstoqueAdminClient, {
     insumos: [],
     produtos: [],
     fichas: [],
     initialProdutoId: '',
-    shoppingListItems: [],
+    shoppingListItems,
     view: 'lista',
   }))
 }
@@ -119,6 +127,51 @@ describe('manual shopping-list creation idempotency in the UI', () => {
     expect(state.adicionarItemManualListaCompra).toHaveBeenNthCalledWith(2, {
       nome: 'Guardanapos', quantidade: '2', unidade: 'kg', idempotencyKey: firstKey,
     })
+  })
+})
+
+describe('unified shopping-list operations in the UI', () => {
+  const shoppingItems = [
+    { id: 'automatic-1', kind: 'automatic', nome: 'Acucar', unidade: 'kg', quantidadeSugerida: '2.000' },
+    { id: 'manual-1', kind: 'manual', nome: 'Bandeja', unidade: 'unidade', quantidadeSugerida: '3.000' },
+    { id: 'automatic-2', kind: 'automatic', nome: 'Oleo', unidade: 'l', quantidadeSugerida: '1.500' },
+  ]
+
+  it('shows manual and automatic items in one alphabetical operational list', () => {
+    renderShoppingList([shoppingItems[2], shoppingItems[1], shoppingItems[0]])
+
+    const list = screen.getByLabelText('Itens da lista de compras')
+    expect(list.textContent).toContain('Acucar')
+    expect(list.textContent).toContain('Bandeja')
+    expect(list.textContent).toContain('Oleo')
+    expect(list.textContent.indexOf('Acucar')).toBeLessThan(list.textContent.indexOf('Bandeja'))
+    expect(list.textContent.indexOf('Bandeja')).toBeLessThan(list.textContent.indexOf('Oleo'))
+  })
+
+  it('copies every alphabetical list name, quantity, and unit as TXT', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    renderShoppingList([shoppingItems[1], shoppingItems[2], shoppingItems[0]])
+
+    const text = (screen.getByLabelText('Texto da lista de compras') as HTMLTextAreaElement).value
+    expect(text).toBe('Acucar - 2 kg\nBandeja - 3 unidade\nOleo - 1.5 l')
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar lista' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(text))
+  })
+
+  it('sends the selected compatible receipt unit through automatic confirmation', async () => {
+    renderShoppingList([shoppingItems[0]])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar entrada' }))
+    fireEvent.change(screen.getByLabelText('Unidade recebida'), { target: { value: 'g' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+
+    await waitFor(() => expect(state.confirmarItemListaCompra).toHaveBeenCalledWith({
+      itemId: 'automatic-1',
+      receivedQuantity: '2.000',
+      receivedUnit: 'g',
+      idempotencyKey: firstKey,
+    }))
   })
 })
 
