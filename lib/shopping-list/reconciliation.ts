@@ -40,6 +40,7 @@ export async function reconcileShoppingListInPostgresTransaction(
       eq(shoppingListItem.insumoId, insumoId),
       eq(shoppingListItem.kind, 'automatic'),
     ))
+    .for('update')
     .limit(1)
 
   if (

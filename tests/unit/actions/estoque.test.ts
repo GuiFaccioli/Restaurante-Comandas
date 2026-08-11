@@ -131,17 +131,30 @@ describe('normalizarQuantidadeBase', () => {
 
 describe('criarInsumo', () => {
   beforeEach(() => {
-    const select = vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          for: vi.fn(async () => [{
-            id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
-            estoqueAtual: '0.000', estoqueIdeal: '10000.000', estoqueMinimo: '3000.000',
-          }]),
-          limit: vi.fn(async () => []),
+    const select = vi.fn()
+      .mockReturnValueOnce({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            for: vi.fn(async () => [{
+              id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+              estoqueAtual: '0.000', estoqueIdeal: '10000.000', estoqueMinimo: '3000.000',
+            }]),
+          })),
         })),
-      })),
-    }))
+      })
+      .mockReturnValueOnce({
+        from: vi.fn(() => ({
+          where: vi.fn(() => {
+            const automaticRowQuery = {
+              limit: vi.fn(async () => []),
+            }
+            return {
+              for: vi.fn(() => automaticRowQuery),
+              ...automaticRowQuery,
+            }
+          }),
+        })),
+      })
     runInDbTransactionMock.mockImplementation(async ({ postgresOperation }) => (
       postgresOperation({ insert: db.insert, select })
     ))
@@ -673,9 +686,10 @@ describe('shopping-list operations', () => {
         })
         .mockReturnValueOnce({
           from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(async () => []),
-            })),
+            where: vi.fn(() => {
+              const lockedAutomaticQuery = { limit: vi.fn(async () => []) }
+              return { for: vi.fn(() => lockedAutomaticQuery) }
+            }),
           })),
         }),
       insert: vi.fn(() => ({ values: insertValues })),
@@ -707,7 +721,12 @@ describe('shopping-list operations', () => {
         })
         .mockReturnValueOnce({
           from: vi.fn(() => ({
-            where: vi.fn(() => ({ limit: vi.fn(async () => [{ id: 'row-1' }]) })),
+            where: vi.fn(() => {
+              const lockedAutomaticQuery = {
+                limit: vi.fn(async () => [{ id: 'row-1' }]),
+              }
+              return { for: vi.fn(() => lockedAutomaticQuery) }
+            }),
           })),
         }),
       insert,
@@ -716,6 +735,41 @@ describe('shopping-list operations', () => {
     await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
 
     expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('locks an existing automatic suggestion before deciding whether to keep it', async () => {
+    const lockAutomaticRow = vi.fn()
+    const automaticRowQuery = {
+      limit: vi.fn(async () => [{ id: 'row-1' }]),
+      for: lockAutomaticRow,
+    }
+    lockAutomaticRow.mockReturnValue(automaticRowQuery)
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async () => [{
+                id: 'insumo-1', nome: 'Farinha', unidadeCompra: 'kg', fatorCompraParaBase: '1000.000',
+                estoqueAtual: '1000.000', estoqueIdeal: '10000.000', estoqueMinimo: '2000.000',
+              }]),
+            })),
+          })),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              ...automaticRowQuery,
+            })),
+          })),
+        }),
+      insert: vi.fn(),
+    }
+
+    await reconcileShoppingListInPostgresTransaction(tx as never, 'tenant-1', 'insumo-1')
+
+    expect(lockAutomaticRow).toHaveBeenCalledWith('update')
+    expect(tx.insert).not.toHaveBeenCalled()
   })
 
   it('removes an automatic suggestion when direct replenishment raises stock above minimum', async () => {
@@ -734,7 +788,12 @@ describe('shopping-list operations', () => {
         })
         .mockReturnValueOnce({
           from: vi.fn(() => ({
-            where: vi.fn(() => ({ limit: vi.fn(async () => [{ id: 'row-1' }]) })),
+            where: vi.fn(() => {
+              const lockedAutomaticQuery = {
+                limit: vi.fn(async () => [{ id: 'row-1' }]),
+              }
+              return { for: vi.fn(() => lockedAutomaticQuery) }
+            }),
           })),
         }),
       delete: vi.fn(() => ({ where: deleteWhere })),
@@ -762,7 +821,10 @@ describe('shopping-list operations', () => {
         })
         .mockReturnValueOnce({
           from: vi.fn(() => ({
-            where: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+            where: vi.fn(() => {
+              const lockedAutomaticQuery = { limit: vi.fn(async () => []) }
+              return { for: vi.fn(() => lockedAutomaticQuery) }
+            }),
           })),
         }),
       delete: vi.fn(),
@@ -815,7 +877,10 @@ describe('shopping-list operations', () => {
         })
         .mockReturnValueOnce({
           from: vi.fn(() => ({
-            where: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+            where: vi.fn(() => {
+              const lockedAutomaticQuery = { limit: vi.fn(async () => []) }
+              return { for: vi.fn(() => lockedAutomaticQuery) }
+            }),
           })),
         }),
       delete: vi.fn(() => ({ where: deleteWhere })),

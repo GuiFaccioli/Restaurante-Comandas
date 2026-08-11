@@ -12,3 +12,13 @@ Automatic shopping-list rows were only read after the eligibility guard. A direc
 ## Verification
 - `npm test -- tests/unit/actions/estoque-shopping-list-reconciliation.test.ts tests/unit/actions/estoque.test.ts` — 40 passing.
 - `npm run build` — passed.
+
+## Concurrency follow-up
+- Added `FOR UPDATE` when reading an existing automatic shopping-list row before eligibility/deletion.
+- Regression test verifies the automatic row query requests the update lock.
+
+### Commands
+- `npm test -- tests/unit/actions/estoque.test.ts tests/unit/actions/estoque-shopping-list-reconciliation.test.ts`
+  - Output: 2 test files passed, 41 tests passed.
+- `npm run build`
+  - Output: Next.js production build and TypeScript check passed.
