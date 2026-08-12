@@ -26,7 +26,7 @@ export function Hero() {
             
             <FadeIn delay={0.2}>
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-black leading-[1.05] tracking-tight mb-6 text-foreground">
-                O controle do salão, da cozinha e do <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-500">caixa nas suas mãos.</span>
+                O controle do salão, da cozinha e do <span className="text-primary">caixa nas suas mãos.</span>
               </h1>
             </FadeIn>
             
@@ -43,14 +43,14 @@ export function Hero() {
             </FadeIn>
             
             <FadeIn delay={0.4} className="flex flex-col sm:flex-row gap-4 sm:items-center">
-              <Button size="lg" className="rounded-full px-8 h-14 text-base font-bold shadow-lg shadow-primary/20 hover:shadow-xl transition-all hover:-translate-y-1">
+              <a href="/auth/sign-up" className="inline-flex h-14 items-center justify-center rounded-full bg-primary px-8 text-base font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl transition-all hover:-translate-y-1">
                 Começar teste grátis
                 <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-              <Button size="lg" variant="outline" className="rounded-full px-8 h-14 text-base font-semibold bg-white/50 backdrop-blur border-border hover:bg-white/80 transition-all">
+              </a>
+              <a href="#como-funciona" className="inline-flex h-14 items-center justify-center rounded-full border border-border bg-white/50 px-8 text-base font-semibold backdrop-blur transition-all hover:bg-white/80">
                 <Play className="mr-2 w-5 h-5 text-primary" fill="currentColor" />
                 Ver como funciona
-              </Button>
+              </a>
             </FadeIn>
 
             <FadeIn delay={0.5} className="mt-8 flex items-center gap-4 text-sm text-foreground/60 font-medium">

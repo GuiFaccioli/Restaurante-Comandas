@@ -59,9 +59,9 @@ export function Navbar() {
             <a href="/auth/sign-in" className="text-sm font-medium hover:text-primary transition-colors">
               Entrar
             </a>
-            <Button className="rounded-full px-6 font-semibold shadow-sm hover:shadow-md transition-all">
+            <a href="/auth/sign-up" className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-6 font-semibold text-primary-foreground shadow-sm hover:shadow-md transition-all">
               Testar Grátis
-            </Button>
+            </a>
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -97,9 +97,9 @@ export function Navbar() {
             >
               Entrar
             </a>
-            <Button className="w-full mt-2" size="lg">
+            <a href="/auth/sign-up" onClick={() => setIsMobileMenuOpen(false)} className="inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-primary-foreground mt-2">
               Testar Grátis
-            </Button>
+            </a>
           </div>
         )}
       

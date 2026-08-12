@@ -3,7 +3,7 @@ import { Flame, Clock, ShieldCheck } from "lucide-react";
 
 export function VibeSection() {
   return (
-    <section className="py-24 bg-foreground text-background relative overflow-hidden">
+    <section id="como-funciona" className="py-24 bg-foreground text-background relative overflow-hidden">
       {/* Background glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-full opacity-10 blur-[120px] bg-primary rounded-full pointer-events-none" />
       

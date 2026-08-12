@@ -1,5 +1,4 @@
 import { FadeIn } from "./animations/FadeIn";
-import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 
 export function CTA() {
@@ -21,10 +20,10 @@ export function CTA() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button size="lg" variant="secondary" className="rounded-full px-10 h-16 text-lg font-bold text-primary hover:scale-105 transition-transform">
+            <a href="/auth/sign-up" className="inline-flex h-16 items-center justify-center rounded-full bg-secondary px-10 text-lg font-bold text-primary hover:scale-105 transition-transform">
               Criar minha conta grátis
               <ArrowRight className="ml-2 w-6 h-6" />
-            </Button>
+            </a>
             <span className="text-primary-foreground/80 font-medium ml-4 hidden sm:block">
               Leva menos de 2 minutos
             </span>
