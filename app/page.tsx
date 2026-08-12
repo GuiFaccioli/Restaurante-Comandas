@@ -1,12 +1,7 @@
-import { getCurrentAccesses, redirectForAccesses } from '@/lib/auth/access'
-import { getCurrentSession } from '@/lib/auth/session'
-import { redirect } from 'next/navigation'
+import { LandingPage } from "@/components/landing/LandingPage";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-static";
 
-export default async function HomePage() {
-  const session = await getCurrentSession()
-  if (!session) redirect('/auth/sign-in')
-
-  redirect(redirectForAccesses(await getCurrentAccesses()))
+export default function HomePage() {
+  return <LandingPage />;
 }
