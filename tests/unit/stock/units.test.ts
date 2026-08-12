@@ -6,6 +6,7 @@ describe('formatStockQuantity', () => {
     expect(formatStockQuantity('999', 'g')).toBe('999 g')
     expect(formatStockQuantity('1000', 'g')).toBe('1 kg')
     expect(formatStockQuantity('1200', 'g')).toBe('1.2 kg')
+    expect(formatStockQuantity('10000', 'g')).toBe('10 kg')
   })
 
   it('converts milliliters to liters at the threshold', () => {

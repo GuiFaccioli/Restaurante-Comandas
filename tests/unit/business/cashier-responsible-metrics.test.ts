@@ -14,12 +14,22 @@ vi.mock('sonner', () => ({ toast: mocks.toast }))
 import { AdminPedidosLive } from '@/app/admin/pedidos/client'
 
 const account: AtendimentoResumo = {
-  id: 'atendimento-1', mesaId: 'mesa-1', mesaNumero: 4, status: 'awaiting_payment', abertoEm: '2026-07-13T12:00:00.000Z', total: 48, saldoPendente: 48, orderCount: 1, activeOrderCount: 0,
-  pedidos: [{ id: 'pedido-1', status: 'entregue', criadoEm: '2026-07-13T12:00:00.000Z', entregueEm: '2026-07-13T12:15:00.000Z', total: 48, itens: [{ nome: 'Mussarela', quantidade: 1, precoUnitario: '48.00', observacao: null }] }],
+  id: 'atendimento-1', mesaId: 'mesa-1', mesaNumero: 4, status: 'awaiting_payment', abertoEm: '2026-07-13T12:00:00.000Z', total: 48, saldoPendente: 48, valorCancelado: 0, orderCount: 1, activeOrderCount: 0,
+  pedidos: [{ id: 'pedido-1', status: 'entregue', criadoEm: '2026-07-13T12:00:00.000Z', entregueEm: '2026-07-13T12:15:00.000Z', total: 48, valorCancelado: 0, itens: [{ nome: 'Mussarela', quantidade: 1, precoUnitario: '48.00', observacao: null }] }],
 }
 
 const secondAccount: AtendimentoResumo = { ...account, id: 'atendimento-2', mesaNumero: 8, total: 70, saldoPendente: 70, pedidos: [{ ...account.pedidos[0], id: 'pedido-2', total: 70, itens: [{ nome: 'Calabresa', quantidade: 1, precoUnitario: '70.00', observacao: null }] }] }
-const canceledAccount: AtendimentoResumo = { ...account, id: 'atendimento-canceled', status: 'cancelled', total: 0, saldoPendente: 0, pedidos: [{ ...account.pedidos[0], id: 'pedido-canceled', status: 'cancelado', total: 0 }] }
+type CancelledOrderSummary = AtendimentoResumo['pedidos'][number] & { valorCancelado: number }
+
+const canceledAccount: AtendimentoResumo & { valorCancelado: number; pedidos: CancelledOrderSummary[] } = {
+  ...account,
+  id: 'atendimento-canceled',
+  status: 'cancelled',
+  total: 0,
+  saldoPendente: 0,
+  valorCancelado: 48,
+  pedidos: [{ ...account.pedidos[0], id: 'pedido-canceled', status: 'cancelado', total: 0, valorCancelado: 48 }],
+}
 
 beforeEach(() => { vi.clearAllMocks(); mocks.registrarPagamentoAtendimento.mockResolvedValue({ status: 'registrado', atendimentoStatus: 'paid' }) })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -44,6 +54,7 @@ describe('AdminPedidosLive', () => {
 
     expect(screen.getByText(/1 pedido\(s\) · Cancelado/)).toBeInTheDocument()
     expect(screen.getByText(/Mesa 4 · Conta/).closest('article')).toHaveClass('bg-[var(--error-soft)]')
+    expect(screen.getByText(/Valor cancelado: R\$\s*48,00/)).toBeInTheDocument()
   })
 
   it('refreshes and keeps account payment amount based on the selected account', async () => {

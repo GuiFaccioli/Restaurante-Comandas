@@ -66,9 +66,8 @@ export function parsePositiveDecimal(value: string, label: string): number {
 }
 
 function formatDisplayNumber(value: number): string {
-  return (Number.isInteger(value) ? String(value) : value.toFixed(3))
-    .replace(/0+$/, '')
-    .replace(/\.$/, '')
+  if (Number.isInteger(value)) return String(value)
+  return value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 /** Formats base stock quantities using kilograms/liters once they reach 1000 g/ml. */

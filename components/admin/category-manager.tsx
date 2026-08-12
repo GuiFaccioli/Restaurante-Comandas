@@ -218,6 +218,7 @@ export function CategoryManager({
   return (
     <AdminPanel
       title="Categorias"
+      description="Ex.: Cozinha, Pizzaria, Bebidas"
       action={
         <Tooltip>
           <TooltipTrigger

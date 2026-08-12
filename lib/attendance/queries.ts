@@ -18,12 +18,14 @@ export type AtendimentoResumo = AttendanceForTableState & {
   mesaNumero: number
   status: StatusAtendimento
   saldoPendente: number
+  valorCancelado: number
   pedidos: Array<{
     id: string
     status: string
     criadoEm: string
     entregueEm: string | null
     total: number
+    valorCancelado: number
     itens: Array<{
       nome: string
       quantidade: number
@@ -161,16 +163,24 @@ async function hydrateAttendances(
     const rowOrders = orders.filter((order) => order.atendimentoId === row.id)
     const hydratedOrders = rowOrders.map((order) => {
       const orderItems = items.filter((item) => item.pedidoId === order.id).map(({ pedidoId: _pedidoId, ...item }) => item)
+      const itemTotal = calculateOrderTotal(orderItems)
+      const valorCancelado = order.status === 'cancelado' ? itemTotal : 0
+
       return {
         id: order.id,
         status: order.status,
         criadoEm: order.criadoEm.toISOString(),
         entregueEm: order.entregueEm?.toISOString() ?? null,
-        total: order.status === 'cancelado' ? 0 : calculateOrderTotal(orderItems),
+        total: order.status === 'cancelado' ? 0 : itemTotal,
+        valorCancelado,
         itens: orderItems,
       }
     })
     const total = hydratedOrders.reduce((sum, order) => sum + order.total, 0)
+    const valorCancelado = hydratedOrders.reduce(
+      (sum, order) => sum + order.valorCancelado,
+      0,
+    )
     const paid = sumRegisteredPayments(payments, row.id)
     return {
       id: row.id,
@@ -179,6 +189,7 @@ async function hydrateAttendances(
       status: row.status,
       abertoEm: row.abertoEm.toISOString(),
       total,
+      valorCancelado,
       orderCount: hydratedOrders.length,
       activeOrderCount: hydratedOrders.filter((order) => order.status !== 'entregue' && order.status !== 'cancelado').length,
       saldoPendente: Math.max(0, total - paid),
