@@ -64,3 +64,24 @@ export function fatorCompraParaBase(unidadeCompra: UnidadeCompra, unidadeBase: U
 export function parsePositiveDecimal(value: string, label: string): number {
   return parseDecimal(value, label, false)
 }
+
+function formatDisplayNumber(value: number): string {
+  return (Number.isInteger(value) ? String(value) : value.toFixed(3))
+    .replace(/0+$/, '')
+    .replace(/\.$/, '')
+}
+
+/** Formats base stock quantities using kilograms/liters once they reach 1000 g/ml. */
+export function formatStockQuantity(value: string | number, unit: string): string {
+  const amount = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(amount)) return `${value} ${unit}`
+
+  const absolute = Math.abs(amount)
+  if (unit === 'g' && absolute >= 1000) {
+    return `${formatDisplayNumber(amount / 1000)} kg`
+  }
+  if (unit === 'ml' && absolute >= 1000) {
+    return `${formatDisplayNumber(amount / 1000)} l`
+  }
+  return `${formatDisplayNumber(amount)} ${unit}`
+}
