@@ -26,7 +26,7 @@ export function Hero() {
             
             <FadeIn delay={0.2}>
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-black leading-[1.05] tracking-tight mb-6 text-foreground">
-                O controle do salão, da cozinha e do <span className="text-primary">caixa nas suas mãos.</span>
+                Mais leveza para cuidar do salão, da cozinha e do <span className="text-primary">seu restaurante.</span>
               </h1>
             </FadeIn>
             
@@ -38,7 +38,7 @@ export function Hero() {
 
             <FadeIn delay={0.35}>
               <p className="text-lg md:text-xl text-foreground/70 mb-8 max-w-xl leading-relaxed">
-                Chega de anotações no papel, ingredientes perdidos e fechamento de caixa que não bate. O AgilizaFluxo é o parceiro de quem abre e fecha o restaurante todo dia.
+                Tenha mais clareza nas anotações, nos ingredientes e no fechamento do caixa. O AgilizaFluxo acompanha você em cada etapa da rotina do restaurante.
               </p>
             </FadeIn>
             

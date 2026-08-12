@@ -12,11 +12,11 @@ export function CTA() {
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         <FadeIn className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl md:text-6xl font-display font-black text-primary-foreground mb-8 leading-tight">
-            Chega de fechar o caixa <br className="hidden md:block"/>
-            com dor de cabeça.
+            Feche o caixa com <br className="hidden md:block"/>
+            mais tranquilidade.
           </h2>
           <p className="text-xl text-primary-foreground/90 mb-10 max-w-2xl mx-auto">
-            Coloque a casa em ordem hoje mesmo. Teste o AgilizaFluxo grátis por 7 dias na sua operação. Sem compromisso, sem cartão exigido.
+            Dê um passo tranquilo para uma operação mais organizada. Teste o AgilizaFluxo grátis por 7 dias, sem cartão e no seu ritmo.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">

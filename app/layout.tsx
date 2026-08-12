@@ -3,7 +3,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Agiliza Fluxo — Mais produtividade, menos papel",
+  title: "Agiliza Fluxo — Seu restaurante no ritmo certo",
   description: "Do pedido ao estoque, tudo conectado.",
   manifest: "/manifest.json",
 };

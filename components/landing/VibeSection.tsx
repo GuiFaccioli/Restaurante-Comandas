@@ -16,10 +16,10 @@ export function VibeSection() {
               <span className="text-primary">a sexta-feira à noite.</span>
             </h2>
             <p className="text-xl text-background/80 leading-relaxed mb-8">
-              A impressora não para, o motoboy tá buzinando, o garçom esqueceu de lançar a bebida da mesa 4 e o cliente tá pedindo a conta. 
+              Nos momentos mais movimentados, sua equipe precisa de clareza para atender bem, manter o ritmo e cuidar de cada cliente.
             </p>
             <p className="text-xl text-background/80 leading-relaxed">
-              O AgilizaFluxo não foi criado em um escritório no Vale do Silício. Foi forjado no calor da chapa, para aguentar o tranco quando o bicho pega.
+              O AgilizaFluxo foi pensado para a rotina real dos restaurantes: simples de aprender, agradável de usar e pronto para apoiar sua equipe.
             </p>
           </FadeIn>
           
@@ -27,7 +27,7 @@ export function VibeSection() {
             <FadeIn delay={0.1}>
               <div className="bg-white/5 border border-white/10 p-6 rounded-2xl hover:bg-white/10 transition-colors">
                 <Flame className="w-8 h-8 text-primary mb-4" />
-                <h3 className="text-xl font-bold mb-2">Sem frescura, só funciona</h3>
+                <h3 className="text-xl font-bold mb-2">Simples para sua equipe</h3>
                 <p className="text-background/70">
                   Interface desenhada para dedos sujos de farinha e toques rápidos. Botões grandes, fluxos curtos, sem menus escondidos.
                 </p>

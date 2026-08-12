@@ -81,7 +81,7 @@ export function Features() {
           <FeatureRow 
             badge="Operação Ágil"
             title="Comandas digitais que não perdem pedidos."
-            description="Troque o papel amassado por um sistema que acompanha a mesa do cliente, o balcão e o delivery em uma única tela. A cozinha recebe o pedido antes mesmo do garçom voltar."
+            description="Tenha uma operação conectada, acompanhando a mesa do cliente, o balcão e o delivery em uma única tela. A cozinha recebe cada pedido com agilidade e clareza."
             icon={<Receipt size={24} />}
             image={comandasImg}
             items={[

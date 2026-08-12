@@ -9,7 +9,7 @@ export default function SignUpPage() {
     <section className="af-surface w-full max-w-md p-6 sm:p-8">
       <AgilizaFluxoBrand tagline="A transparência que sua cozinha precisa." />
       <h1 className="mt-8 text-3xl font-black tracking-[-0.04em] text-[var(--ink)]">Comece pelo fluxo certo</h1>
-      <p className="mt-1 text-sm leading-6 text-[var(--muted)]">Mais produtividade, menos papel. Cadastre seu restaurante e crie o primeiro acesso.</p>
+      <p className="mt-1 text-sm leading-6 text-[var(--muted)]">Organize sua operação com tranquilidade. Cadastre seu restaurante e crie o primeiro acesso.</p>
       <ActionForm action={signUpOwner} successMessage="Conta criada com sucesso." className="mt-6 space-y-4">
         <div className="space-y-1.5"><Label htmlFor="nome">Seu nome</Label><Input id="nome" name="nome" placeholder="Como podemos chamar você?" required /></div>
         <div className="space-y-1.5"><Label htmlFor="tenantNome">Nome do restaurante</Label><Input id="tenantNome" name="tenantNome" placeholder="Ex.: Pizzaria do Bairro" required /></div>
