@@ -34,6 +34,18 @@ function isUniqueConstraintError(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === '23505')
 }
 
+export async function getConviteUsuarioEmail(token: string): Promise<string | null> {
+  if (!token) return null
+
+  const [invite] = await db
+    .select({ email: usuarioConvite.email, expiraEm: usuarioConvite.expiraEm, aceitoEm: usuarioConvite.aceitoEm })
+    .from(usuarioConvite)
+    .where(eq(usuarioConvite.tokenHash, inviteTokenHash(token)))
+
+  if (!invite || invite.aceitoEm || invite.expiraEm <= new Date()) return null
+  return invite.email
+}
+
 export async function cadastrarUsuarioAdmin(data: FormData): Promise<{ inviteUrl: string; expiresAt: string }> {
   const { tenantId, usuarioId: criadoPorUsuarioId } = await requireAccess('admin')
   const nome = formString(data, 'nome').trim()
@@ -220,7 +232,7 @@ export async function aceitarConviteUsuario(data: FormData): Promise<void> {
     .from(usuarioAcesso)
     .where(eq(usuarioAcesso.usuarioId, invite.usuarioId))
 
-  if (!isNeonAuthEnabled()) await createAuthSession(invite.usuarioId, invite.tenantId)
+  await createAuthSession(invite.usuarioId, invite.tenantId)
   redirect(redirectForAccesses(accesses.map((row) => row.acesso)))
 }
 
