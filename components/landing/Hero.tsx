@@ -38,7 +38,7 @@ export function Hero() {
 
             <FadeIn delay={0.35}>
               <p className="text-lg md:text-xl text-foreground/70 mb-8 max-w-xl leading-relaxed">
-                Tenha mais clareza nas anotações, nos ingredientes e no fechamento do caixa. O AgilizaFluxo acompanha você em cada etapa da rotina do restaurante.
+                Mais clareza nas anotações, nos ingredientes e no fechamento do caixa. O AgilizaFluxo acompanha você em cada etapa da rotina do restaurante.
               </p>
             </FadeIn>
             

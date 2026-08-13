@@ -27,7 +27,7 @@ export function Footer() {
               <li><a href="#" className="hover:text-primary transition-colors">Comandas Digitais</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Controle de Estoque</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Ficha Técnica</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Integração iFood</a></li>
+              <li><a href="#como-funciona" className="hover:text-primary transition-colors">Operação conectada</a></li>
             </ul>
           </div>
 
@@ -45,7 +45,7 @@ export function Footer() {
             <h4 className="font-bold text-foreground mb-4">Suporte</h4>
             <ul className="space-y-3 text-sm text-muted-foreground">
               <li><a href="#" className="hover:text-primary transition-colors">Central de Ajuda</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">WhatsApp</a></li>
+              <li><a href="#recursos" className="hover:text-primary transition-colors">Recursos do sistema</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Treinamentos</a></li>
             </ul>
           </div>

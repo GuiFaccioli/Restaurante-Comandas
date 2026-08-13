@@ -29,7 +29,7 @@ export function VibeSection() {
                 <Flame className="w-8 h-8 text-primary mb-4" />
                 <h3 className="text-xl font-bold mb-2">Simples para sua equipe</h3>
                 <p className="text-background/70">
-                  Interface desenhada para dedos sujos de farinha e toques rápidos. Botões grandes, fluxos curtos, sem menus escondidos.
+                  Os fluxos são diretos e os botões ficam à mão — sua equipe encontra o que precisa sem ficar procurando.
                 </p>
               </div>
             </FadeIn>
@@ -39,7 +39,7 @@ export function VibeSection() {
                 <Clock className="w-8 h-8 text-primary mb-4" />
                 <h3 className="text-xl font-bold mb-2">Não precisa instalar nada</h3>
                 <p className="text-background/70">
-                  Você não tem uma semana para treinar sua equipe. Em 15 minutos, o caixa, o garçom e o chapeiro já entenderam como usar.
+                  É só abrir no navegador e começar. Não precisa instalar nada para colocar o pedido, a cozinha e o caixa no mesmo fluxo.
                 </p>
               </div>
             </FadeIn>
@@ -49,7 +49,7 @@ export function VibeSection() {
                 <ShieldCheck className="w-8 h-8 text-primary mb-4" />
                 <h3 className="text-xl font-bold mb-2">Estoque mais organizado</h3>
                 <p className="text-background/70">
-                  Acompanhe entradas, perdas, contagens e níveis mínimos para tomar decisões de compra com mais segurança.
+                  O pedido do garçom já movimenta os ingredientes da ficha técnica automaticamente. Quando o saldo chega ao mínimo configurado, a lista de compras se atualiza sozinha — uma preocupação a menos.
                 </p>
               </div>
             </FadeIn>

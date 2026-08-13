@@ -73,7 +73,7 @@ export function Features() {
             A casa em ordem. <br/>Da porta pra dentro.
           </h2>
           <p className="text-xl text-muted-foreground">
-            Três módulos essenciais criados para resolver os problemas reais de quem vive a rotina de um restaurante. Sem funções inúteis.
+            Três partes da operação trabalhando juntas para deixar o dia mais claro e leve para sua equipe.
           </p>
         </FadeIn>
 
@@ -81,43 +81,43 @@ export function Features() {
           <FeatureRow 
             badge="Operação Ágil"
             title="Comandas digitais que não perdem pedidos."
-            description="Tenha uma operação conectada, acompanhando a mesa do cliente, o balcão e o delivery em uma única tela. A cozinha recebe cada pedido com agilidade e clareza."
+            description="Cada pedido segue para a área certa e fica visível para quem precisa cuidar dele. Do salão à cozinha, todo mundo trabalha com a mesma informação."
             icon={<Receipt size={24} />}
             image={comandasImg}
             items={[
-              "Separação automática de praças (Bar, Cozinha, Forno)",
-              "Avisos de atraso em pedidos parados",
+              "Separação automática de praças (bar, cozinha e forno)",
+              "Andamento do pedido visível para salão, cozinha e caixa",
               "Fechamento de conta com divisão por pessoa",
-              "Integração nativa com iFood e WhatsApp"
+              "Mesas e atendimentos organizados no mesmo fluxo"
             ]}
           />
           
           <FeatureRow 
             badge="Sem Desperdício"
-            title="Estoque que avisa antes de faltar."
-            description="Controle o que entra e sai sem precisar passar horas em planilhas. Baixa automática de ingredientes a cada prato vendido e alertas no WhatsApp quando algo está acabando."
+            title="Estoque que acompanha cada pedido."
+            description="O pedido do garçom já movimenta os ingredientes da ficha técnica automaticamente. Quando o saldo chega ao mínimo configurado, a lista de compras se atualiza sozinha — uma preocupação a menos."
             icon={<PackageSearch size={24} />}
             image={estoqueImg}
             reversed={true}
             items={[
-              "Baixa automática via ficha técnica",
-              "Alerta de validade de insumos perecíveis",
-              "Cálculo de custo médio de reposição",
-              "Inventário pelo celular usando a câmera"
+              "Cada pedido dá baixa nos insumos da ficha técnica",
+              "A lista de compras é gerada conforme o estoque vai baixando",
+              "Entradas, perdas e contagens ficam registradas no histórico",
+              "Estoque mínimo e ideal ajudam a planejar a próxima compra"
             ]}
           />
 
           <FeatureRow 
             badge="Lucro Protegido"
-            title="Ficha técnica que garante a margem."
-            description="O coração da sua lucratividade. Saiba exatamente o custo de cada prato, ajuste preços de forma inteligente e padronize a qualidade da sua cozinha."
+            title="Ficha técnica para conhecer cada prato."
+            description="Os insumos e as quantidades de cada receita ficam reunidos em um só lugar. O custo e a margem estimada aparecem com clareza, sem conta de cabeça."
             icon={<UtensilsCrossed size={24} />}
             image={fichaImg}
             items={[
-              "Cálculo automático de margem de lucro",
-              "Atualização de custo em tempo real",
-              "Passo a passo com fotos para a equipe",
-              "Sugestão inteligente de preço de venda"
+              "Custo calculado a partir dos insumos cadastrados",
+              "Margem estimada para cada produto",
+              "Receitas vinculadas aos produtos do cardápio",
+              "Custos recalculados quando os insumos são atualizados"
             ]}
           />
         </div>
