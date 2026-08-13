@@ -256,7 +256,7 @@ describe('access guard', () => {
     ]
     state.accessRows = [accessRow({ access: 'admin', tenantId: 'tenant-2' })]
 
-    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso')
+    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso?area=admin')
     expect(state.getCurrentSessionMock).toHaveBeenCalledTimes(1)
   })
 
@@ -270,7 +270,7 @@ describe('access guard', () => {
     state.currentSession = { usuarioId: 'user-1', email: 'a@b.com', nome: 'Ana', selectedTenantId: 'tenant-1' }
     state.accessRows = [accessRow({ access: 'garcom' })]
 
-    await expect(requireAccess('cozinha')).rejects.toThrow('REDIRECT:/sem-acesso')
+    await expect(requireAccess('cozinha')).rejects.toThrow('REDIRECT:/sem-acesso?area=cozinha')
   })
 
   it('returns no access for an inactive membership and redirects through the guard', async () => {
@@ -278,7 +278,7 @@ describe('access guard', () => {
     state.accessRows = [accessRow({ access: 'admin', membershipStatus: 'inactive' })]
 
     await expect(getCurrentAccesses()).resolves.toEqual([])
-    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso')
+    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso?area=admin')
   })
 
   it('returns no access for an inactive tenant and redirects through the guard', async () => {
@@ -286,7 +286,7 @@ describe('access guard', () => {
     state.accessRows = [accessRow({ access: 'admin', tenantStatus: 'inactive' })]
 
     await expect(getCurrentAccesses()).resolves.toEqual([])
-    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso')
+    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso?area=admin')
   })
 
   it('returns no access when the membership belongs to another user', async () => {
@@ -294,7 +294,7 @@ describe('access guard', () => {
     state.accessRows = [accessRow({ access: 'admin', membershipUserId: 'user-2' })]
 
     await expect(getCurrentAccesses()).resolves.toEqual([])
-    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso')
+    await expect(requireAccess('admin')).rejects.toThrow('REDIRECT:/sem-acesso?area=admin')
   })
 
   it('routes single and multiple permissions to the correct destination', () => {

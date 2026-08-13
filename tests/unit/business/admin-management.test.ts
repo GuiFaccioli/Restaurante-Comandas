@@ -56,6 +56,13 @@ describe('admin management area', () => {
     expect(existsSync(join(root, 'app/admin/configuracoes/page.tsx'))).toBe(true)
   })
 
+  it('does not expose cashier settings to an admin without cashier access', () => {
+    const configPage = source('app/admin/configuracoes/page.tsx')
+
+    expect(configPage).toContain('getCurrentAccesses')
+    expect(configPage).toContain("setting.href !== '/admin/pedidos' || accesses.includes('caixa')")
+  })
+
   it('users admin manages accesses without exposing legacy cargo editing', () => {
     const usersPage = source('app/admin/usuarios/page.tsx')
     const userActions = source('lib/actions/usuarios.ts')
@@ -86,7 +93,7 @@ describe('admin management area', () => {
     expect(usersPage).toContain('Remover usuário')
     expect(usersPage).toContain('atualizarUsuarioAdmin')
     expect(usersPage).toContain('removerUsuarioDoRestaurante')
-    expect(usersPage).toContain("import { Button } from '@/components/ui/button'")
+    expect(usersPage).toContain('UserInviteForm')
     expect(usersPage).toMatch(/intent="positive"[\s\S]*Salvar acessos/)
     expect(usersPage).toMatch(/intent="destructive"[\s\S]*Remover usuário/)
     expect(usersPage).not.toContain('<button')

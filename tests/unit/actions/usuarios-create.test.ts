@@ -14,6 +14,8 @@ vi.mock('next/cache', () => ({ revalidatePath: state.revalidatePath }))
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions) => ({ operator: 'and', conditions })),
   eq: vi.fn((left, right) => ({ operator: 'eq', left, right })),
+  gt: vi.fn((left, right) => ({ operator: 'gt', left, right })),
+  isNull: vi.fn((column) => ({ operator: 'isNull', column })),
 }))
 vi.mock('@/lib/auth/access', () => ({
   requireAccess: vi.fn(async () => ({ usuarioId: 'admin-1', tenantId: 'tenant-selected', access: 'admin' })),
@@ -26,6 +28,18 @@ vi.mock('@/lib/db/schema', () => ({
   usuario: { id: 'usuario.id', email: 'usuario.email', updatedAt: 'usuario.updatedAt' },
   tenantUser: { id: 'tenantUser.id', usuarioId: 'tenantUser.usuarioId', tenantId: 'tenantUser.tenantId', status: 'tenantUser.status' },
   usuarioAcesso: {},
+  usuarioConvite: {
+    id: 'usuarioConvite.id',
+    tenantId: 'usuarioConvite.tenantId',
+    tenantUserId: 'usuarioConvite.tenantUserId',
+    usuarioId: 'usuarioConvite.usuarioId',
+    criadoPorUsuarioId: 'usuarioConvite.criadoPorUsuarioId',
+    email: 'usuarioConvite.email',
+    tokenHash: 'usuarioConvite.tokenHash',
+    expiraEm: 'usuarioConvite.expiraEm',
+    aceitoEm: 'usuarioConvite.aceitoEm',
+    criadoEm: 'usuarioConvite.criadoEm',
+  },
 }))
 vi.mock('@/lib/db/index', () => ({
   db: {},
@@ -72,16 +86,17 @@ beforeEach(() => {
 
 describe('cadastrarUsuarioAdmin', () => {
   it('creates the user, membership, and selected accesses in one tenant transaction', async () => {
-    await expect(cadastrarUsuarioAdmin(form())).resolves.toBeUndefined()
+    await expect(cadastrarUsuarioAdmin(form())).resolves.toEqual(expect.objectContaining({ inviteUrl: expect.stringContaining('/convite/'), expiresAt: expect.any(String) }))
 
     expect(state.transaction).toHaveBeenCalledTimes(1)
-    expect(state.inserts).toHaveLength(3)
-    expect(state.inserts[0]).toEqual(expect.objectContaining({ nome: 'Ana Admin', email: 'ana@example.com', passwordHash: 'scrypt:senha-segura' }))
+    expect(state.inserts).toHaveLength(4)
+    expect(state.inserts[0]).toEqual(expect.objectContaining({ nome: 'Ana Admin', email: 'ana@example.com', passwordHash: null }))
     expect(state.inserts[1]).toEqual(expect.objectContaining({ tenantId: 'tenant-selected', usuarioId: state.inserts[0] && expect.any(String), status: 'active' }))
     expect(state.inserts[2]).toEqual([
       expect.objectContaining({ tenantUserId: expect.any(String), acesso: 'caixa' }),
       expect.objectContaining({ tenantUserId: expect.any(String), acesso: 'garcom' }),
     ])
+    expect(state.inserts[3]).toEqual(expect.objectContaining({ email: 'ana@example.com', expiraEm: expect.any(Date), tokenHash: expect.any(String) }))
     expect(state.revalidatePath).toHaveBeenCalledWith('/admin/usuarios')
   })
 
@@ -89,35 +104,23 @@ describe('cadastrarUsuarioAdmin', () => {
     state.existing = [{ id: 'existing-user' }]
     state.activeMemberships = [{ id: 'active-membership' }]
 
-    await expect(cadastrarUsuarioAdmin(form())).rejects.toThrow('Não foi possível cadastrar o usuário')
+    await expect(cadastrarUsuarioAdmin(form())).rejects.toThrow('já está cadastrado neste restaurante')
     expect(state.inserts).toEqual([])
     expect(state.revalidatePath).not.toHaveBeenCalled()
   })
 
-  it('re-registers an existing user by updating the global credentials without creating a new account', async () => {
+  it('rejects an existing account so the administrator can use another email', async () => {
     state.existing = [{ id: 'existing-user' }]
 
-    await expect(cadastrarUsuarioAdmin(form({ nome: 'Novo nome', password: 'nova-senha' }))).resolves.toBeUndefined()
-
-    expect(state.inserts).toHaveLength(2)
-    expect(state.updates).toHaveLength(1)
-    expect(state.updates[0]).toEqual(expect.objectContaining({
-      nome: 'Novo nome',
-      passwordHash: 'scrypt:nova-senha',
-      updatedAt: expect.any(Date),
-    }))
-    expect(state.inserts[0]).toEqual(expect.objectContaining({ tenantId: 'tenant-selected', usuarioId: 'existing-user', status: 'active' }))
-    expect(state.inserts[1]).toEqual([
-      expect.objectContaining({ usuarioId: 'existing-user', acesso: 'caixa' }),
-      expect.objectContaining({ usuarioId: 'existing-user', acesso: 'garcom' }),
-    ])
+    await expect(cadastrarUsuarioAdmin(form())).rejects.toThrow('já possui uma conta')
+    expect(state.inserts).toEqual([])
   })
 
   it('rejects an existing user with an active membership in this tenant', async () => {
     state.existing = [{ id: 'existing-user' }]
     state.activeMemberships = [{ id: 'active-membership' }]
 
-    await expect(cadastrarUsuarioAdmin(form())).rejects.toThrow('Não foi possível cadastrar o usuário')
+    await expect(cadastrarUsuarioAdmin(form())).rejects.toThrow('já está cadastrado neste restaurante')
     expect(state.inserts).toEqual([])
   })
 

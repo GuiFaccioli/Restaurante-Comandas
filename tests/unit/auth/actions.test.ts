@@ -499,6 +499,21 @@ describe('auth actions', () => {
     )
   })
 
+  it('allows users created by the admin to use the local credentials fallback', async () => {
+    state.neonAuth.signIn.email.mockResolvedValueOnce({ data: null, error: new Error('not linked') })
+    state.selectResults = [
+      [{ id: 'user-1', passwordHash: 'hashed-password' }],
+      [{ id: 'tenant-user-1', tenantId: 'tenant-1', nome: 'Pizza Boa' }],
+      [{ acesso: 'admin' }],
+    ]
+
+    await expect(signIn({ email: 'ana@example.com', password: 'senha-certa' })).rejects.toThrow(
+      'REDIRECT:/admin/menu'
+    )
+
+    expect(state.createAuthSessionMock).toHaveBeenCalledWith('user-1', 'tenant-1')
+  })
+
   it.each([
     {
       inactiveResource: 'membership',

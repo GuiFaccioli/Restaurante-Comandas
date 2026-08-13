@@ -49,32 +49,37 @@ export async function getCurrentSession(): Promise<{
   nome: string
   selectedTenantId: string | null
 } | null> {
-  let user: { id: string; email: string; nome: string } | undefined
   if (isNeonAuthEnabled()) {
     const neonSession = await (await getNeonAuth()).getSession()
     const authUserId = neonSession.data?.user?.id
-    if (!authUserId) return null
-    ;[user] = await db
-      .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
-      .from(usuario)
-      .where(eq(usuario.authUserId, authUserId))
-  } else {
-    const store = await cookieStore()
-    const token = store.get(SESSION_COOKIE)?.value
-    if (!token) return null
-    ;[user] = await db
-      .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
-      .from(usuario)
-      .innerJoin(authSession, eq(authSession.usuarioId, usuario.id))
-      .where(
-        and(
-          eq(authSession.tokenHash, hashToken(token)),
-          gt(authSession.expiresAt, new Date())
-        )
-      )
+    if (authUserId) {
+      const [user] = await db
+        .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
+        .from(usuario)
+        .where(eq(usuario.authUserId, authUserId))
+      if (user) return getSessionDetails(user)
+    }
   }
 
+  const store = await cookieStore()
+  const token = store.get(SESSION_COOKIE)?.value
+  if (!token) return null
+  const [user] = await db
+    .select({ id: usuario.id, email: usuario.email, nome: usuario.nome })
+    .from(usuario)
+    .innerJoin(authSession, eq(authSession.usuarioId, usuario.id))
+    .where(
+      and(
+        eq(authSession.tokenHash, hashToken(token)),
+        gt(authSession.expiresAt, new Date())
+      )
+    )
+
   if (!user) return null
+  return getSessionDetails(user)
+}
+
+async function getSessionDetails(user: { id: string; email: string; nome: string }) {
 
   const store = await cookieStore()
   const token = store.get(SESSION_COOKIE)?.value

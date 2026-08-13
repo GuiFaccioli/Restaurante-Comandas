@@ -1,11 +1,9 @@
 import { asc, eq } from 'drizzle-orm'
 
-import { atualizarUsuarioAdmin, cadastrarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/actions/usuarios'
+import { atualizarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/actions/usuarios'
+import { UserInviteForm } from '@/components/admin/user-invite-form'
 import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
-import { Button } from '@/components/ui/button'
 import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
 import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
@@ -74,7 +72,8 @@ export default async function UsuariosAdminPage() {
         title="Cadastrar usuário"
         description="Crie um acesso vinculado somente à empresa atualmente selecionada."
       >
-        <ActionForm action={cadastrarUsuarioAdmin} successMessage="Usuário cadastrado com sucesso." className="grid gap-5 lg:grid-cols-2">
+        <UserInviteForm />
+        {/*
           <div className="grid gap-2">
             <Label htmlFor="novo-usuario-nome">Nome</Label>
             <Input id="novo-usuario-nome" name="nome" required maxLength={120} />
@@ -103,7 +102,7 @@ export default async function UsuariosAdminPage() {
               Cadastrar usuário
             </ActionSubmit>
           </div>
-        </ActionForm>
+        </ActionForm> */}
       </AdminPanel>
 
       <AdminPanel

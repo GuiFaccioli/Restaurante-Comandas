@@ -26,6 +26,13 @@ export const ACCESS_DESTINATION: Record<AcessoUsuario, string> = {
   garcom: '/garcom/pedidos',
 }
 
+export const ACCESS_DENIED_MESSAGE: Record<AcessoUsuario, string> = {
+  admin: 'Você não tem permissão para acessar a administração do restaurante.',
+  caixa: 'Você não tem permissão para acessar o caixa e os pagamentos.',
+  cozinha: 'Você não tem permissão para acessar o painel da cozinha.',
+  garcom: 'Você não tem permissão para acessar mesas e pedidos.',
+}
+
 async function getAccessesForIdentityAndTenant(
   usuarioId: string,
   tenantId: string
@@ -80,7 +87,7 @@ export async function requireAnyAccess(
     session.selectedTenantId
   )
   const matchedAccess = allowedAccesses.find((access) => accesses.includes(access))
-  if (!matchedAccess) redirect('/sem-acesso')
+  if (!matchedAccess) redirect(`/sem-acesso?area=${allowedAccesses[0] ?? 'admin'}`)
 
   return { usuarioId: session.usuarioId, tenantId: session.selectedTenantId, access: matchedAccess }
 }

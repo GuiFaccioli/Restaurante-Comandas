@@ -1,16 +1,30 @@
 'use server'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { createHash, randomBytes } from 'node:crypto'
 
 import { requireAccess } from '@/lib/auth/access'
 import { db, runInDbTransaction } from '@/lib/db/index'
-import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
+import { tenantUser, usuario, usuarioAcesso, usuarioConvite } from '@/lib/db/schema'
 import type { AcessoUsuario } from '@/lib/db/schema'
-import { assertValidEmail, hashPassword } from '@/lib/auth/password'
+import { assertValidEmail } from '@/lib/auth/password'
+import { createAuthSession } from '@/lib/auth/session'
+import { getNeonAuth, isNeonAuthEnabled } from '@/lib/auth/server'
+import { redirectForAccesses } from '@/lib/auth/access'
 
 const VALID_ACCESSES: AcessoUsuario[] = ['admin', 'caixa', 'cozinha', 'garcom']
 const CREATE_USER_ERROR_MESSAGE = 'Não foi possível cadastrar o usuário'
+const USER_INVITE_TTL_MS = 24 * 60 * 60 * 1000
+
+function inviteTokenHash(token: string) {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+function appUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '')
+}
 
 function formString(data: FormData, key: string) {
   return String(data.get(key) ?? '')
@@ -20,11 +34,10 @@ function isUniqueConstraintError(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === '23505')
 }
 
-export async function cadastrarUsuarioAdmin(data: FormData): Promise<void> {
-  const { tenantId } = await requireAccess('admin')
+export async function cadastrarUsuarioAdmin(data: FormData): Promise<{ inviteUrl: string; expiresAt: string }> {
+  const { tenantId, usuarioId: criadoPorUsuarioId } = await requireAccess('admin')
   const nome = formString(data, 'nome').trim()
   const email = assertValidEmail(formString(data, 'email'))
-  const password = formString(data, 'password')
   const rawAcessos = data.getAll('acessos').map(String)
   const acessos = [...new Set(rawAcessos)]
 
@@ -35,6 +48,8 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<void> {
 
   const usuarioId = crypto.randomUUID()
   const tenantUserId = crypto.randomUUID()
+  const token = randomBytes(32).toString('hex')
+  const expiresAt = new Date(Date.now() + USER_INVITE_TTL_MS)
   const now = new Date()
 
   try {
@@ -58,25 +73,14 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<void> {
               )
             )
 
-          if (activeMembership) throw new Error(CREATE_USER_ERROR_MESSAGE)
-          targetUsuarioId = existing.id
-
-          // The account is global: resetting the password here changes login credentials
-          // for this user in every tenant where the account remains a member.
-          await tx
-            .update(usuario)
-            .set({
-              nome,
-              passwordHash: await hashPassword(password),
-              updatedAt: now,
-            })
-            .where(eq(usuario.id, existing.id))
+          if (activeMembership) throw new Error('Este e-mail já está cadastrado neste restaurante')
+          throw new Error('Este e-mail já possui uma conta. Use o acesso existente ou outro e-mail.')
         } else {
           await tx.insert(usuario).values({
             id: usuarioId,
             nome,
             email,
-            passwordHash: await hashPassword(password),
+            passwordHash: null,
             role: 'garcom',
             createdAt: now,
             updatedAt: now,
@@ -99,6 +103,18 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<void> {
             acesso: acesso as AcessoUsuario,
           }))
         )
+        await tx.insert(usuarioConvite).values({
+          id: crypto.randomUUID(),
+          tenantId,
+          tenantUserId,
+          usuarioId,
+          criadoPorUsuarioId,
+          email,
+          tokenHash: inviteTokenHash(token),
+          expiraEm: expiresAt,
+          aceitoEm: null,
+          criadoEm: now,
+        })
       },
     })
   } catch (error) {
@@ -109,6 +125,7 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<void> {
   }
 
   revalidatePath('/admin/usuarios')
+  return { inviteUrl: `${appUrl()}/convite/${token}`, expiresAt: expiresAt.toISOString() }
 }
 
 export async function atualizarUsuarioAdmin(data: FormData): Promise<void> {
@@ -146,6 +163,65 @@ export async function atualizarUsuarioAdmin(data: FormData): Promise<void> {
   }
 
   revalidatePath('/admin/usuarios')
+}
+
+export async function aceitarConviteUsuario(data: FormData): Promise<void> {
+  const token = formString(data, 'token')
+  const password = formString(data, 'password')
+  if (!token) throw new Error('Convite inválido')
+  if (password.length < 8) throw new Error('Senha deve ter pelo menos 8 caracteres')
+
+  const now = new Date()
+  const [invite] = await db
+    .select({
+      id: usuarioConvite.id,
+      email: usuarioConvite.email,
+      usuarioId: usuarioConvite.usuarioId,
+      tenantId: usuarioConvite.tenantId,
+      expiraEm: usuarioConvite.expiraEm,
+      aceitoEm: usuarioConvite.aceitoEm,
+    })
+    .from(usuarioConvite)
+    .where(eq(usuarioConvite.tokenHash, inviteTokenHash(token)))
+
+  if (!invite || invite.aceitoEm || invite.expiraEm <= now) {
+    throw new Error('Este convite expirou. Solicite um novo convite ao administrador.')
+  }
+
+  let authUserId: string | null = null
+  if (isNeonAuthEnabled()) {
+    const result = await (await getNeonAuth()).signUp.email({
+      email: invite.email,
+      password,
+      name: invite.email,
+    })
+    authUserId = result.data?.user?.id ?? null
+    if (result.error || !authUserId) throw new Error('Não foi possível ativar este convite. Verifique os dados e tente novamente.')
+  }
+
+  await db
+    .update(usuario)
+    .set({
+      authUserId,
+      passwordHash: isNeonAuthEnabled() ? null : await import('@/lib/auth/password').then(({ hashPassword }) => hashPassword(password)),
+      updatedAt: now,
+    })
+    .where(eq(usuario.id, invite.usuarioId))
+
+  const [updated] = await db
+    .update(usuarioConvite)
+    .set({ aceitoEm: now })
+    .where(and(eq(usuarioConvite.id, invite.id), isNull(usuarioConvite.aceitoEm), gt(usuarioConvite.expiraEm, now)))
+    .returning({ id: usuarioConvite.id })
+  if (!updated) throw new Error('Este convite já foi utilizado ou expirou.')
+
+  const accesses = await db
+    .select({ acesso: usuarioAcesso.acesso })
+    .from(usuarioAcesso)
+    .where(eq(usuarioAcesso.usuarioId, invite.usuarioId))
+
+  if (!isNeonAuthEnabled()) await createAuthSession(invite.usuarioId, invite.tenantId)
+  redirect(redirectForAccesses(accesses.map((row) => row.acesso)))
 }
 
 export async function removerUsuarioDoRestaurante(data: FormData): Promise<void> {

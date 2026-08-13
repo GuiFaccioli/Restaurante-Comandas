@@ -1,4 +1,4 @@
-import { requireAccess } from '@/lib/auth/access'
+import { getCurrentAccesses, requireAccess } from '@/lib/auth/access'
 import { AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +38,8 @@ const settings = [
 
 export default async function ConfiguracoesAdminPage() {
   await requireAccess('admin')
+  const accesses = await getCurrentAccesses()
+  const visibleSettings = settings.filter((setting) => setting.href !== '/admin/pedidos' || accesses.includes('caixa'))
 
   return (
     <AdminPage>
@@ -47,7 +49,7 @@ export default async function ConfiguracoesAdminPage() {
       />
 
       <AdminStatsGrid className="xl:grid-cols-3">
-        <AdminStatCard label="Áreas configuráveis" value={settings.length} detail="Atalhos principais do admin." />
+        <AdminStatCard label="Áreas configuráveis" value={visibleSettings.length} detail="Atalhos principais do admin." />
         <AdminStatCard label="Operação diária" value="3" detail="Cardápio, mesas, pedidos e caixa." />
         <AdminStatCard label="Controle interno" value="2" detail="Usuários e relatórios gerenciais." />
       </AdminStatsGrid>
@@ -57,7 +59,7 @@ export default async function ConfiguracoesAdminPage() {
         description="Entre pela função que você quer resolver agora; cada bloco leva direto ao contexto certo."
       >
         <div className="grid gap-3 md:grid-cols-2">
-          {settings.map((setting) => (
+          {visibleSettings.map((setting) => (
             <a
               key={setting.href}
               href={setting.href}

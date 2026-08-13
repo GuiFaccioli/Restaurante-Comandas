@@ -468,6 +468,27 @@ export const authSession = pgTable('auth_session', {
     .defaultNow(),
 })
 
+export const usuarioConvite = pgTable(
+  'usuario_convite',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    tenantUserId: uuid('tenant_user_id').notNull().references(() => tenantUser.id, { onDelete: 'cascade' }),
+    usuarioId: uuid('usuario_id').notNull().references(() => usuario.id, { onDelete: 'cascade' }),
+    criadoPorUsuarioId: uuid('criado_por_usuario_id').notNull().references(() => usuario.id),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiraEm: timestamp('expira_em', { withTimezone: true }).notNull(),
+    aceitoEm: timestamp('aceito_em', { withTimezone: true }),
+    criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('usuario_convite_pending_email_unique')
+      .on(table.tenantId, table.email)
+      .where(sql`${table.aceitoEm} IS NULL`),
+  ],
+)
+
 export const pagamentoPedido = pgTable(
   'pagamento_pedido',
   {

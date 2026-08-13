@@ -51,9 +51,13 @@ vi.mock('@/lib/db/index', () => ({
       }),
     })),
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(async () => state.selectResults.shift() ?? []),
-      })),
+      from: vi.fn(() => {
+        const where = vi.fn(async () => state.selectResults.shift() ?? [])
+        return {
+          where,
+          innerJoin: vi.fn(() => ({ where })),
+        }
+      }),
     })),
     delete: vi.fn(() => ({
       where: vi.fn(async () => undefined),
@@ -97,6 +101,19 @@ describe('auth session', () => {
   it('resolves the business user from the immutable Neon Auth identity', async () => {
     state.selectResults = [[{ id: 'user-1', email: 'ana@example.com', nome: 'Ana' }]]
     state.cookieGet.mockReturnValue(undefined)
+
+    await expect(getCurrentSession()).resolves.toEqual({
+      usuarioId: 'user-1',
+      email: 'ana@example.com',
+      nome: 'Ana',
+      selectedTenantId: null,
+    })
+  })
+
+  it('falls back to the local session for users created by the admin', async () => {
+    state.neonAuth.getSession.mockResolvedValueOnce({ data: { user: null }, error: null })
+    state.cookieGet.mockReturnValue({ value: 'local-session-token' })
+    state.selectResults = [[{ id: 'user-1', email: 'ana@example.com', nome: 'Ana' }]]
 
     await expect(getCurrentSession()).resolves.toEqual({
       usuarioId: 'user-1',

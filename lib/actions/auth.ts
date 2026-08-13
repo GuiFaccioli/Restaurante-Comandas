@@ -192,14 +192,16 @@ export async function signIn(
       callbackURL: authCallbackUrl(),
     })
     const authUserId = authResult.data?.user?.id
-    if (authResult.error || !authUserId) throw new Error('E-mail ou senha incorretos')
+    if (!authResult.error && authUserId) {
+      const [user] = await db
+        .select({ id: usuario.id })
+        .from(usuario)
+        .where(eq(usuario.authUserId, authUserId))
+      userId = user?.id
+    }
+  }
 
-    const [user] = await db
-      .select({ id: usuario.id })
-      .from(usuario)
-      .where(eq(usuario.authUserId, authUserId))
-    userId = user?.id
-  } else {
+  if (!userId) {
     const [user] = await db
       .select({ id: usuario.id, passwordHash: usuario.passwordHash })
       .from(usuario)
