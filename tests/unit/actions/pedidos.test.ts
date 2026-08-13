@@ -276,9 +276,9 @@ describe('CartDrawer confirmation errors', () => {
 
     expect(getOrderConfirmationErrorMessage(
       new Error('Não há estoque suficiente para Farinha'),
-    )).toBe('Não há estoque suficiente para Farinha')
+    )).toBe('Sem estoque: Farinha')
     expect(getOrderConfirmationErrorMessage(new Error('database offline')))
-      .toBe('Não foi possível confirmar o pedido. Tente novamente.')
+      .toBe('Não foi possível confirmar o pedido por um erro inesperado.')
   })
 })
 

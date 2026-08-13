@@ -7,6 +7,7 @@ import { continuarAtendimento, iniciarAtendimento, iniciarNovoAtendimento } from
 import type { AtendimentoResumo } from '@/lib/attendance/queries'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 export function MesaAtendimentoGate({ mesaId, mesaNumero, attendances }: { mesaId: string; mesaNumero: number; attendances: AtendimentoResumo[] }) {
   const router = useRouter()
@@ -27,7 +28,7 @@ export function MesaAtendimentoGate({ mesaId, mesaNumero, attendances }: { mesaI
         const result = await action()
         goToAttendance(result.id)
       } catch (actionError) {
-        setError(actionError instanceof Error ? actionError.message : 'Não foi possível abrir o atendimento.')
+        setError(userFacingErrorMessage(actionError, 'Não foi possível abrir o atendimento por um erro inesperado.'))
       }
     })
   }
@@ -48,4 +49,3 @@ export function MesaAtendimentoGate({ mesaId, mesaNumero, attendances }: { mesaI
     </Dialog>
   </>
 }
-

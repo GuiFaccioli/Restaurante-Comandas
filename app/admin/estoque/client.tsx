@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { formatCurrencyInput } from '@/lib/money'
 import { adicionarItemManualListaCompra, ajustarEstoqueAtual, confirmarItemListaCompra, criarInsumo, editarInsumo, realizarContagemEstoque, registrarEntradaEstoque, registrarPerdaEstoque, removerInsumo, salvarFichaTecnica } from '@/lib/actions/estoque'
 import { formatStockQuantity, movementUnitsFor, quantidadeBaseParaUnidade } from '@/lib/stock/units'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; fatorCompraParaBase: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string; custoUnitario: string | null }
 
@@ -184,7 +185,7 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
       router.refresh()
       toast.success('Item concluído.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível concluir o item.'
+      const message = userFacingErrorMessage(error, 'Não foi possível concluir o item por um erro inesperado.')
       setActionError(message)
       toast.error(message)
     } finally {
@@ -206,7 +207,7 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
       router.refresh()
       toast.success('Item adicionado à lista.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível adicionar o item.'
+      const message = userFacingErrorMessage(error, 'Não foi possível adicionar o item por um erro inesperado.')
       setActionError(message)
       toast.error(message)
     } finally {
@@ -219,8 +220,8 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard indisponível')
       await navigator.clipboard.writeText(shoppingListText)
       toast.success('Lista copiada.')
-    } catch {
-      const message = 'Não foi possível copiar a lista.'
+    } catch (error) {
+      const message = userFacingErrorMessage(error, 'Não foi possível copiar a lista por um erro inesperado.')
       setActionError(message)
       toast.error(message)
     }
@@ -306,7 +307,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
   async function handleCreateIngredient() {
     setCreating(true)
     try { await criarInsumo({ nome: newIngredient.nome, unidade: newIngredient.unidade, custoPorUnidade: newIngredient.custoPorUnidade, estoqueMinimo: newIngredient.estoqueMinimo, estoqueIdeal: newIngredient.estoqueIdeal }); setNewIngredient({ nome: '', unidade: 'kg', custoPorUnidade: '', estoqueMinimo: '', estoqueIdeal: '' }); router.refresh(); toast.success('Insumo cadastrado.') }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível criar o insumo.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível criar o insumo por um erro inesperado.')) }
     finally { setCreating(false) }
   }
 
@@ -331,7 +332,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       router.refresh()
       toast.success('Insumo atualizado.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o insumo.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível atualizar o insumo por um erro inesperado.'))
     } finally {
       setIngredientActionBusy(false)
     }
@@ -347,7 +348,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       router.refresh()
       toast.success('Insumo removido.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir o insumo.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível excluir o insumo por um erro inesperado.'))
     } finally {
       setIngredientActionBusy(false)
     }
@@ -358,7 +359,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     const produtoId = selectedProdutoId
     setSavingRecipe(true)
     try { await salvarFichaTecnica(produtoId, rows); router.refresh(); toast.success('Ficha técnica salva.') }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a ficha técnica.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível salvar a ficha técnica por um erro inesperado.')) }
     finally { setSavingRecipe(false) }
   }
 
@@ -383,7 +384,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       router.refresh()
       toast.success('Insumo removido da ficha técnica.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível remover o insumo da ficha técnica.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível remover o insumo da ficha técnica por um erro inesperado.'))
     } finally {
       setSavingRecipe(false)
     }
@@ -410,7 +411,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     manualStockPendingRef.current = true
     setEntryId(item.id)
     try { await registrarEntradaEstoque(item.id, quantidade, intent.key, undefined, unidade); delete entryOperationIntentsRef.current[item.id]; setEntryValues((current) => ({ ...current, [item.id]: '' })); setEntryUnits((current) => ({ ...current, [item.id]: item.unidadeCompra })); router.refresh(); toast.success(`Entrada registrada para ${item.nome}.`) }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a entrada.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível registrar a entrada por um erro inesperado.')) }
     finally { manualStockPendingRef.current = false; setEntryId(null) }
   }
 
@@ -433,7 +434,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     manualStockPendingRef.current = true
     setEntryId(item.id)
     try { await ajustarEstoqueAtual(item.id, stockValue, intent.key, item.unidadeCompra); stockAdjustmentIntentRef.current = null; setEditingStockId(null); router.refresh(); toast.success('Estoque atualizado.') }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o estoque.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível atualizar o estoque por um erro inesperado.')) }
     finally { manualStockPendingRef.current = false; setEntryId(null) }
   }
 
@@ -470,7 +471,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       if (movementType === 'contagem') await realizarContagemEstoque(movementIngredientId, movementQuantity, intent.key, undefined, movementUnit)
       movementOperationIntentRef.current = null
       setMovementQuantity(''); setMovementCost(''); setMovementReason(''); router.refresh(); toast.success('Movimentação registrada.')
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a movimentação.') }
+    } catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível registrar a movimentação por um erro inesperado.')) }
     finally { movementPendingRef.current = false; manualStockPendingRef.current = false; setMovementBusy(false) }
   }
 

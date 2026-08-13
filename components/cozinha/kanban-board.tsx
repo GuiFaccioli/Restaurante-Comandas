@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PedidoCard } from './pedido-card'
 import type { KitchenOrder } from '@/lib/kitchen/queries'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Pedido = KitchenOrder
 
 export function KanbanBoard({ initialPedidos }: { initialPedidos: Pedido[] }) {
   const [pedidos, setPedidos] = useState(initialPedidos)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
   const isRefreshing = useRef(false)
 
   const refreshPedidos = useCallback(async () => {
@@ -16,12 +18,16 @@ export function KanbanBoard({ initialPedidos }: { initialPedidos: Pedido[] }) {
 
     try {
       const response = await fetch('/api/cozinha/pedidos', { cache: 'no-store' })
-      if (!response.ok) return
+      if (!response.ok) {
+        setRefreshError('Não foi possível atualizar a cozinha agora. A tela continua mostrando a última atualização disponível.')
+        return
+      }
 
       const data = (await response.json()) as { pedidos: Pedido[] }
       setPedidos(data.pedidos)
-    } catch {
-      // Keep the last known kitchen state while a transient request fails.
+      setRefreshError(null)
+    } catch (error) {
+      setRefreshError(userFacingErrorMessage(error, 'Não foi possível atualizar a cozinha agora. A tela continua mostrando a última atualização disponível.'))
     } finally {
       isRefreshing.current = false
     }
@@ -43,6 +49,7 @@ export function KanbanBoard({ initialPedidos }: { initialPedidos: Pedido[] }) {
   return (
     <>
       <div className="h-full space-y-3 overflow-y-auto pr-1">
+        {refreshError ? <p role="status" className="text-sm text-muted-foreground">{refreshError}</p> : null}
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
             Comandas abertas ({pedidos.length})

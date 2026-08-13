@@ -15,9 +15,9 @@ export function OperationalState({ icon: Icon, title, description, action, tone 
   return <div className={cn('af-surface flex flex-col items-center justify-center gap-3 p-8 text-center', className)} role={tone === 'error' ? 'alert' : 'status'}><Icon aria-hidden="true" className={cn('size-8', toneClass)} /><div><h2 className="font-semibold text-[var(--ink)]">{title}</h2><p className="mt-1 max-w-md text-sm leading-6 text-[var(--muted)]">{description}</p></div>{action ? <div className="pt-1">{action}</div> : null}</div>
 }
 
-export function LoadingState({ label = 'Carregando informações…' }: { label?: string }) { return <OperationalState icon={Loader2} title="Só um momento" description={label} className="animate-pulse" /> }
+export function LoadingState({ label = 'As informações estão chegando.' }: { label?: string }) { return <OperationalState icon={Loader2} title="Só um momento" description={label} className="animate-pulse" /> }
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) { return <OperationalState icon={CheckCircle2} title={title} description={description} action={action} /> }
-export function ErrorState({ description = 'Não foi possível carregar agora. Tente novamente.' }: { description?: string }) { return <OperationalState icon={AlertCircle} title="Algo não saiu como esperado" description={description} tone="error" /> }
+export function ErrorState({ description = 'Não conseguimos carregar esta área agora.' }: { description?: string }) { return <OperationalState icon={AlertCircle} title="Não foi possível carregar esta área" description={description} tone="error" /> }
 export function PermissionState() { return <OperationalState icon={LockKeyhole} title="Acesso não disponível" description="Você não tem permissão para ver esta área." /> }
 export function OfflineState() { return <OperationalState icon={WifiOff} title="Sem conexão" description="Algumas ações podem ficar indisponíveis até a conexão voltar." tone="offline" /> }
 

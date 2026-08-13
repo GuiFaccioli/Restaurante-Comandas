@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { Check, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 import { AdminPanel } from '@/components/admin/admin-page'
 import { Button } from '@/components/ui/button'
@@ -50,9 +51,7 @@ type PendingMutation = null | 'create' | 'rename' | 'delete'
 type FocusTarget = 'add' | string
 
 function errorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : 'Não foi possível salvar a categoria'
+  return userFacingErrorMessage(error, 'Não foi possível salvar a categoria por um erro inesperado.')
 }
 
 export function CategoryManager({
@@ -150,7 +149,7 @@ export function CategoryManager({
     } catch (caught) {
       finishMutation()
       setError(errorMessage(caught))
-      toast.error('Não foi possível criar a categoria')
+      toast.error(errorMessage(caught))
     }
   }
 
@@ -176,7 +175,7 @@ export function CategoryManager({
     } catch (caught) {
       finishMutation()
       setError(errorMessage(caught))
-      toast.error('Não foi possível renomear a categoria')
+      toast.error(errorMessage(caught))
     }
   }
 
@@ -209,7 +208,7 @@ export function CategoryManager({
     } catch (caught) {
       finishMutation()
       setError(errorMessage(caught))
-      toast.error('Não foi possível excluir a categoria')
+      toast.error(errorMessage(caught))
     }
   }
 

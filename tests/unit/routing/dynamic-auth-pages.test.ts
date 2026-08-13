@@ -8,10 +8,11 @@ function source(path: string) {
   return readFileSync(join(root, path), 'utf8')
 }
 
-describe('dynamic auth pages', () => {
-  it('marks cookie-reading pages as force-dynamic for production builds', () => {
+describe('page rendering modes', () => {
+  it('keeps the landing page static and cookie-reading pages dynamic', () => {
+    expect(source('app/page.tsx')).toContain('export const dynamic = "force-static"')
+
     const paths = [
-      'app/page.tsx',
       'app/selecionar-area/page.tsx',
       'app/admin/menu/page.tsx',
       'app/admin/mesas/page.tsx',

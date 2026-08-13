@@ -57,3 +57,13 @@ next-env.d.ts
 # Generated local SDD reports and review artifacts
 .superpowers/sdd/*-report.md
 .superpowers/sdd/*-review.diff
+.superpowers/sdd/*-brief.md
+.superpowers/sdd/*.diff
+.superpowers/sdd/progress.md
+
+# Local test artifacts
+/output/
+debug.log
+
+# Local SDD workspace artifacts
+.superpowers/sdd/*

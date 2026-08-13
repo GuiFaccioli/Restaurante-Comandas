@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cancelarPedido, confirmarEntrega } from '@/lib/actions/pedidos'
 import type { TableOrder } from '@/lib/orders/queries'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Props = {
   mesaId: string
@@ -13,7 +14,7 @@ type Props = {
   initialPedidos: TableOrder[]
 }
 
-const refreshErrorMessage = 'Não foi possível atualizar os pedidos. Tente novamente.'
+const refreshErrorMessage = 'Não conseguimos atualizar os pedidos agora.'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -80,18 +81,18 @@ export function TableOrdersPanel({ mesaId, atendimentoId, initialPedidos }: Prop
       try {
         try {
           await confirmarEntrega(pedidoId)
-        } catch {
-          setFeedback({ type: 'error', message: 'Não foi possível entregar.' })
+        } catch (error) {
+          setFeedback({ type: 'error', message: userFacingErrorMessage(error, 'Não foi possível confirmar a entrega por um erro inesperado.') })
           return
         }
 
         try {
           await refreshPedidos()
           setFeedback({ type: 'success', message: 'Entrega confirmada.' })
-        } catch {
+        } catch (error) {
           setFeedback({
             type: 'error',
-            message: 'Entrega registrada, mas não foi possível atualizar a lista. Tente novamente.',
+            message: userFacingErrorMessage(error, 'Entrega registrada. A lista ainda não foi atualizada.'),
           })
         }
       } finally {
@@ -110,18 +111,18 @@ export function TableOrdersPanel({ mesaId, atendimentoId, initialPedidos }: Prop
         try {
           await cancelarPedido(pedidoId)
           router.refresh()
-        } catch {
-          setFeedback({ type: 'error', message: 'Não foi possível cancelar.' })
+        } catch (error) {
+          setFeedback({ type: 'error', message: userFacingErrorMessage(error, 'Não foi possível cancelar o pedido por um erro inesperado.') })
           return
         }
 
         try {
           await refreshPedidos()
           setFeedback({ type: 'success', message: 'Pedido cancelado.' })
-        } catch {
+        } catch (error) {
           setFeedback({
             type: 'error',
-            message: 'Cancelamento registrado, mas não foi possível atualizar a lista. Tente novamente.',
+            message: userFacingErrorMessage(error, 'Cancelamento registrado. A lista ainda não foi atualizada.'),
           })
         }
       } finally {

@@ -165,7 +165,7 @@ describe('official order state machine in the UI', () => {
       cache: 'no-store',
     })
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Não foi possível atualizar os pedidos. Tente novamente.'
+      'Não conseguimos atualizar os pedidos agora.'
     )
   })
 
@@ -181,7 +181,7 @@ describe('official order state machine in the UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Entregue' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Entrega registrada, mas não foi possível atualizar a lista. Tente novamente.'
+      'Não conseguimos atualizar os pedidos agora.'
     )
     expect(actions.confirmarEntrega).toHaveBeenCalledWith('pronto')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()

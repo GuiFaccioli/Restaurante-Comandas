@@ -10,6 +10,7 @@ import { useFormStatus } from 'react-dom'
 import { toast } from 'sonner'
 
 import { Button, type ButtonProps } from '@/components/ui/button'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Action = (formData: FormData) => void | Promise<void>
 type ActionState = { status: 'idle' | 'success' | 'error'; message?: string }
@@ -25,9 +26,7 @@ function isRedirectError(error: unknown) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error && error.message
-    ? error.message
-    : 'Não foi possível concluir a ação.'
+  return userFacingErrorMessage(error, 'Não foi possível concluir a ação por um erro inesperado.')
 }
 
 export function ActionForm({
