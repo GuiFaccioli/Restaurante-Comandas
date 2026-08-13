@@ -239,9 +239,21 @@ export async function aceitarConviteUsuario(data: FormData): Promise<void> {
 export async function removerUsuarioDoRestaurante(data: FormData): Promise<void> {
   const { usuarioId: currentUserId, tenantId } = await requireAccess('admin')
   const usuarioId = formString(data, 'usuarioId')
+  const confirmEmail = formString(data, 'confirmEmail').trim().toLowerCase()
 
   if (!usuarioId) throw new Error('Usuário inválido')
   if (usuarioId === currentUserId) throw new Error('Você não pode remover seu próprio usuário')
+
+  const [targetUser] = await db
+    .select({ email: usuario.email })
+    .from(tenantUser)
+    .innerJoin(usuario, eq(tenantUser.usuarioId, usuario.id))
+    .where(and(eq(tenantUser.usuarioId, usuarioId), eq(tenantUser.tenantId, tenantId)))
+
+  if (!targetUser) throw new Error('Usuário não encontrado neste restaurante')
+  if (confirmEmail !== targetUser.email.trim().toLowerCase()) {
+    throw new Error('Digite o e-mail do usuário para confirmar a remoção')
+  }
 
   await db
     .delete(tenantUser)

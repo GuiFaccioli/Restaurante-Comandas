@@ -4,6 +4,7 @@ import { atualizarUsuarioAdmin, removerUsuarioDoRestaurante } from '@/lib/action
 import { UserInviteForm } from '@/components/admin/user-invite-form'
 import { AdminEmptyState, AdminPage, AdminPageHeader, AdminPanel, AdminStatsGrid, AdminStatCard } from '@/components/admin/admin-page'
 import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
+import { Input } from '@/components/ui/input'
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
 import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
@@ -178,6 +179,22 @@ export default async function UsuariosAdminPage() {
 
                   <ActionForm action={removerUsuarioDoRestaurante} successMessage="Usuário removido da empresa." className="lg:col-start-3">
                     <input type="hidden" name="usuarioId" value={user.id} />
+                    {!user.isCurrentUser ? (
+                      <div className="grid gap-1.5">
+                        <label htmlFor={`confirmar-email-${user.id}`} className="text-xs font-medium text-muted-foreground">
+                          Digite o e-mail para confirmar
+                        </label>
+                        <Input
+                          id={`confirmar-email-${user.id}`}
+                          name="confirmEmail"
+                          type="email"
+                          placeholder={user.email}
+                          autoComplete="off"
+                          required
+                          className="min-h-10"
+                        />
+                      </div>
+                    ) : null}
                     <ActionSubmit
                       pendingLabel="Removendo…"
                       intent="destructive"

@@ -69,6 +69,7 @@ describe('admin management area', () => {
 
     expect(userActions).toContain('atualizarUsuarioAdmin')
     expect(userActions).toContain('removerUsuarioDoRestaurante')
+    expect(userActions).toContain("formString(data, 'confirmEmail')")
     expect(userActions).toContain("requireAccess('admin')")
     expect(userActions).toContain('tenantUser')
     expect(userActions).toContain('usuarioAcesso')
@@ -91,6 +92,8 @@ describe('admin management area', () => {
     expect(usersPage).toContain('Com múltiplos acessos')
     expect(usersPage).toContain('Salvar acessos')
     expect(usersPage).toContain('Remover usuário')
+    expect(usersPage).toContain('name="confirmEmail"')
+    expect(usersPage).toContain('Digite o e-mail para confirmar')
     expect(usersPage).toContain('atualizarUsuarioAdmin')
     expect(usersPage).toContain('removerUsuarioDoRestaurante')
     expect(usersPage).toContain('UserInviteForm')
