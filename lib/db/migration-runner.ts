@@ -29,12 +29,16 @@ export function resolveMigrationTarget(databaseUrl: string | undefined): Migrati
   return { url: resolveRuntimeDatabaseUrl(databaseUrl) }
 }
 
+export function normalizeMigrationSql(sql: string): string {
+  return sql.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
+
 function migrationFiles(migrationsDirectory: string): MigrationFile[] {
   return readdirSync(migrationsDirectory)
     .filter((name) => name.endsWith('.sql'))
     .sort((left, right) => left.localeCompare(right))
     .map((name) => {
-      const sql = readFileSync(resolve(migrationsDirectory, name), 'utf8')
+      const sql = normalizeMigrationSql(readFileSync(resolve(migrationsDirectory, name), 'utf8'))
       return { name, sql, checksum: createHash('sha256').update(sql).digest('hex') }
     })
 }

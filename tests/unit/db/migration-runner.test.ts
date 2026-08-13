@@ -1,9 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resolveMigrationDatabaseUrl, resolveMigrationTarget } from '@/lib/db/migration-runner'
+import { normalizeMigrationSql, resolveMigrationDatabaseUrl, resolveMigrationTarget } from '@/lib/db/migration-runner'
 
 describe('database migration runner', () => {
+  it('normalizes line endings before checksumming migrations', () => {
+    expect(normalizeMigrationSql('CREATE TABLE x;\r\n-- comment\r\n')).toBe('CREATE TABLE x;\n-- comment\n')
+  })
+
   it.each([
     'postgres://user:password@localhost:5432/restaurant',
     'postgresql://user:password@localhost:5432/restaurant',
