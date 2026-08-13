@@ -37,7 +37,7 @@ export function VibeSection() {
             <FadeIn delay={0.2}>
               <div className="bg-white/5 border border-white/10 p-6 rounded-2xl hover:bg-white/10 transition-colors">
                 <Clock className="w-8 h-8 text-primary mb-4" />
-                <h3 className="text-xl font-bold mb-2">Instalou, tá rodando</h3>
+                <h3 className="text-xl font-bold mb-2">Não precisa instalar nada</h3>
                 <p className="text-background/70">
                   Você não tem uma semana para treinar sua equipe. Em 15 minutos, o caixa, o garçom e o chapeiro já entenderam como usar.
                 </p>
@@ -47,9 +47,9 @@ export function VibeSection() {
             <FadeIn delay={0.3}>
               <div className="bg-white/5 border border-white/10 p-6 rounded-2xl hover:bg-white/10 transition-colors">
                 <ShieldCheck className="w-8 h-8 text-primary mb-4" />
-                <h3 className="text-xl font-bold mb-2">Seu caixa protegido</h3>
+                <h3 className="text-xl font-bold mb-2">Estoque mais organizado</h3>
                 <p className="text-background/70">
-                  Controle total de sangria, gorjetas, taxas de cartão e fiado. O que entra no sistema, entra no seu bolso.
+                  Acompanhe entradas, perdas, contagens e níveis mínimos para tomar decisões de compra com mais segurança.
                 </p>
               </div>
             </FadeIn>
