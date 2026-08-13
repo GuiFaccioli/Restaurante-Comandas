@@ -9,7 +9,7 @@ export type MigrationTarget = { url: string }
 
 type PostgresClient = PoolClient
 type TrackedMigration = { name: string; checksum: string }
-type MigrationFile = TrackedMigration & { sql: string }
+type MigrationFile = TrackedMigration & { sql: string; legacyChecksum: string }
 
 const POSTGRES_BASELINE = '202607232100_baseline_and_tenant_constraints.sql'
 const POSTGRES_TABLES = [
@@ -38,8 +38,14 @@ function migrationFiles(migrationsDirectory: string): MigrationFile[] {
     .filter((name) => name.endsWith('.sql'))
     .sort((left, right) => left.localeCompare(right))
     .map((name) => {
-      const sql = normalizeMigrationSql(readFileSync(resolve(migrationsDirectory, name), 'utf8'))
-      return { name, sql, checksum: createHash('sha256').update(sql).digest('hex') }
+      const rawSql = readFileSync(resolve(migrationsDirectory, name), 'utf8')
+      const sql = normalizeMigrationSql(rawSql)
+      return {
+        name,
+        sql,
+        checksum: createHash('sha256').update(sql).digest('hex'),
+        legacyChecksum: createHash('sha256').update(rawSql).digest('hex'),
+      }
     })
 }
 
@@ -126,6 +132,14 @@ async function migratePostgres(url: string, migrationsDirectory: string): Promis
     for (const file of files) {
       const checksum = tracked.get(file.name)
       if (checksum !== undefined && checksum !== file.checksum) {
+        if (checksum === file.legacyChecksum) {
+          await client.query(
+            'UPDATE app_schema_migration SET checksum = $1 WHERE name = $2',
+            [file.checksum, file.name],
+          )
+          tracked.set(file.name, file.checksum)
+          continue
+        }
         throw new Error(`Migration checksum mismatch for ${file.name}; migrations are immutable.`)
       }
     }
