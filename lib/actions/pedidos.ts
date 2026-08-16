@@ -25,15 +25,15 @@ export async function confirmarPedido(
   items: ConfirmarPedidoItem[],
 ): Promise<{ id: string }> {
   const { usuarioId, tenantId } = await requireAccess('garcom')
-  if (!mesaId) throw new Error('Mesa inválida')
-  if (!atendimentoId) throw new Error('Atendimento inválido')
-  if (items.length === 0) throw new Error('Pedido vazio')
+  if (!mesaId) throw new Error('Mesa inválida: selecione uma mesa antes de confirmar o pedido')
+  if (!atendimentoId) throw new Error('Abra um atendimento antes de confirmar o pedido')
+  if (items.length === 0) throw new Error('Pedido vazio: adicione pelo menos um item ao pedido')
   if (items.some((item) => (
     !item.produtoId ||
     !Number.isInteger(item.quantidade) ||
     item.quantidade <= 0
   ))) {
-    throw new Error('Item inválido')
+    throw new Error('Item inválido: cada item precisa ter um produto e uma quantidade inteira maior que zero')
   }
 
   const transactionInput = {
@@ -62,7 +62,7 @@ export async function atualizarStatus(
 ): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('cozinha')
   if (status !== 'em_preparo' && status !== 'pronto') {
-    throw new Error('Status de cozinha inválido')
+    throw new Error('Status de cozinha inválido: a cozinha só pode mover o pedido para “em preparo” ou “pronto”')
   }
   const transactionInput = {
     tenantId,

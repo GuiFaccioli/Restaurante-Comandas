@@ -82,6 +82,7 @@ export type TipoMovimentoEstoque =
 
 export const tenant = pgTable('tenant', {
   id: uuid('id').primaryKey().defaultRandom(),
+  ownerUserId: uuid('owner_user_id').references(() => usuario.id),
   nome: text('nome').notNull(),
   slug: text('slug').notNull().unique(),
   status: tenantStatusEnum('status').notNull().default('active'),

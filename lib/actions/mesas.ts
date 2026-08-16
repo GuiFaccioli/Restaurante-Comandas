@@ -6,10 +6,20 @@ import { requireAccess } from '@/lib/auth/access'
 
 export async function criarMesa(numero: number): Promise<{ id: string }> {
   const { tenantId } = await requireAccess('admin')
-  const [m] = await db
-    .insert(mesa)
-    .values({ id: crypto.randomUUID(), tenantId, numero, ativa: true })
-    .returning({ id: mesa.id })
+  if (!Number.isInteger(numero) || numero <= 0) throw new Error('Informe um número de mesa inteiro maior que zero')
+  let m: { id: string } | undefined
+  try {
+    ;[m] = await db
+      .insert(mesa)
+      .values({ id: crypto.randomUUID(), tenantId, numero, ativa: true })
+      .returning({ id: mesa.id })
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+      throw new Error(`A mesa ${numero} já está cadastrada`)
+    }
+    throw error
+  }
+  if (!m) throw new Error('Não foi possível criar a mesa')
   return { id: m.id }
 }
 

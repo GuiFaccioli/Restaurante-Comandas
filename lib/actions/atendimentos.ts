@@ -37,12 +37,12 @@ async function validateTable(tx: PostgresStockTransaction, tenantId: string, mes
     .from(mesa)
     .where(and(eq(mesa.id, mesaId), eq(mesa.tenantId, tenantId), eq(mesa.ativa, true)))
     .for('update')
-  if (!table) throw new Error('Mesa inválida')
+  if (!table) throw new Error('A mesa não existe, está inativa ou não pertence a este restaurante')
 }
 
 export async function iniciarAtendimento(mesaId: string): Promise<{ id: string }> {
   const { tenantId, usuarioId } = await requireAccess('garcom')
-  if (!mesaId) throw new Error('Mesa inválida')
+  if (!mesaId) throw new Error('Selecione uma mesa para abrir o atendimento')
   try {
     return await runInDbTransaction({
       postgresOperation: async (tx) => {

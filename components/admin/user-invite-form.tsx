@@ -8,6 +8,7 @@ import { ActionSubmit } from '@/components/ui/action-form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 const ACCESS_OPTIONS = [
   { value: 'admin', label: 'Administração' },
@@ -19,15 +20,19 @@ const ACCESS_OPTIONS = [
 export function UserInviteForm() {
   const [isPending, startTransition] = useTransition()
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   function submit(formData: FormData) {
     startTransition(async () => {
       try {
+        setErrorMessage(null)
         const result = await cadastrarUsuarioAdmin(formData)
         setInviteUrl(result.inviteUrl)
         toast.success('Convite criado. Copie o link e envie ao usuário.')
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Não foi possível criar o convite.')
+        const message = userFacingErrorMessage(error, 'Não foi possível criar o convite por um erro inesperado.')
+        setErrorMessage(message)
+        toast.error(message)
       }
     })
   }
@@ -41,6 +46,11 @@ export function UserInviteForm() {
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <form action={submit} className="contents">
+        {errorMessage ? (
+          <p role="alert" aria-live="polite" className="lg:col-span-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {errorMessage}
+          </p>
+        ) : null}
         <div className="grid gap-2">
           <Label htmlFor="novo-usuario-nome">Nome</Label>
           <Input id="novo-usuario-nome" name="nome" required maxLength={120} />

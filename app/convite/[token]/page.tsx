@@ -3,6 +3,7 @@ import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
 import { AgilizaFluxoBrand } from '@/components/brand/agiliza-fluxo-brand'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordConfirmationFields } from '@/components/auth/password-confirmation-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,11 +24,7 @@ export default async function ConvitePage({ params }: { params: Promise<{ token:
             <Input id="convite-email" type="email" value={email ?? 'Convite indisponível'} readOnly aria-readonly="true" />
             <p className="text-xs text-[var(--muted)]">Este e-mail está vinculado ao convite e não pode ser alterado.</p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="convite-password">Senha</Label>
-            <Input id="convite-password" name="password" type="password" autoComplete="new-password" minLength={8} required />
-            <p className="text-xs text-[var(--muted)]">Use pelo menos 8 caracteres.</p>
-          </div>
+          <PasswordConfirmationFields passwordId="convite-password" confirmationId="convite-password-confirmation" />
           <ActionSubmit pendingLabel="Ativando acesso…" intent="positive" appearance="solid" className="min-h-11 w-full">Ativar acesso</ActionSubmit>
         </ActionForm>
       </section>

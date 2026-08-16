@@ -32,7 +32,7 @@ async function validarCategoriaDoTenant(
     .where(and(eq(categoria.id, categoriaId), eq(categoria.tenantId, tenantId)))
 
   if (!categoriaAtual) {
-    throw new Error('Categoria inválida')
+    throw new Error('A categoria selecionada não pertence a este restaurante (categoria inválida)')
   }
 }
 
@@ -130,6 +130,9 @@ export async function removerCategoria(id: string): Promise<RemoveCategoryResult
 
 export async function criarProduto(data: NovoProduto): Promise<{ id: string }> {
   const { tenantId } = await requireAccess('admin')
+  const nome = data.nome.trim()
+  if (!nome) throw new Error('Informe o nome do produto')
+  if (!data.preco.trim()) throw new Error('Informe o preço do produto')
   await validarCategoriaDoTenant(data.categoriaId, tenantId)
 
   const [prod] = await db
@@ -138,7 +141,7 @@ export async function criarProduto(data: NovoProduto): Promise<{ id: string }> {
       id: crypto.randomUUID(),
       tenantId,
       categoriaId: data.categoriaId,
-      nome: data.nome,
+      nome,
       descricao: data.descricao ?? null,
       preco: normalizeCurrencyToDecimal(data.preco),
       disponivel: true,
@@ -153,6 +156,8 @@ export async function editarProduto(
   data: Partial<NovoProduto>
 ): Promise<void> {
   const { tenantId } = await requireAccess('admin')
+  if (data.nome !== undefined && !data.nome.trim()) throw new Error('Informe o nome do produto')
+  if (data.preco !== undefined && !data.preco.trim()) throw new Error('Informe o preço do produto')
   if (data.categoriaId) {
     await validarCategoriaDoTenant(data.categoriaId, tenantId)
   }
@@ -160,7 +165,7 @@ export async function editarProduto(
   await db
     .update(produto)
     .set({
-      ...(data.nome && { nome: data.nome }),
+      ...(data.nome !== undefined && { nome: data.nome.trim() }),
       ...(data.descricao !== undefined && { descricao: data.descricao }),
       ...(data.preco && { preco: normalizeCurrencyToDecimal(data.preco) }),
       ...(data.imagemUrl !== undefined && { imagemUrl: data.imagemUrl }),
@@ -171,9 +176,11 @@ export async function editarProduto(
 
 export async function removerProduto(id: string): Promise<void> {
   const { tenantId } = await requireAccess('admin')
-  await db
+  const deleted = await db
     .delete(produto)
     .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
+    .returning({ id: produto.id })
+  if (!deleted[0]) throw new Error('Produto não encontrado neste restaurante')
 }
 
 export async function toggleDisponivel(id: string): Promise<void> {
@@ -183,6 +190,7 @@ export async function toggleDisponivel(id: string): Promise<void> {
     .from(produto)
     .where(and(eq(produto.id, id), eq(produto.tenantId, tenantId)))
 
+  if (!prod) throw new Error('Produto não encontrado neste restaurante')
   const novoEstado = !Boolean(prod.disponivel)
   await db
     .update(produto)

@@ -40,3 +40,23 @@ Este catálogo complementa a skill de tom de voz e serve como referência para n
 - Erros de infraestrutura não exibem códigos, stack traces, nomes de tabelas ou endpoints.
 - Mensagens de erro podem ser diretas. Acolhimento não significa esconder o problema.
 - Números e limites conhecidos devem aparecer na mensagem.
+
+## Mensagens configuradas nos fluxos atuais
+
+| Camada | Situação | Mensagem |
+|---|---|---|
+| Cadastro | E-mail já usado | Este e-mail já está cadastrado. Entre na sua conta ou use outro e-mail. |
+| Cadastro | Senha curta | A senha precisa ter pelo menos 8 caracteres. |
+| Cadastro | Senhas diferentes | As senhas não coincidem. |
+| Produto | Categoria de outra empresa | A categoria selecionada não pertence a este restaurante. |
+| Produto | Nome ausente | Informe o nome do produto. |
+| Produto | Preço ausente | Informe o preço do produto. |
+| Mesa | Número inválido | Informe um número de mesa inteiro maior que zero. |
+| Mesa | Número repetido | A mesa {número} já está cadastrada. |
+| Atendimento | Mesa indisponível | A mesa não existe, está inativa ou não pertence a este restaurante. |
+| Pedido | Sem mesa | Mesa inválida: selecione uma mesa antes de confirmar o pedido. |
+| Pedido | Sem itens | Pedido vazio: adicione pelo menos um item ao pedido. |
+| Pedido | Item incompleto | Item inválido: cada item precisa ter um produto e uma quantidade inteira maior que zero. |
+| Cozinha | Mudança de status não permitida | Status de cozinha inválido: a cozinha só pode mover o pedido para “em preparo” ou “pronto”. |
+
+As mensagens acima devem aparecer preservando o que já foi digitado. Quando a causa estiver associada a um campo, a próxima evolução é retornar também o campo para aplicar o destaque vermelho diretamente nele.
