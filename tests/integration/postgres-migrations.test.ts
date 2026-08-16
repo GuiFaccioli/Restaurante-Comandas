@@ -98,7 +98,7 @@ describePostgres(
       adminPool = new Pool({ connectionString: postgresUrl })
       await adminPool.query(`CREATE SCHEMA "${schemaName}"`)
       const parsed = new URL(postgresUrl)
-      parsed.searchParams.set('options', `-c search_path=${schemaName}`)
+      parsed.searchParams.set('options', `-c search_path=${schemaName},public`)
       scopedUrl = parsed.toString()
     })
 
