@@ -13,6 +13,10 @@ import {
   lockAutomaticShoppingListItemInPostgresTransaction,
   reconcileShoppingListInPostgresTransaction,
 } from '@/lib/shopping-list/reconciliation'
+import {
+  measureOrderConfirmationPhase,
+  setOrderConfirmationMeasurementContext,
+} from '@/lib/performance/order-confirmation-measurement'
 
 export type OrderItemInput = {
   produtoId: string
@@ -193,11 +197,11 @@ async function consumePreparedSnapshots(
   movements: SnapshotMovement[],
 ): Promise<void> {
   const demand = aggregateDemand(movements)
-  const locked = await lockStockForMovements(
+  const locked = await measureOrderConfirmationPhase('stock_movements', () => lockStockForMovements(
     tx,
     input.tenantId,
     movements,
-  )
+  ))
   for (const [insumoId, quantity] of demand) {
     const item = locked.get(insumoId)
     if (!item || stockQuantityToMillis(item.estoqueAtual) < quantity) {
@@ -208,7 +212,7 @@ async function consumePreparedSnapshots(
   }
 
   for (const movement of movements) {
-    await applyStockMovementInPostgresTransaction(tx, {
+    await measureOrderConfirmationPhase('stock_movements', () => applyStockMovementInPostgresTransaction(tx, {
       tenantId: input.tenantId,
       usuarioId: input.usuarioId,
       insumoId: movement.insumoId,
@@ -219,16 +223,16 @@ async function consumePreparedSnapshots(
       itemPedidoId: movement.itemPedidoId,
       chaveIdempotencia: movement.chaveIdempotencia,
       observacao: 'Consumo no aceite do pedido',
-    }, { reconcileShoppingList: false })
+    }, { reconcileShoppingList: false }))
   }
   for (const insumoId of [...new Set(
     movements.map((movement) => movement.insumoId),
   )].sort()) {
-    await reconcileShoppingListInPostgresTransaction(
+    await measureOrderConfirmationPhase('shopping_list_reconciliation', () => reconcileShoppingListInPostgresTransaction(
       tx,
       input.tenantId,
       insumoId,
-    )
+    ))
   }
 }
 
@@ -319,6 +323,7 @@ export async function createOrderInPostgresTransaction(
 ): Promise<CreatedOrder> {
   validateCreateOrderInput(input)
   if (!input.atendimentoId) throw new Error('Atendimento inválido')
+  const atendimentoId = input.atendimentoId
 
   const [currentTable] = await tx
     .select({ numero: pgSchema.mesa.numero })
@@ -335,7 +340,7 @@ export async function createOrderInPostgresTransaction(
     .select({ id: pgSchema.atendimento.id, mesaId: pgSchema.atendimento.mesaId, status: pgSchema.atendimento.status })
     .from(pgSchema.atendimento)
     .where(and(
-      eq(pgSchema.atendimento.id, input.atendimentoId),
+      eq(pgSchema.atendimento.id, atendimentoId),
       eq(pgSchema.atendimento.tenantId, input.tenantId),
       eq(pgSchema.atendimento.mesaId, input.mesaId),
     ))
@@ -354,14 +359,15 @@ export async function createOrderInPostgresTransaction(
         atualizadoEm: new Date(),
       })
       .where(and(
-        eq(pgSchema.atendimento.id, input.atendimentoId),
+        eq(pgSchema.atendimento.id, atendimentoId),
         eq(pgSchema.atendimento.tenantId, input.tenantId),
       ))
   }
 
   const products = new Map<string, ProductForOrder>()
-  for (const produtoId of [...new Set(input.items.map((item) => item.produtoId))]
-    .sort()) {
+  const uniqueProductIds = [...new Set(input.items.map((item) => item.produtoId))].sort()
+  await measureOrderConfirmationPhase('product_search', async () => {
+    for (const produtoId of uniqueProductIds) {
     const [product] = await tx
       .select({
         nome: pgSchema.produto.nome,
@@ -382,14 +388,15 @@ export async function createOrderInPostgresTransaction(
       ))
       .for('update')
     if (!product) throw new Error('Produto inválido')
-    products.set(produtoId, product)
-  }
+      products.set(produtoId, product)
+    }
+  })
 
   const controlledProductIds = [...products.entries()]
     .filter(([, product]) => product.controleEstoque)
     .map(([produtoId]) => produtoId)
     .sort()
-  const recipeIngredientRefs = controlledProductIds.length === 0
+  const recipeIngredientRefs = await measureOrderConfirmationPhase('ingredient_search_validation', async () => controlledProductIds.length === 0
     ? []
     : await tx
       .select({
@@ -404,6 +411,7 @@ export async function createOrderInPostgresTransaction(
           controlledProductIds,
         ),
       ))
+  )
   const productsWithRecipes = new Set(
     recipeIngredientRefs.map((recipe) => recipe.produtoId),
   )
@@ -413,7 +421,7 @@ export async function createOrderInPostgresTransaction(
   const ingredientIds = [
     ...new Set(recipeIngredientRefs.map((recipe) => recipe.insumoId)),
   ].sort()
-  for (const insumoId of ingredientIds) {
+  await measureOrderConfirmationPhase('ingredient_search_validation', async () => { for (const insumoId of ingredientIds) {
     // Global inventory lock order: coordination key, shopping-list row, ingredient.
     await lockAutomaticShoppingListItemInPostgresTransaction(
       tx,
@@ -440,8 +448,8 @@ export async function createOrderInPostgresTransaction(
     ) {
       throw new Error('Ficha técnica inválida')
     }
-  }
-  const recipes = controlledProductIds.length === 0
+  } })
+  const recipes = await measureOrderConfirmationPhase('ingredient_search_validation', async () => controlledProductIds.length === 0
     ? []
     : await tx
       .select({
@@ -461,6 +469,8 @@ export async function createOrderInPostgresTransaction(
         asc(pgSchema.fichaTecnicaItem.produtoId),
         asc(pgSchema.fichaTecnicaItem.insumoId),
       )
+  )
+  setOrderConfirmationMeasurementContext({ totalIngredients: ingredientIds.length })
 
   const preparedItems = input.items.map((item) => ({
     item,
@@ -468,17 +478,17 @@ export async function createOrderInPostgresTransaction(
   }))
   const pedidoId = crypto.randomUUID()
   const now = new Date()
-  await tx.insert(pgSchema.pedido).values({
+  await measureOrderConfirmationPhase('order_insert', () => tx.insert(pgSchema.pedido).values({
     id: pedidoId,
     tenantId: input.tenantId,
     mesaId: input.mesaId,
-    atendimentoId: input.atendimentoId,
+    atendimentoId,
     createdByUserId: input.usuarioId,
     status: 'novo',
     criadoEm: now,
     entregueEm: null,
     atualizadoEm: now,
-  })
+  }))
 
   const snapshots: Array<{
     itemPedidoId: string
@@ -487,7 +497,7 @@ export async function createOrderInPostgresTransaction(
   }> = []
   for (const { item, product } of preparedItems) {
     const itemPedidoId = crypto.randomUUID()
-    await tx.insert(pgSchema.itemPedido).values({
+    await measureOrderConfirmationPhase('item_inserts', () => tx.insert(pgSchema.itemPedido).values({
       id: itemPedidoId,
       tenantId: input.tenantId,
       pedidoId,
@@ -495,7 +505,7 @@ export async function createOrderInPostgresTransaction(
       quantidade: item.quantidade,
       precoUnitario: product.preco,
       observacao: item.observacao ?? null,
-    })
+    }))
 
     if (!product.controleEstoque) continue
     for (const recipe of recipes.filter(
@@ -504,14 +514,14 @@ export async function createOrderInPostgresTransaction(
       const quantidadeTotal = stockMillisToDecimal(
         validateRecipeQuantity(recipe.quantidade) * item.quantidade,
       )
-      await tx.insert(pgSchema.itemPedidoInsumo).values({
+      await measureOrderConfirmationPhase('snapshots', () => tx.insert(pgSchema.itemPedidoInsumo).values({
         id: crypto.randomUUID(),
         tenantId: input.tenantId,
         pedidoId,
         itemPedidoId,
         insumoId: recipe.insumoId,
         quantidadeTotal,
-      })
+      }))
       snapshots.push({
         itemPedidoId,
         insumoId: recipe.insumoId,
