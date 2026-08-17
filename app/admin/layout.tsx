@@ -12,6 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/menu', label: 'Cardápio', description: 'Função futura · delivery e outros canais' },
     { href: '/admin/estoque', label: 'Estoque', description: 'Saldos e fichas técnicas' },
     { href: '/admin/mesas', label: 'Mesas', description: 'Salão e atendimento' },
+    { href: '/admin/clientes', label: 'Clientes', description: 'Cadastros e endereços' },
     ...(accesses.includes('caixa') ? [{ href: '/admin/pedidos', label: 'Pedidos', description: 'Caixa e pagamentos' }] : []),
     { href: '/admin/relatorios', label: 'Relatórios', description: 'Perguntas da operação' },
   ]
