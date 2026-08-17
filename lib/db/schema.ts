@@ -94,6 +94,56 @@ export const tenant = pgTable('tenant', {
     .defaultNow(),
 })
 
+export const cliente = pgTable(
+  'cliente',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    nome: text('nome').notNull(),
+    telefone: text('telefone').notNull(),
+    telefoneNormalizado: text('telefone_normalizado').notNull(),
+    taxaEntregaPadrao: numeric('taxa_entrega_padrao', { precision: 10, scale: 2 }).notNull().default('0'),
+    ativo: boolean('ativo').notNull().default(true),
+    criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+    atualizadoEm: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('cliente_tenant_telefone_normalizado_unique').on(table.tenantId, table.telefoneNormalizado),
+    uniqueIndex('cliente_tenant_id_unique').on(table.tenantId, table.id),
+  ],
+)
+
+export const enderecoCliente = pgTable(
+  'endereco_cliente',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    clienteId: uuid('cliente_id').notNull(),
+    rua: text('rua').notNull(),
+    numero: text('numero').notNull(),
+    bairro: text('bairro'),
+    cidade: text('cidade'),
+    cep: text('cep'),
+    complemento: text('complemento'),
+    referencia: text('referencia'),
+    padrao: boolean('padrao').notNull().default(false),
+    ativo: boolean('ativo').notNull().default(true),
+    criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+    atualizadoEm: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('endereco_cliente_tenant_id_unique').on(table.tenantId, table.id),
+    uniqueIndex('endereco_cliente_active_default_unique')
+      .on(table.tenantId, table.clienteId)
+      .where(sql`${table.ativo} = true AND ${table.padrao} = true`),
+    foreignKey({
+      columns: [table.tenantId, table.clienteId],
+      foreignColumns: [cliente.tenantId, cliente.id],
+      name: 'endereco_cliente_tenant_cliente_fkey',
+    }).onDelete('cascade'),
+  ],
+)
+
 export const usuario = pgTable('usuario', {
   id: uuid('id').primaryKey(),
   authUserId: text('auth_user_id').unique(),
