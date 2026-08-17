@@ -160,9 +160,14 @@ describePostgres(
 
     it('replaces divergent same-name constraints while preserving migration history', async () => {
       const partialMigrations = copyPreCoherenceMigrations()
-      const scopedPool = new Pool({ connectionString: scopedUrl })
+      const isolatedSchemaName = `migration_divergent_test_${crypto.randomUUID().replaceAll('-', '')}`
+      await adminPool.query(`CREATE SCHEMA "${isolatedSchemaName}"`)
+      const parsed = new URL(postgresUrl)
+      parsed.searchParams.set('options', `-c search_path=${isolatedSchemaName},public`)
+      const isolatedScopedUrl = parsed.toString()
+      await migrateDatabase(isolatedScopedUrl, partialMigrations)
+      const scopedPool = new Pool({ connectionString: isolatedScopedUrl })
       try {
-        await migrateDatabase(scopedUrl, partialMigrations)
         const historyBefore = await scopedPool.query<{ name: string }>(
           'SELECT name FROM app_schema_migration ORDER BY name',
         )
@@ -184,7 +189,17 @@ describePostgres(
             CHECK (item_pedido_id IS NULL OR pedido_id IS NULL);
         `)
 
-        await migrateDatabase(scopedUrl)
+        copyFileSync(
+          resolve(
+            process.cwd(),
+            'db/migrations/202607232300_enforce_order_item_coherence.sql',
+          ),
+          resolve(
+            partialMigrations,
+            '202607232300_enforce_order_item_coherence.sql',
+          ),
+        )
+        await migrateDatabase(isolatedScopedUrl, partialMigrations)
 
         const foreignKeys = await scopedPool.query<{
           conname: string
@@ -223,6 +238,7 @@ describePostgres(
               'item_pedido_insumo_tenant_pedido_item_fkey',
               'movimento_estoque_tenant_pedido_item_fkey'
             )
+              AND constraint_row.connamespace = current_schema()::regnamespace
             ORDER BY constraint_row.conname`,
         )
         expect(foreignKeys.rows).toEqual([
@@ -291,6 +307,7 @@ describePostgres(
         ])
       } finally {
         await scopedPool.end()
+        await adminPool.query(`DROP SCHEMA IF EXISTS "${isolatedSchemaName}" CASCADE`)
         rmSync(partialMigrations, { recursive: true, force: true })
       }
     })
