@@ -3,6 +3,7 @@ import * as pgSchema from './schema'
 import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless'
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import { resolveRuntimeDatabaseUrl } from './database-url'
+import { orderConfirmationDrizzleLogger } from '@/lib/performance/order-confirmation-measurement'
 
 type PostgresDbType = ReturnType<typeof drizzleNeon<typeof pgSchema>>
 type PostgresTransaction = Parameters<
@@ -52,6 +53,7 @@ function createDb(): PostgresDbType {
   return drizzleNeon({
     client: getPostgresPool(DATABASE_URL),
     schema: pgSchema,
+    logger: orderConfirmationDrizzleLogger,
   })
 }
 
