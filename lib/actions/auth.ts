@@ -24,7 +24,7 @@ function authCallbackUrl(): string {
   const vercelUrl = process.env.VERCEL_URL
   if (vercelUrl) return `https://${vercelUrl}/auth/sign-in`
 
-  return 'http://127.0.0.1:3000/auth/sign-in'
+  return 'http://localhost:3009/auth/sign-in'
 }
 
 function formValue(data: FormData | Record<string, unknown>, key: string): string {
