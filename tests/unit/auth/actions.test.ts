@@ -353,9 +353,10 @@ describe('auth actions', () => {
           nome: 'Ana',
           email: 'ana@example.com',
           password: 'senha-certa',
+          passwordConfirmation: 'senha-certa',
           tenantNome: 'Pizza Centro',
         })
-      ).rejects.toThrow('Não foi possível criar a conta')
+      ).rejects.toThrow('Este e-mail já está cadastrado')
 
       expect(state.insertValues).toEqual([])
       expect(state.runInDbTransactionMock).not.toHaveBeenCalled()
@@ -371,6 +372,7 @@ describe('auth actions', () => {
           nome: 'Ana',
           email: 'ANA@example.com',
           password: 'senha-certa',
+          passwordConfirmation: 'senha-certa',
           tenantNome: 'Pizza Boa',
         })
       ).rejects.toThrow('REDIRECT:/selecionar-area')
@@ -427,6 +429,7 @@ describe('auth actions', () => {
           nome: 'Ana',
           email: 'ana@example.com',
           password: 'senha-certa',
+          passwordConfirmation: 'senha-certa',
           tenantNome: 'Pizza Boa',
         })
       ).rejects.toThrow('tenant insert failed')
@@ -451,6 +454,7 @@ describe('auth actions', () => {
           nome: 'Ana',
           email: 'ana@example.com',
           password: 'senha-certa',
+          passwordConfirmation: 'senha-certa',
           tenantNome: 'Pizza Boa',
         })
       ).rejects.toThrow('Não foi possível criar a conta')

@@ -14,6 +14,7 @@ import {
 import { nextCategoryIdAfterDeletion } from '@/lib/admin/category-selection'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Produto = { id: string; nome: string; descricao: string | null; preco: string; imagemUrl: string | null; disponivel: boolean; custo?: { custoTotal: number | null; margemPercentual: number | null; possuiFicha: boolean; possuiIngredienteSemCusto: boolean } }
 type Categoria = { id: string; nome: string; ordem: number; produtos: Produto[] }
@@ -86,7 +87,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
       toast.success('Produto excluído com sucesso.')
     } catch (error) {
       console.error('Failed to remove product', error)
-      toast.error('Não foi possível excluir o produto.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível excluir o produto por um erro inesperado.'))
     }
   }
 
@@ -96,7 +97,7 @@ export function MenuAdminClient({ categorias }: { categorias: Categoria[] }) {
       router.refresh()
     } catch (error) {
       console.error('Failed to toggle product availability', error)
-      toast.error('Não foi possível atualizar o produto.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível atualizar o produto por um erro inesperado.'))
     }
   }
 

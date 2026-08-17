@@ -11,6 +11,7 @@ import type { FormaPagamento, StatusAtendimento } from '@/lib/db/schema'
 import type { AtendimentoResumo } from '@/lib/attendance/queries'
 import { TenantEventListener } from '@/components/tenant-event-listener'
 import type { TenantEvent } from '@/lib/tenant-events'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -99,7 +100,7 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
         setPaymentAccountId(null)
         await refreshContas()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Não foi possível registrar o pagamento.')
+        toast.error(userFacingErrorMessage(error, 'Não foi possível registrar o pagamento por um erro inesperado.'))
       }
     })
   }

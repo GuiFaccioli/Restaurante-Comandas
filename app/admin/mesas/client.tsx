@@ -6,6 +6,7 @@ import { criarMesa, toggleAtiva } from '@/lib/actions/mesas'
 import { useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Mesa = { id: string; numero: number; ativa: boolean }
 
@@ -32,7 +33,7 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
       toast.success('Mesa criada com sucesso.')
     } catch (error) {
       console.error('Failed to create table', error)
-      toast.error(error instanceof Error ? error.message : 'Não foi possível criar a mesa.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível criar a mesa por um erro inesperado.'))
     } finally {
       setCreatingTable(false)
     }
@@ -48,7 +49,7 @@ export function MesasAdminClient({ mesas }: { mesas: Mesa[] }) {
       toast.success(`Mesa ${mesa?.ativa ? 'desativada' : 'ativada'} com sucesso.`)
     } catch (error) {
       console.error('Failed to toggle table availability', error)
-      toast.error('Não foi possível atualizar a mesa.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível atualizar a mesa por um erro inesperado.'))
     } finally {
       setTogglingTableId(null)
     }

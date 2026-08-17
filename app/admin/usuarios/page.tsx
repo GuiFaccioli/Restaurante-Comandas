@@ -7,7 +7,7 @@ import { ActionForm, ActionSubmit } from '@/components/ui/action-form'
 import { Input } from '@/components/ui/input'
 import { requireAccess } from '@/lib/auth/access'
 import { db } from '@/lib/db/index'
-import { tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
+import { tenant, tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
 import type { AcessoUsuario } from '@/lib/db/schema'
 
 export const dynamic = 'force-dynamic'
@@ -27,10 +27,12 @@ export default async function UsuariosAdminPage() {
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
+      ownerUserId: tenant.ownerUserId,
       tenantUserId: tenantUser.id,
     })
     .from(tenantUser)
     .innerJoin(usuario, eq(tenantUser.usuarioId, usuario.id))
+    .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
     .where(eq(tenantUser.tenantId, tenantId))
     .orderBy(asc(usuario.nome))
 
@@ -52,6 +54,7 @@ export default async function UsuariosAdminPage() {
     ...user,
     accesses: accessesByUser.get(user.id) ?? [],
     isCurrentUser: user.id === currentUserId,
+    isOwner: user.id === user.ownerUserId,
   }))
   const adminCount = usersWithAccesses.filter((user) => user.accesses.includes('admin')).length
   const multiAccessCount = usersWithAccesses.filter((user) => user.accesses.length > 1).length
@@ -179,7 +182,7 @@ export default async function UsuariosAdminPage() {
 
                   <ActionForm action={removerUsuarioDoRestaurante} successMessage="Usuário removido da empresa." className="lg:col-start-3">
                     <input type="hidden" name="usuarioId" value={user.id} />
-                    {!user.isCurrentUser ? (
+                    {!user.isCurrentUser && !user.isOwner ? (
                       <div className="grid gap-1.5">
                         <label htmlFor={`confirmar-email-${user.id}`} className="text-xs font-medium text-muted-foreground">
                           Digite o e-mail para confirmar
@@ -200,9 +203,9 @@ export default async function UsuariosAdminPage() {
                       intent="destructive"
                       appearance="soft"
                       className="min-h-11 w-full"
-                      disabled={user.isCurrentUser}
+                      disabled={user.isCurrentUser || user.isOwner}
                     >
-                      Remover usuário
+                      {user.isOwner ? 'Administrador criador da conta' : 'Remover usuário'}
                     </ActionSubmit>
                   </ActionForm>
                 </article>

@@ -183,7 +183,7 @@ describe('criarProduto', () => {
 
     await expect(
       criarProduto({ categoriaId: 'cat-foreign', nome: 'Margherita', preco: '32,00' })
-    ).rejects.toThrow('Categoria inválida')
+    ).rejects.toThrow('A categoria selecionada não pertence a este restaurante')
 
     expect(eq).toHaveBeenCalledWith(categoria.id, 'cat-foreign')
     expect(eq).toHaveBeenCalledWith(categoria.tenantId, 'tenant-1')
@@ -225,7 +225,7 @@ describe('editarProduto', () => {
 
     await expect(
       editarProduto('prod-1', { categoriaId: 'cat-foreign' })
-    ).rejects.toThrow('Categoria inválida')
+    ).rejects.toThrow('A categoria selecionada não pertence a este restaurante')
 
     expect(categoriaWhere).toHaveBeenCalledWith(
       tenantScopedWhere(categoria.id, 'cat-foreign', categoria.tenantId)

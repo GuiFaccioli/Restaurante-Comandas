@@ -151,6 +151,8 @@ describe('unified shopping-list operations in the UI', () => {
     renderShoppingList([shoppingItems[2], shoppingItems[1], shoppingItems[0]])
 
     const list = screen.getByLabelText('Itens da lista de compras')
+    expect(list.textContent).toContain('Gerado pelo estoque')
+    expect(list.textContent).toContain('Adicionado manualmente')
     expect(list.textContent).toContain('Acucar')
     expect(list.textContent).toContain('Bandeja')
     expect(list.textContent).toContain('Oleo')

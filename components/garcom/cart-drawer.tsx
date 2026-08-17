@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { confirmarPedido } from '@/lib/actions/pedidos'
 import { useCart } from '@/lib/store/cart'
 import { getProductAvailability, type ReceitaDisponibilidade, type SaldoDisponibilidade, type ProdutoControleEstoque } from '@/lib/stock/availability'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Props = {
   open: boolean
@@ -24,13 +25,14 @@ type Props = {
 }
 
 const ORDER_CONFIRMATION_ERROR =
-  'Não foi possível confirmar o pedido. Tente novamente.'
+  'Não foi possível confirmar o pedido por um erro inesperado.'
 
 export function getOrderConfirmationErrorMessage(error: unknown): string {
-  return error instanceof Error &&
-    error.message.startsWith('Não há estoque suficiente para ')
-    ? error.message
-    : ORDER_CONFIRMATION_ERROR
+  if (error instanceof Error && error.message.startsWith('Não há estoque suficiente para ')) {
+    return `Sem estoque: ${error.message.replace('Não há estoque suficiente para ', '')}`
+  }
+
+  return userFacingErrorMessage(error, ORDER_CONFIRMATION_ERROR)
 }
 
 export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, recipes, balances, productStockControls }: Props) {

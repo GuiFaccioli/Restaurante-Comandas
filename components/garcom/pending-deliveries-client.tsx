@@ -9,6 +9,7 @@ import { LiveElapsedTimer } from '@/components/live-elapsed-timer'
 import { confirmarEntrega } from '@/lib/actions/pedidos'
 import type { StatusPedido } from '@/lib/db/schema'
 import { groupKitchenItemsByCategory, type KitchenOrderItem } from '@/lib/kitchen/order-items'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Pedido = {
   id: string
@@ -35,8 +36,8 @@ function PendingDeliveryCard({
       try {
         await confirmarEntrega(pedido.id)
         onDelivered(pedido.id)
-      } catch {
-        setError('Não foi possível confirmar.')
+      } catch (error) {
+        setError(userFacingErrorMessage(error, 'Não foi possível confirmar a entrega por um erro inesperado.'))
       }
     })
   }

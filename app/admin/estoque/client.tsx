@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { formatCurrencyInput } from '@/lib/money'
 import { adicionarItemManualListaCompra, ajustarEstoqueAtual, confirmarItemListaCompra, criarInsumo, editarInsumo, realizarContagemEstoque, registrarEntradaEstoque, registrarPerdaEstoque, removerInsumo, salvarFichaTecnica } from '@/lib/actions/estoque'
 import { formatStockQuantity, movementUnitsFor, quantidadeBaseParaUnidade } from '@/lib/stock/units'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Insumo = { id: string; nome: string; unidadeBase: string; unidadeCompra: string; fatorCompraParaBase: string; estoqueAtual: string; estoqueIdeal: string; estoqueMinimo: string; custoUnitario: string | null }
 
@@ -184,7 +185,7 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
       router.refresh()
       toast.success('Item concluído.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível concluir o item.'
+      const message = userFacingErrorMessage(error, 'Não foi possível concluir o item por um erro inesperado.')
       setActionError(message)
       toast.error(message)
     } finally {
@@ -206,7 +207,7 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
       router.refresh()
       toast.success('Item adicionado à lista.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível adicionar o item.'
+      const message = userFacingErrorMessage(error, 'Não foi possível adicionar o item por um erro inesperado.')
       setActionError(message)
       toast.error(message)
     } finally {
@@ -219,8 +220,8 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard indisponível')
       await navigator.clipboard.writeText(shoppingListText)
       toast.success('Lista copiada.')
-    } catch {
-      const message = 'Não foi possível copiar a lista.'
+    } catch (error) {
+      const message = userFacingErrorMessage(error, 'Não foi possível copiar a lista por um erro inesperado.')
       setActionError(message)
       toast.error(message)
     }
@@ -228,13 +229,22 @@ function ShoppingListView({ shoppingListItems }: { shoppingListItems: ShoppingLi
 
   return <div className="mt-5 space-y-6">
     {actionError ? <p role="alert" className="rounded-[var(--radius)] border border-[var(--action-destructive-outline)] p-3 text-sm text-[var(--action-destructive-foreground)]">{actionError}</p> : null}
+    <section className="rounded-[var(--radius)] border bg-card p-4 sm:p-5">
+      <h2 className="text-base font-semibold">A lista se atualiza com o estoque</h2>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        Os pedidos do garçom dão baixa nos ingredientes da ficha técnica. Quando um insumo chega ao estoque mínimo, ele entra automaticamente nesta lista com a quantidade sugerida para voltar ao estoque ideal — uma preocupação a menos.
+      </p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        Compras adicionadas manualmente também aparecem aqui, mas ficam separadas da reposição automática.
+      </p>
+    </section>
     <section className="space-y-3">
-      <div><h2 className="text-base font-semibold">Adicionar item manual</h2><p className="text-sm text-muted-foreground">Adicione compras que não dependem do saldo em estoque.</p></div>
+      <div><h2 className="text-base font-semibold">Adicionar item manual</h2><p className="text-sm text-muted-foreground">Para compras que não dependem do saldo em estoque, como materiais de limpeza ou embalagens.</p></div>
       <div className="grid gap-3 rounded-[var(--radius)] border bg-card p-4 sm:grid-cols-4 sm:items-end"><div className="space-y-1"><Label htmlFor="lista-manual-nome">Nome</Label><Input id="lista-manual-nome" value={manualItem.nome} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, nome: event.target.value })} /></div><div className="space-y-1"><Label htmlFor="lista-manual-quantidade">Quantidade</Label><Input id="lista-manual-quantidade" inputMode="decimal" value={manualItem.quantidade} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, quantidade: event.target.value })} /></div><div className="space-y-1"><Label htmlFor="lista-manual-unidade">Unidade</Label><select id="lista-manual-unidade" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={manualItem.unidade} disabled={busy} onChange={(event) => setManualItem({ ...manualItem, unidade: event.target.value })}><option value="kg">Quilo</option><option value="g">Gramas</option><option value="unidade">Unidade</option><option value="ml">Mililitros</option><option value="l">Litros</option></select></div><Button type="button" intent="positive" appearance="solid" disabled={busy || !manualItem.nome.trim() || !manualItem.quantidade} onClick={addManualItem}>Adicionar item</Button></div>
     </section>
     <section className="space-y-3" aria-label="Itens da lista de compras">
-      <div><h2 className="text-base font-semibold">Itens para comprar</h2><p className="text-sm text-muted-foreground">Reposições automáticas e itens manuais em uma única lista.</p></div>
-      {orderedItems.length === 0 ? <AdminEmptyState title="Nenhum item pendente" description="Os itens abaixo do mínimo e as compras manuais aparecerão aqui." /> : <div className="divide-y rounded-[var(--radius)] border bg-card">{orderedItems.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">{item.kind === 'automatic' ? 'Sugestão: ' : ''}{formatStockQuantity(item.quantidadeSugerida, item.unidade)}</p></div><Button type="button" intent={item.kind === 'automatic' ? 'positive' : 'neutral'} appearance={item.kind === 'automatic' ? 'solid' : 'outline'} disabled={busy} onClick={() => item.kind === 'automatic' ? openConfirmation(item) : void completeItem(item)}>{item.kind === 'automatic' ? 'Confirmar entrada' : 'Concluir'}</Button></div>)}</div>}
+      <div><h2 className="text-base font-semibold">Itens para comprar</h2><p className="text-sm text-muted-foreground">As reposições automáticas entram quando o estoque chega ao mínimo. Os itens manuais ficam na mesma lista para facilitar a compra.</p></div>
+      {orderedItems.length === 0 ? <AdminEmptyState title="Nenhum item pendente" description="Quando um insumo chegar ao estoque mínimo, ele aparecerá aqui com uma sugestão de reposição. Compras manuais também podem ser adicionadas." /> : <div className="divide-y rounded-[var(--radius)] border bg-card">{orderedItems.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="font-medium">{item.nome}</p><p className="text-sm text-muted-foreground">{item.kind === 'automatic' ? `Gerado pelo estoque · Sugestão: ${formatStockQuantity(item.quantidadeSugerida, item.unidade)}` : `Adicionado manualmente · ${formatStockQuantity(item.quantidadeSugerida, item.unidade)}`}</p></div><Button type="button" intent={item.kind === 'automatic' ? 'positive' : 'neutral'} appearance={item.kind === 'automatic' ? 'solid' : 'outline'} disabled={busy} onClick={() => item.kind === 'automatic' ? openConfirmation(item) : void completeItem(item)}>{item.kind === 'automatic' ? 'Confirmar entrada' : 'Concluir'}</Button></div>)}</div>}
     </section>
     <Dialog open={confirmingItem !== null} onOpenChange={(open) => { if (!open && !busy) setConfirmingItem(null) }}><DialogContent><DialogHeader><DialogTitle>Confirmar entrada</DialogTitle><DialogDescription>Revise a quantidade recebida antes de atualizar o saldo.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="lista-quantidade-recebida">Quantidade recebida</Label><Input id="lista-quantidade-recebida" inputMode="decimal" value={receivedQuantity} disabled={busy} onChange={(event) => setReceivedQuantity(event.target.value)} /></div><div className="space-y-1"><Label htmlFor="lista-unidade-recebida">Unidade recebida</Label><select id="lista-unidade-recebida" className="min-h-11 w-full rounded-[var(--radius)] border bg-background px-3 text-sm" value={receivedUnit} disabled={busy} onChange={(event) => setReceivedUnit(event.target.value)}>{confirmingItem ? receiptUnitsFor(confirmingItem).map((unit) => <option key={unit} value={unit}>{unit}</option>) : null}</select></div></div><DialogFooter><Button type="button" intent="destructive" appearance="outline" disabled={busy} onClick={() => setConfirmingItem(null)}>Cancelar</Button><Button type="button" intent="positive" appearance="solid" aria-busy={busy} disabled={busy || !receivedQuantity || !receivedUnit} onClick={() => { if (confirmingItem) void completeItem(confirmingItem, receivedQuantity, receivedUnit) }}>Confirmar</Button></DialogFooter></DialogContent></Dialog>
     <section className="space-y-2"><div><h2 className="text-base font-semibold">Texto da lista</h2><p className="text-sm text-muted-foreground">Copie e cole onde preferir.</p></div><textarea aria-label="Texto da lista de compras" readOnly value={shoppingListText} className="min-h-32 w-full rounded-[var(--radius)] border bg-muted/30 p-3 font-mono text-sm" /><Button type="button" intent="neutral" appearance="outline" disabled={!shoppingListText} onClick={() => void copyShoppingList()}>Copiar lista</Button></section>
@@ -306,7 +316,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
   async function handleCreateIngredient() {
     setCreating(true)
     try { await criarInsumo({ nome: newIngredient.nome, unidade: newIngredient.unidade, custoPorUnidade: newIngredient.custoPorUnidade, estoqueMinimo: newIngredient.estoqueMinimo, estoqueIdeal: newIngredient.estoqueIdeal }); setNewIngredient({ nome: '', unidade: 'kg', custoPorUnidade: '', estoqueMinimo: '', estoqueIdeal: '' }); router.refresh(); toast.success('Insumo cadastrado.') }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível criar o insumo.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível criar o insumo por um erro inesperado.')) }
     finally { setCreating(false) }
   }
 
@@ -331,7 +341,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       router.refresh()
       toast.success('Insumo atualizado.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o insumo.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível atualizar o insumo por um erro inesperado.'))
     } finally {
       setIngredientActionBusy(false)
     }
@@ -347,7 +357,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       router.refresh()
       toast.success('Insumo removido.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir o insumo.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível excluir o insumo por um erro inesperado.'))
     } finally {
       setIngredientActionBusy(false)
     }
@@ -358,7 +368,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     const produtoId = selectedProdutoId
     setSavingRecipe(true)
     try { await salvarFichaTecnica(produtoId, rows); router.refresh(); toast.success('Ficha técnica salva.') }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a ficha técnica.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível salvar a ficha técnica por um erro inesperado.')) }
     finally { setSavingRecipe(false) }
   }
 
@@ -383,7 +393,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       router.refresh()
       toast.success('Insumo removido da ficha técnica.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível remover o insumo da ficha técnica.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível remover o insumo da ficha técnica por um erro inesperado.'))
     } finally {
       setSavingRecipe(false)
     }
@@ -410,7 +420,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     manualStockPendingRef.current = true
     setEntryId(item.id)
     try { await registrarEntradaEstoque(item.id, quantidade, intent.key, undefined, unidade); delete entryOperationIntentsRef.current[item.id]; setEntryValues((current) => ({ ...current, [item.id]: '' })); setEntryUnits((current) => ({ ...current, [item.id]: item.unidadeCompra })); router.refresh(); toast.success(`Entrada registrada para ${item.nome}.`) }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a entrada.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível registrar a entrada por um erro inesperado.')) }
     finally { manualStockPendingRef.current = false; setEntryId(null) }
   }
 
@@ -433,7 +443,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
     manualStockPendingRef.current = true
     setEntryId(item.id)
     try { await ajustarEstoqueAtual(item.id, stockValue, intent.key, item.unidadeCompra); stockAdjustmentIntentRef.current = null; setEditingStockId(null); router.refresh(); toast.success('Estoque atualizado.') }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o estoque.') }
+    catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível atualizar o estoque por um erro inesperado.')) }
     finally { manualStockPendingRef.current = false; setEntryId(null) }
   }
 
@@ -470,7 +480,7 @@ export function EstoqueAdminClient({ insumos, produtos, fichas, shoppingListItem
       if (movementType === 'contagem') await realizarContagemEstoque(movementIngredientId, movementQuantity, intent.key, undefined, movementUnit)
       movementOperationIntentRef.current = null
       setMovementQuantity(''); setMovementCost(''); setMovementReason(''); router.refresh(); toast.success('Movimentação registrada.')
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a movimentação.') }
+    } catch (error) { toast.error(userFacingErrorMessage(error, 'Não foi possível registrar a movimentação por um erro inesperado.')) }
     finally { movementPendingRef.current = false; manualStockPendingRef.current = false; setMovementBusy(false) }
   }
 

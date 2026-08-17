@@ -24,7 +24,7 @@ function authCallbackUrl(): string {
   const vercelUrl = process.env.VERCEL_URL
   if (vercelUrl) return `https://${vercelUrl}/auth/sign-in`
 
-  return 'http://127.0.0.1:3000/auth/sign-in'
+  return 'http://localhost:3009/auth/sign-in'
 }
 
 function formValue(data: FormData | Record<string, unknown>, key: string): string {
@@ -71,6 +71,7 @@ export async function signUpOwner(
         nome: string
         email: string
         password: string
+        passwordConfirmation?: string
         tenantNome?: string
         restauranteNome?: string
         empresa?: string
@@ -80,6 +81,7 @@ export async function signUpOwner(
   const nome = formValue(data, 'nome').trim()
   const email = assertValidEmail(formValue(data, 'email'))
   const password = formValue(data, 'password')
+  const passwordConfirmation = formValue(data, 'passwordConfirmation')
   const tenantNome = (
     formValue(data, 'tenantNome') ||
     formValue(data, 'restauranteNome') ||
@@ -90,12 +92,14 @@ export async function signUpOwner(
 
   if (!nome) throw new Error('Informe seu nome')
   if (!tenantNome) throw new Error('Informe o nome do restaurante')
+  if (password.length < 8) throw new Error('A senha precisa ter pelo menos 8 caracteres')
+  if (password !== passwordConfirmation) throw new Error('As senhas não coincidem')
 
   const [existingUser] = await db
     .select({ id: usuario.id })
     .from(usuario)
     .where(eq(usuario.email, email))
-  if (existingUser) throw new Error(SIGN_UP_ERROR_MESSAGE)
+  if (existingUser) throw new Error('Este e-mail já está cadastrado. Entre na sua conta ou use outro e-mail.')
 
   const neonAuth = isNeonAuthEnabled()
   const authResult = neonAuth
@@ -127,6 +131,7 @@ export async function signUpOwner(
   }
   const tenantValues = {
     id: tenantId,
+    ownerUserId: usuarioId,
     nome: tenantNome,
     slug: slugifyTenantName(tenantNome),
     status: 'active' as const,

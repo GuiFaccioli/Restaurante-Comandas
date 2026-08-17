@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
   existing: [] as Array<{ id: string }>,
   activeMemberships: [] as Array<{ id: string }>,
+  otherMemberships: [] as Array<{ id: string }>,
   selectCalls: 0,
   inserts: [] as unknown[],
   updates: [] as unknown[],
@@ -61,6 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   state.existing = []
   state.activeMemberships = []
+  state.otherMemberships = []
   state.selectCalls = 0
   state.inserts = []
   state.updates = []
@@ -68,11 +70,18 @@ beforeEach(() => {
     const tx = {
       select: vi.fn(() => {
         state.selectCalls += 1
-        const results = state.selectCalls === 1 ? state.existing : state.activeMemberships
+        const results = state.selectCalls === 1
+          ? state.existing
+          : state.selectCalls === 2
+            ? state.activeMemberships
+            : state.otherMemberships
         return { from: vi.fn(() => ({ where: vi.fn(async () => results) })) }
       }),
       insert: vi.fn(() => ({
         values: vi.fn(async (values) => state.inserts.push(values)),
+      })),
+      delete: vi.fn(() => ({
+        where: vi.fn(async () => undefined),
       })),
       update: vi.fn(() => ({
         set: vi.fn((values) => ({
@@ -109,11 +118,40 @@ describe('cadastrarUsuarioAdmin', () => {
     expect(state.revalidatePath).not.toHaveBeenCalled()
   })
 
-  it('rejects an existing account so the administrator can use another email', async () => {
+  it('rejects an existing account that belongs to another company', async () => {
     state.existing = [{ id: 'existing-user' }]
+    state.otherMemberships = [{ id: 'other-membership' }]
 
     await expect(cadastrarUsuarioAdmin(form())).rejects.toThrow('já possui uma conta')
     expect(state.inserts).toEqual([])
+  })
+
+  it('recovers an orphaned account so the administrator can reuse its email', async () => {
+    state.existing = [{ id: 'orphaned-user' }]
+
+    await expect(cadastrarUsuarioAdmin(form())).resolves.toEqual(expect.objectContaining({ inviteUrl: expect.stringContaining('/convite/') }))
+    expect(state.inserts).toHaveLength(4)
+    const createdUser = state.inserts[0] as { id: string }
+    expect(createdUser).toEqual(expect.objectContaining({
+      id: expect.any(String),
+      nome: 'Ana Admin',
+      email: 'ana@example.com',
+      passwordHash: null,
+    }))
+    expect(state.inserts[1]).toEqual(expect.objectContaining({
+      tenantId: 'tenant-selected',
+      usuarioId: createdUser.id,
+      status: 'active',
+    }))
+    expect(state.inserts[2]).toEqual([
+      expect.objectContaining({ tenantUserId: (state.inserts[1] as { id: string }).id, usuarioId: createdUser.id }),
+      expect.objectContaining({ tenantUserId: (state.inserts[1] as { id: string }).id, usuarioId: createdUser.id }),
+    ])
+    expect(state.inserts[3]).toEqual(expect.objectContaining({
+      tenantUserId: (state.inserts[1] as { id: string }).id,
+      usuarioId: createdUser.id,
+    }))
+    expect(state.updates[0]).toEqual(expect.objectContaining({ email: 'removed-orphaned-user@invalid.local', authUserId: null, passwordHash: null }))
   })
 
   it('rejects an existing user with an active membership in this tenant', async () => {

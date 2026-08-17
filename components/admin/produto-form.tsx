@@ -10,6 +10,7 @@ import { criarProduto, editarProduto } from '@/lib/actions/produtos'
 import { formatCurrencyInput, formatDecimalAsCurrencyInput } from '@/lib/money'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 
 type Produto = { id: string; nome: string; descricao: string | null; preco: string }
 type Props = {
@@ -39,7 +40,7 @@ export function ProdutoForm({ open, onClose, categoriaId, produto }: Props) {
       toast.success(produto ? 'Produto atualizado com sucesso.' : 'Produto criado com sucesso.')
     } catch (error) {
       console.error('Failed to save product', error)
-      toast.error('Não foi possível salvar o produto.')
+      toast.error(userFacingErrorMessage(error, 'Não foi possível salvar o produto por um erro inesperado.'))
     } finally {
       setSaving(false)
     }

@@ -8,6 +8,11 @@ import { requireAccess } from '@/lib/auth/access'
 import { notifyTenant } from '@/lib/tenant-events'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
 import {
+  measureOrderConfirmationPhase,
+  runOrderConfirmationMeasurement,
+  setOrderConfirmationMeasurementContext,
+} from '@/lib/performance/order-confirmation-measurement'
+import {
   cancelOrderInPostgresTransaction,
   createOrderInPostgresTransaction,
   transitionOrderInPostgresTransaction,
@@ -24,36 +29,38 @@ export async function confirmarPedido(
   atendimentoId: string,
   items: ConfirmarPedidoItem[],
 ): Promise<{ id: string }> {
-  const { usuarioId, tenantId } = await requireAccess('garcom')
-  if (!mesaId) throw new Error('Mesa inválida')
-  if (!atendimentoId) throw new Error('Atendimento inválido')
-  if (items.length === 0) throw new Error('Pedido vazio')
-  if (items.some((item) => (
-    !item.produtoId ||
-    !Number.isInteger(item.quantidade) ||
-    item.quantidade <= 0
-  ))) {
-    throw new Error('Item inválido')
-  }
+  return runOrderConfirmationMeasurement(async () => {
+    const { usuarioId, tenantId } = await measureOrderConfirmationPhase(
+      'require_access',
+      () => requireAccess('garcom'),
+    )
+    setOrderConfirmationMeasurementContext({
+      tenantId,
+      productLineCount: items.length,
+      uniqueProducts: new Set(items.map((item) => item.produtoId)).size,
+    })
+    if (!mesaId) throw new Error('Mesa inválida: selecione uma mesa antes de confirmar o pedido')
+    if (!atendimentoId) throw new Error('Abra um atendimento antes de confirmar o pedido')
+    if (items.length === 0) throw new Error('Pedido vazio: adicione pelo menos um item ao pedido')
+    if (items.some((item) => (
+      !item.produtoId ||
+      !Number.isInteger(item.quantidade) ||
+      item.quantidade <= 0
+    ))) {
+      throw new Error('Item inválido: cada item precisa ter um produto e uma quantidade inteira maior que zero')
+    }
 
-  const transactionInput = {
-    tenantId,
-    usuarioId,
-    mesaId,
-    atendimentoId,
-    items,
-  }
-  const created = await runInDbTransaction({
-    postgresOperation: (tx) => (
-      createOrderInPostgresTransaction(tx, transactionInput)
-    ),
+    const transactionInput = { tenantId, usuarioId, mesaId, atendimentoId, items }
+    const created = await measureOrderConfirmationPhase(
+      'transaction',
+      () => runInDbTransaction({
+        postgresOperation: (tx) => createOrderInPostgresTransaction(tx, transactionInput),
+      }),
+    )
+
+    notifyTenant(tenantId, { type: 'attendance_updated' })
+    return { id: created.id }
   })
-
-  notifyTenant(tenantId, {
-    type: 'attendance_updated',
-  })
-
-  return { id: created.id }
 }
 
 export async function atualizarStatus(
@@ -62,7 +69,7 @@ export async function atualizarStatus(
 ): Promise<void> {
   const { tenantId, usuarioId } = await requireAccess('cozinha')
   if (status !== 'em_preparo' && status !== 'pronto') {
-    throw new Error('Status de cozinha inválido')
+    throw new Error('Status de cozinha inválido: a cozinha só pode mover o pedido para “em preparo” ou “pronto”')
   }
   const transactionInput = {
     tenantId,

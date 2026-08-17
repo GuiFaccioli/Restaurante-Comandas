@@ -229,7 +229,7 @@ describe('pedido business flow', () => {
 
     expect(clientSource).toContain('Crédito')
     expect(clientSource).toContain('Débito')
-    expect(clientSource).toContain('Não foi possível registrar o pagamento.')
+    expect(clientSource).toContain('Não foi possível registrar o pagamento por um erro inesperado.')
     expect(clientSource).not.toContain('AdminStatsGrid')
     expect(clientSource).toContain('Contas aguardando pagamento')
     expect(clientSource).toContain('min-w-0')

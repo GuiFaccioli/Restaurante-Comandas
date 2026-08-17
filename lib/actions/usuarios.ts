@@ -7,7 +7,7 @@ import { createHash, randomBytes } from 'node:crypto'
 
 import { requireAccess } from '@/lib/auth/access'
 import { db, runInDbTransaction } from '@/lib/db/index'
-import { tenantUser, usuario, usuarioAcesso, usuarioConvite } from '@/lib/db/schema'
+import { tenant, tenantUser, usuario, usuarioAcesso, usuarioConvite } from '@/lib/db/schema'
 import type { AcessoUsuario } from '@/lib/db/schema'
 import { assertValidEmail } from '@/lib/auth/password'
 import { createAuthSession } from '@/lib/auth/session'
@@ -23,7 +23,11 @@ function inviteTokenHash(token: string) {
 }
 
 function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '')
+  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3009').replace(/\/$/, '')
+}
+
+function removedUserEmail(usuarioId: string) {
+  return `removed-${usuarioId}@invalid.local`
 }
 
 function formString(data: FormData, key: string) {
@@ -72,7 +76,6 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<{ inviteUrl
           .from(usuario)
           .where(eq(usuario.email, email))
 
-        let targetUsuarioId = usuarioId
         if (existing) {
           const [activeMembership] = await tx
             .select({ id: tenantUser.id })
@@ -86,7 +89,35 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<{ inviteUrl
             )
 
           if (activeMembership) throw new Error('Este e-mail já está cadastrado neste restaurante')
-          throw new Error('Este e-mail já possui uma conta. Use o acesso existente ou outro e-mail.')
+
+          const [otherMembership] = await tx
+            .select({ id: tenantUser.id })
+            .from(tenantUser)
+            .where(eq(tenantUser.usuarioId, existing.id))
+
+          if (otherMembership) {
+            throw new Error('Este e-mail já possui uma conta. Use o acesso existente ou outro e-mail.')
+          }
+
+          await tx
+            .update(usuario)
+            .set({
+              email: removedUserEmail(existing.id),
+              authUserId: null,
+              passwordHash: null,
+              updatedAt: now,
+            })
+            .where(eq(usuario.id, existing.id))
+
+          await tx.insert(usuario).values({
+            id: usuarioId,
+            nome,
+            email,
+            passwordHash: null,
+            role: 'garcom',
+            createdAt: now,
+            updatedAt: now,
+          })
         } else {
           await tx.insert(usuario).values({
             id: usuarioId,
@@ -102,7 +133,7 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<{ inviteUrl
         await tx.insert(tenantUser).values({
           id: tenantUserId,
           tenantId,
-          usuarioId: targetUsuarioId,
+          usuarioId,
           status: 'active',
           createdAt: now,
           updatedAt: now,
@@ -111,7 +142,7 @@ export async function cadastrarUsuarioAdmin(data: FormData): Promise<{ inviteUrl
           acessos.map((acesso) => ({
             id: crypto.randomUUID(),
             tenantUserId,
-            usuarioId: targetUsuarioId,
+            usuarioId,
             acesso: acesso as AcessoUsuario,
           }))
         )
@@ -180,8 +211,10 @@ export async function atualizarUsuarioAdmin(data: FormData): Promise<void> {
 export async function aceitarConviteUsuario(data: FormData): Promise<void> {
   const token = formString(data, 'token')
   const password = formString(data, 'password')
+  const passwordConfirmation = formString(data, 'passwordConfirmation')
   if (!token) throw new Error('Convite inválido')
   if (password.length < 8) throw new Error('Senha deve ter pelo menos 8 caracteres')
+  if (password !== passwordConfirmation) throw new Error('As senhas não coincidem')
 
   const now = new Date()
   const [invite] = await db
@@ -245,19 +278,44 @@ export async function removerUsuarioDoRestaurante(data: FormData): Promise<void>
   if (usuarioId === currentUserId) throw new Error('Você não pode remover seu próprio usuário')
 
   const [targetUser] = await db
-    .select({ email: usuario.email })
+    .select({ email: usuario.email, ownerUserId: tenant.ownerUserId })
     .from(tenantUser)
     .innerJoin(usuario, eq(tenantUser.usuarioId, usuario.id))
+    .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
     .where(and(eq(tenantUser.usuarioId, usuarioId), eq(tenantUser.tenantId, tenantId)))
 
   if (!targetUser) throw new Error('Usuário não encontrado neste restaurante')
+  if (targetUser.ownerUserId === usuarioId) {
+    throw new Error('O administrador que criou a conta não pode ser removido')
+  }
   if (confirmEmail !== targetUser.email.trim().toLowerCase()) {
     throw new Error('Digite o e-mail do usuário para confirmar a remoção')
   }
 
-  await db
-    .delete(tenantUser)
-    .where(and(eq(tenantUser.usuarioId, usuarioId), eq(tenantUser.tenantId, tenantId)))
+  await runInDbTransaction({
+    postgresOperation: async (tx) => {
+      await tx
+        .delete(tenantUser)
+        .where(and(eq(tenantUser.usuarioId, usuarioId), eq(tenantUser.tenantId, tenantId)))
+
+      const remainingMemberships = await tx
+        .select({ id: tenantUser.id })
+        .from(tenantUser)
+        .where(eq(tenantUser.usuarioId, usuarioId))
+
+      if (remainingMemberships.length === 0) {
+        await tx
+          .update(usuario)
+          .set({
+            email: removedUserEmail(usuarioId),
+            authUserId: null,
+            passwordHash: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(usuario.id, usuarioId))
+      }
+    },
+  })
 
   revalidatePath('/admin/usuarios')
 }
