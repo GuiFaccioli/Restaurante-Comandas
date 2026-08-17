@@ -32,6 +32,7 @@ export default async function UsuariosAdminPage() {
     })
     .from(tenantUser)
     .innerJoin(usuario, eq(tenantUser.usuarioId, usuario.id))
+    .innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))
     .where(eq(tenantUser.tenantId, tenantId))
     .orderBy(asc(usuario.nome))
 

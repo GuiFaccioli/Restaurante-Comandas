@@ -97,6 +97,7 @@ describe('admin management area', () => {
     expect(usersPage).toContain('atualizarUsuarioAdmin')
     expect(usersPage).toContain('removerUsuarioDoRestaurante')
     expect(usersPage).toContain('UserInviteForm')
+    expect(usersPage).toContain('innerJoin(tenant, eq(tenantUser.tenantId, tenant.id))')
     expect(usersPage).toMatch(/intent="positive"[\s\S]*Salvar acessos/)
     expect(usersPage).toMatch(/intent="destructive"[\s\S]*Remover usuário/)
     expect(usersPage).not.toContain('<button')
