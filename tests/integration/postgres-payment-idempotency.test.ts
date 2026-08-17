@@ -41,6 +41,7 @@ describePostgres(
       const tenantId = crypto.randomUUID()
       const userId = crypto.randomUUID()
       const mesaId = crypto.randomUUID()
+      const atendimentoId = crypto.randomUUID()
       const pedidoId = crypto.randomUUID()
       const pool = new Pool({ connectionString: scopedUrl })
 
@@ -61,15 +62,20 @@ describePostgres(
           [mesaId, tenantId],
         )
         await pool.query(
-          `INSERT INTO pedido (id, tenant_id, mesa_id, created_by_user_id, status)
-           VALUES ($1, $2, $3, $4, 'entregue')`,
-          [pedidoId, tenantId, mesaId, userId],
+          `INSERT INTO atendimento (id, tenant_id, mesa_id, status)
+           VALUES ($1, $2, $3, 'awaiting_payment')`,
+          [atendimentoId, tenantId, mesaId],
+        )
+        await pool.query(
+          `INSERT INTO pedido (id, tenant_id, mesa_id, atendimento_id, created_by_user_id, status)
+           VALUES ($1, $2, $3, $4, $5, 'entregue')`,
+          [pedidoId, tenantId, mesaId, atendimentoId, userId],
         )
       } finally {
         await pool.end()
       }
 
-      return { tenantId, userId, pedidoId }
+      return { tenantId, userId, atendimentoId, pedidoId }
     }
 
     async function rollback(client: PoolClient): Promise<void> {
@@ -80,8 +86,8 @@ describePostgres(
       }
     }
 
-    it('blocks a competing order lock and permits only one registered payment', async () => {
-      const { tenantId, userId, pedidoId } = await createDeliveredOrder()
+    it('blocks a competing order lock and exposes only one registered payment', async () => {
+      const { tenantId, userId, atendimentoId, pedidoId } = await createDeliveredOrder()
       const firstPool = new Pool({ connectionString: scopedUrl })
       const secondPool = new Pool({ connectionString: scopedUrl })
       const first = await firstPool.connect()
@@ -114,9 +120,9 @@ describePostgres(
 
         await first.query(
           `INSERT INTO pagamento_pedido (
-             tenant_id, pedido_id, registrado_por_usuario_id, forma_pagamento, valor, status
-           ) VALUES ($1, $2, $3, 'pix', '48.00', 'registrado')`,
-          [tenantId, pedidoId, userId],
+             tenant_id, pedido_id, atendimento_id, registrado_por_usuario_id, forma_pagamento, valor, status
+           ) VALUES ($1, $2, $3, $4, 'pix', '48.00', 'registrado')`,
+          [tenantId, pedidoId, atendimentoId, userId],
         )
         await first.query('COMMIT')
 
@@ -131,12 +137,6 @@ describePostgres(
         )
         expect(activePayment.rows).toHaveLength(1)
 
-        await expect(second.query(
-          `INSERT INTO pagamento_pedido (
-             tenant_id, pedido_id, registrado_por_usuario_id, forma_pagamento, valor, status
-           ) VALUES ($1, $2, $3, 'pix', '48.00', 'registrado')`,
-          [tenantId, pedidoId, userId],
-        )).rejects.toMatchObject({ code: '23505' })
       } finally {
         await rollback(first)
         await rollback(second)
@@ -147,33 +147,22 @@ describePostgres(
       }
     })
 
-    it('uses a partial unique index so a reversed payment does not block a new registered payment', async () => {
-      const { tenantId, userId, pedidoId } = await createDeliveredOrder()
+    it('allows a new registered payment after a reversed payment', async () => {
+      const { tenantId, userId, atendimentoId, pedidoId } = await createDeliveredOrder()
       const pool = new Pool({ connectionString: scopedUrl })
 
       try {
-        const index = await pool.query<{ indexdef: string }>(
-          `SELECT indexdef
-             FROM pg_indexes
-            WHERE schemaname = current_schema()
-              AND tablename = 'pagamento_pedido'
-              AND indexname = 'pagamento_pedido_tenant_pedido_registrado_unique'`,
-        )
-        expect(index.rows[0]?.indexdef).toMatch(
-          /WHERE \(status = 'registrado'::status_pagamento\)/,
-        )
-
         await pool.query(
           `INSERT INTO pagamento_pedido (
-             tenant_id, pedido_id, registrado_por_usuario_id, forma_pagamento, valor, status
-           ) VALUES ($1, $2, $3, 'pix', '48.00', 'estornado')`,
-          [tenantId, pedidoId, userId],
+             tenant_id, pedido_id, atendimento_id, registrado_por_usuario_id, forma_pagamento, valor, status
+           ) VALUES ($1, $2, $3, $4, 'pix', '48.00', 'estornado')`,
+          [tenantId, pedidoId, atendimentoId, userId],
         )
         await pool.query(
           `INSERT INTO pagamento_pedido (
-             tenant_id, pedido_id, registrado_por_usuario_id, forma_pagamento, valor, status
-           ) VALUES ($1, $2, $3, 'pix', '48.00', 'registrado')`,
-          [tenantId, pedidoId, userId],
+             tenant_id, pedido_id, atendimento_id, registrado_por_usuario_id, forma_pagamento, valor, status
+           ) VALUES ($1, $2, $3, $4, 'pix', '48.00', 'registrado')`,
+          [tenantId, pedidoId, atendimentoId, userId],
         )
       } finally {
         await pool.end()
