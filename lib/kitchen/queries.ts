@@ -2,12 +2,14 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 
 import { db } from '@/lib/db/index'
 import { categoria, itemPedido, mesa, pedido, produto } from '@/lib/db/schema'
+import type { CanalPedido } from '@/lib/db/schema'
 
 export type KitchenOrder = {
   id: string
+  canal: CanalPedido
   status: KitchenOrderStatus
   criadoEm: string
-  mesaNumero: number
+  mesaNumero: number | null
   itens: Array<{
     pedidoId: string
     nome: string
@@ -23,12 +25,13 @@ export async function getKitchenOrders({ tenantId }: { tenantId: string }): Prom
   const pedidosAtivos = await db
     .select({
       id: pedido.id,
+      canal: pedido.canal,
       status: pedido.status,
       criadoEm: pedido.criadoEm,
       mesaNumero: mesa.numero,
     })
     .from(pedido)
-    .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
+    .leftJoin(mesa, eq(pedido.mesaId, mesa.id))
     .where(
       and(
         eq(pedido.tenantId, tenantId),
@@ -60,6 +63,7 @@ export async function getKitchenOrders({ tenantId }: { tenantId: string }): Prom
 
   return pedidosAtivos.map((order) => ({
     ...order,
+    canal: order.canal as CanalPedido,
     status: order.status as KitchenOrderStatus,
     criadoEm: order.criadoEm.toISOString(),
     itens: itens.filter((item) => item.pedidoId === order.id),

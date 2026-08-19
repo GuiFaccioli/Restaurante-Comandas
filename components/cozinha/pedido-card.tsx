@@ -1,11 +1,12 @@
 import { StatusBadge } from '@/components/status-badge'
 import { LiveElapsedTimer } from '@/components/live-elapsed-timer'
-import type { StatusPedido } from '@/lib/db/schema'
+import type { CanalPedido, StatusPedido } from '@/lib/db/schema'
 import { groupKitchenItemsByCategory, type KitchenOrderItem } from '@/lib/kitchen/order-items'
 
 type Pedido = {
   id: string
-  mesaNumero: number
+  canal: CanalPedido
+  mesaNumero: number | null
   status: StatusPedido
   criadoEm: Date
   itens: KitchenOrderItem[]
@@ -15,10 +16,16 @@ export function PedidoCard({ pedido }: { pedido: Pedido }) {
   const itemGroups = groupKitchenItemsByCategory(pedido.itens)
 
   return (
-    <div className="space-y-3 rounded-[var(--radius)] border bg-card p-4">
+    <div className={`space-y-3 rounded-[var(--radius)] border p-4 ${pedido.canal === 'delivery' ? 'border-[var(--primary)]/50 bg-[var(--primary-soft)]' : 'bg-card'}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-lg font-bold">Mesa {pedido.mesaNumero}</p>
+          {pedido.canal === 'delivery' ? (
+            <span className="inline-flex rounded-full bg-[var(--primary)] px-2.5 py-1 text-xs font-bold tracking-wide text-white">
+              DELIVERY
+            </span>
+          ) : (
+            <p className="text-lg font-bold">Mesa {pedido.mesaNumero}</p>
+          )}
           <p className="text-xs text-muted-foreground">
             Aberto há <LiveElapsedTimer startedAt={pedido.criadoEm} />
           </p>

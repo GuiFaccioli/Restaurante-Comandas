@@ -37,6 +37,7 @@ const kitchenItems = [
 function kitchenOrder(status: 'novo' | 'em_preparo' | 'pronto') {
   return {
     id: `pedido-${status}`,
+    canal: 'salao' as const,
     mesaNumero: 7,
     status,
     criadoEm: new Date('2026-07-23T12:00:00.000Z'),

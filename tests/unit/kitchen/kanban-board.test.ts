@@ -9,7 +9,7 @@ vi.mock('@/components/cozinha/pedido-card', () => ({
 import { KanbanBoard } from '@/components/cozinha/kanban-board'
 
 const initialPedidos = [{
-  id: 'order-a', mesaNumero: 1, status: 'novo' as const, criadoEm: '2026-07-26T12:00:00.000Z', itens: [],
+  id: 'order-a', canal: 'salao' as const, mesaNumero: 1, status: 'novo' as const, criadoEm: '2026-07-26T12:00:00.000Z', itens: [],
 }]
 
 beforeEach(() => {

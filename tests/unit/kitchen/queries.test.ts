@@ -13,7 +13,7 @@ vi.mock('@/lib/db/schema', () => ({
   categoria: { nome: 'categoria.nome' },
   itemPedido: { pedidoId: 'item_pedido.pedido_id', produtoId: 'item_pedido.produto_id', quantidade: 'item_pedido.quantidade', observacao: 'item_pedido.observacao' },
   mesa: { id: 'mesa.id', numero: 'mesa.numero' },
-  pedido: { id: 'pedido.id', status: 'pedido.status', criadoEm: 'pedido.criado_em', mesaId: 'pedido.mesa_id', tenantId: 'pedido.tenant_id' },
+  pedido: { id: 'pedido.id', canal: 'pedido.canal', status: 'pedido.status', criadoEm: 'pedido.criado_em', mesaId: 'pedido.mesa_id', tenantId: 'pedido.tenant_id' },
   produto: { id: 'produto.id', nome: 'produto.nome', categoriaId: 'produto.categoria_id' },
 }))
 
@@ -28,7 +28,7 @@ describe('getKitchenOrders', () => {
     mocks.db.select
       .mockReturnValueOnce({
         from: vi.fn(() => ({
-          innerJoin: vi.fn(() => ({ where: vi.fn(() => ({ orderBy: vi.fn(async () => [{ id: 'order-a', status: 'novo', criadoEm: new Date('2026-07-26T12:00:00.000Z'), mesaNumero: 8 }]) })) })),
+          leftJoin: vi.fn(() => ({ where: vi.fn(() => ({ orderBy: vi.fn(async () => [{ id: 'order-a', canal: 'salao', status: 'novo', criadoEm: new Date('2026-07-26T12:00:00.000Z'), mesaNumero: 8 }]) })) })),
         })),
       })
       .mockReturnValueOnce({
@@ -37,7 +37,7 @@ describe('getKitchenOrders', () => {
 
     await expect(getKitchenOrders({ tenantId: 'tenant-a' })).resolves.toEqual([
       {
-        id: 'order-a', status: 'novo', criadoEm: '2026-07-26T12:00:00.000Z', mesaNumero: 8,
+        id: 'order-a', canal: 'salao', status: 'novo', criadoEm: '2026-07-26T12:00:00.000Z', mesaNumero: 8,
         itens: [{ pedidoId: 'order-a', nome: 'Pizza', quantidade: 1, observacao: null, categoriaNome: 'Pizzas' }],
       },
     ])
