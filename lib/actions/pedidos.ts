@@ -383,7 +383,12 @@ export async function registrarPagamentoAtendimento(input: {
       if (current.status !== 'awaiting_payment') throw new Error('A conta ainda não está disponível para pagamento')
 
       const orders = await tx
-        .select({ id: pedido.id, status: pedido.status })
+        .select({
+          id: pedido.id,
+          status: pedido.status,
+          canal: pedido.canal,
+          taxaEntregaAplicada: pedido.taxaEntregaAplicada,
+        })
         .from(pedido)
         .where(and(eq(pedido.tenantId, tenantId), eq(pedido.atendimentoId, input.atendimentoId)))
       if (orders.some((order) => order.status !== 'entregue' && order.status !== 'cancelado')) throw new Error('A conta ainda possui pedidos em andamento')
@@ -391,7 +396,14 @@ export async function registrarPagamentoAtendimento(input: {
       const items = orderIds.length > 0
         ? await tx.select({ quantidade: itemPedido.quantidade, precoUnitario: itemPedido.precoUnitario }).from(itemPedido).where(and(eq(itemPedido.tenantId, tenantId), inArray(itemPedido.pedidoId, orderIds)))
         : []
-      const totalCents = calculateOfficialTotalCents(items)
+      const totalCents = calculateOfficialTotalCents(items) + orders.reduce(
+        (total, order) => total + (
+          order.canal === 'delivery'
+            ? decimalToCents(order.taxaEntregaAplicada ?? '0.00')
+            : 0
+        ),
+        0,
+      )
       const payments = await tx.select({ valor: pagamentoPedido.valor }).from(pagamentoPedido).where(and(eq(pagamentoPedido.tenantId, tenantId), eq(pagamentoPedido.atendimentoId, input.atendimentoId), eq(pagamentoPedido.status, 'registrado')))
       const paidCents = payments.reduce((sum, payment) => sum + decimalToCents(payment.valor), 0)
       const balanceCents = totalCents - paidCents

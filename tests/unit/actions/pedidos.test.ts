@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   cancelOrderInPostgresTransaction: vi.fn(),
   and: vi.fn((...conditions: unknown[]) => conditions),
   eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+  inArray: vi.fn((left: unknown, right: unknown[]) => ({ left, right })),
 }))
 
 vi.mock('@/lib/db/index', () => ({
@@ -38,6 +39,7 @@ vi.mock('@/lib/db/index', () => ({
 vi.mock('drizzle-orm', () => ({
   and: mocks.and,
   eq: mocks.eq,
+  inArray: mocks.inArray,
 }))
 
 vi.mock('@/lib/db/schema', () => ({
@@ -46,6 +48,13 @@ vi.mock('@/lib/db/schema', () => ({
     tenantId: 'pedido.tenant_id',
     canal: 'pedido.canal',
     status: 'pedido.status',
+    atendimentoId: 'pedido.atendimento_id',
+    taxaEntregaAplicada: 'pedido.taxa_entrega_aplicada',
+  },
+  atendimento: {
+    id: 'atendimento.id',
+    tenantId: 'atendimento.tenant_id',
+    status: 'atendimento.status',
   },
   itemPedido: {
     pedidoId: 'item_pedido.pedido_id',
@@ -388,6 +397,52 @@ type PaymentFixture = {
   items?: Array<{ quantidade: number; precoUnitario: string }>
 }
 
+type AttendancePaymentFixture = {
+  orders?: Array<{
+    id: string
+    status: 'entregue' | 'cancelado' | 'pronto'
+    canal: 'salao' | 'delivery'
+    taxaEntregaAplicada: string | null
+  }>
+  items?: Array<{ quantidade: number; precoUnitario: string }>
+  payments?: Array<{ valor: string }>
+}
+
+function createAttendancePaymentTransaction({
+  orders = [{ id: 'pedido-1', status: 'entregue', canal: 'salao', taxaEntregaAplicada: null }],
+  items = [{ quantidade: 1, precoUnitario: '48.00' }],
+  payments = [],
+}: AttendancePaymentFixture = {}) {
+  const insertedValues = vi.fn().mockResolvedValue(undefined)
+  let selectionIndex = 0
+  const transaction = {
+    select: vi.fn(() => {
+      if (selectionIndex++ === 0) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async () => [{ id: 'atendimento-1', status: 'awaiting_payment' }]),
+            })),
+          })),
+        }
+      }
+
+      const rows = [orders, items, payments][selectionIndex - 2] ?? []
+      return {
+        from: vi.fn(() => ({
+          where: vi.fn(async () => rows),
+        })),
+      }
+    }),
+    insert: vi.fn(() => ({ values: insertedValues })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+    })),
+  }
+
+  return { transaction, insertedValues }
+}
+
 function createPostgresPaymentTransaction({
   order = { id: 'pedido-1', status: 'entregue' },
   activePayment,
@@ -539,5 +594,147 @@ describe('registrarPagamentoPedido', () => {
       formaPagamento: 'pix',
       valor: '48,00',
     })).rejects.toBe(conflict)
+  })
+})
+
+describe('registrarPagamentoAtendimento', () => {
+  beforeEach(() => {
+    mocks.requireAccess.mockResolvedValue({
+      usuarioId: 'caixa-1',
+      tenantId: 'tenant-1',
+      access: 'caixa',
+    })
+  })
+
+  it('accepts the full SALAO total without applying a delivery fee', async () => {
+    const { registrarPagamentoAtendimento } = await import('@/lib/actions/pedidos')
+    const fixture = createAttendancePaymentTransaction()
+    mocks.runInDbTransaction.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(fixture.transaction),
+    )
+
+    await expect(registrarPagamentoAtendimento({
+      atendimentoId: 'atendimento-1',
+      formaPagamento: 'pix',
+      valor: '48,00',
+    })).resolves.toEqual({ status: 'registrado', atendimentoStatus: 'paid' })
+    expect(fixture.insertedValues).toHaveBeenCalledWith(expect.objectContaining({ valor: '48.00' }))
+  })
+
+  it('accepts the full DELIVERY total including the saved fee snapshot', async () => {
+    const { registrarPagamentoAtendimento } = await import('@/lib/actions/pedidos')
+    const fixture = createAttendancePaymentTransaction({
+      orders: [{ id: 'delivery-1', status: 'entregue', canal: 'delivery', taxaEntregaAplicada: '16.00' }],
+      items: [{ quantidade: 1, precoUnitario: '222.22' }],
+    })
+    mocks.runInDbTransaction.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(fixture.transaction),
+    )
+
+    await expect(registrarPagamentoAtendimento({
+      atendimentoId: 'atendimento-1',
+      formaPagamento: 'pix',
+      valor: '238,22',
+    })).resolves.toEqual({ status: 'registrado', atendimentoStatus: 'paid' })
+  })
+
+  it('calculates the remaining balance for a partial DELIVERY payment', async () => {
+    const { registrarPagamentoAtendimento } = await import('@/lib/actions/pedidos')
+    const fixture = createAttendancePaymentTransaction({
+      orders: [{ id: 'delivery-1', status: 'entregue', canal: 'delivery', taxaEntregaAplicada: '16.00' }],
+      items: [{ quantidade: 1, precoUnitario: '222.22' }],
+      payments: [{ valor: '100.00' }],
+    })
+    mocks.runInDbTransaction.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(fixture.transaction),
+    )
+
+    await expect(registrarPagamentoAtendimento({
+      atendimentoId: 'atendimento-1',
+      formaPagamento: 'dinheiro',
+      valor: '138,22',
+    })).resolves.toEqual({ status: 'registrado', atendimentoStatus: 'paid' })
+  })
+
+  it('rejects a DELIVERY payment above the snapshot total', async () => {
+    const { registrarPagamentoAtendimento } = await import('@/lib/actions/pedidos')
+    const fixture = createAttendancePaymentTransaction({
+      orders: [{ id: 'delivery-1', status: 'entregue', canal: 'delivery', taxaEntregaAplicada: '16.00' }],
+      items: [{ quantidade: 1, precoUnitario: '222.22' }],
+    })
+    mocks.runInDbTransaction.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(fixture.transaction),
+    )
+
+    await expect(registrarPagamentoAtendimento({
+      atendimentoId: 'atendimento-1',
+      formaPagamento: 'pix',
+      valor: '238,23',
+    })).rejects.toThrow('O valor não pode ser maior que o saldo pendente')
+    expect(fixture.insertedValues).not.toHaveBeenCalled()
+  })
+
+  it('accepts a zero DELIVERY fee and ignores fees on SALAO orders in the same attendance', async () => {
+    const { registrarPagamentoAtendimento } = await import('@/lib/actions/pedidos')
+    const fixture = createAttendancePaymentTransaction({
+      orders: [
+        { id: 'delivery-1', status: 'entregue', canal: 'delivery', taxaEntregaAplicada: '0.00' },
+        { id: 'salao-1', status: 'entregue', canal: 'salao', taxaEntregaAplicada: '99.00' },
+      ],
+      items: [
+        { quantidade: 1, precoUnitario: '100.00' },
+        { quantidade: 1, precoUnitario: '50.00' },
+      ],
+    })
+    mocks.runInDbTransaction.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(fixture.transaction),
+    )
+
+    await expect(registrarPagamentoAtendimento({
+      atendimentoId: 'atendimento-1',
+      formaPagamento: 'pix',
+      valor: '150,00',
+    })).resolves.toEqual({ status: 'registrado', atendimentoStatus: 'paid' })
+  })
+
+  it('sums product totals across multiple orders and adds only DELIVERY snapshots', async () => {
+    const { registrarPagamentoAtendimento } = await import('@/lib/actions/pedidos')
+    const fixture = createAttendancePaymentTransaction({
+      orders: [
+        { id: 'delivery-1', status: 'entregue', canal: 'delivery', taxaEntregaAplicada: '16.00' },
+        { id: 'delivery-2', status: 'entregue', canal: 'delivery', taxaEntregaAplicada: '4.50' },
+        { id: 'salao-1', status: 'entregue', canal: 'salao', taxaEntregaAplicada: '99.00' },
+      ],
+      items: [
+        { quantidade: 1, precoUnitario: '100.00' },
+        { quantidade: 1, precoUnitario: '50.00' },
+      ],
+    })
+    mocks.runInDbTransaction.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(fixture.transaction),
+    )
+
+    await expect(registrarPagamentoAtendimento({
+      atendimentoId: 'atendimento-1',
+      formaPagamento: 'pix',
+      valor: '170,50',
+    })).resolves.toEqual({ status: 'registrado', atendimentoStatus: 'paid' })
+  })
+
+  it('keeps the attendance order query tenant-scoped', async () => {
+    const { registrarPagamentoAtendimento } = await import('@/lib/actions/pedidos')
+    const fixture = createAttendancePaymentTransaction()
+    mocks.runInDbTransaction.mockImplementationOnce(
+      (operations: TransactionOperations) => operations.postgresOperation(fixture.transaction),
+    )
+
+    await registrarPagamentoAtendimento({
+      atendimentoId: 'atendimento-1',
+      formaPagamento: 'pix',
+      valor: '48,00',
+    })
+
+    expect(mocks.eq).toHaveBeenCalledWith('pedido.tenant_id', 'tenant-1')
+    expect(mocks.eq).toHaveBeenCalledWith('pagamento_pedido.tenant_id', 'tenant-1')
   })
 })
