@@ -5,10 +5,18 @@ import { runInDbTransaction } from '@/lib/db/index'
 import { cliente, enderecoCliente } from '@/lib/db/schema'
 import { requireAnyAccess } from '@/lib/auth/access'
 import { normalizeCustomerInput, validateAddressInput, type AddressInput } from '@/lib/customer/validation'
-import { buscarClientes as buscarClientesQuery, type CustomerSearchPagination } from '@/lib/customer/queries'
+import {
+  buscarClientes as buscarClientesQuery,
+  buscarHistoricoPedidosDelivery as buscarHistoricoPedidosDeliveryQuery,
+  type CustomerSearchPagination,
+} from '@/lib/customer/queries'
 
 export async function buscarClientes(query: string, pagination: CustomerSearchPagination = {}) {
   return buscarClientesQuery(query, pagination)
+}
+
+export async function buscarHistoricoPedidosDelivery(clienteId: string) {
+  return buscarHistoricoPedidosDeliveryQuery(clienteId)
 }
 
 export type CreateCustomerInput = {

@@ -30,4 +30,10 @@ describe('customer validation', () => {
   it('accepts a zero delivery fee', () => {
     expect(normalizeDeliveryFee('0')).toBe('0.00')
   })
+
+  it('accepts Brazilian and persisted monetary formats', () => {
+    expect(normalizeDeliveryFee('22')).toBe('22.00')
+    expect(normalizeDeliveryFee('22,50')).toBe('22.50')
+    expect(normalizeDeliveryFee('22.50')).toBe('22.50')
+  })
 })
