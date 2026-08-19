@@ -17,6 +17,18 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
+function formatDeliveryAddress(snapshot: Record<string, string | null> | null) {
+  if (!snapshot) return 'Endereço não informado'
+  return [
+    [snapshot.rua, snapshot.numero].filter(Boolean).join(', '),
+    snapshot.bairro,
+    snapshot.cidade,
+    snapshot.cep,
+    snapshot.complemento ? `Complemento: ${snapshot.complemento}` : null,
+    snapshot.referencia ? `Referência: ${snapshot.referencia}` : null,
+  ].filter(Boolean).join(' · ') || 'Endereço não informado'
+}
+
 const paymentMethods: Array<{ value: FormaPagamento; label: string }> = [
   { value: 'dinheiro', label: 'Dinheiro' },
   { value: 'pix', label: 'Pix' },
@@ -59,9 +71,9 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
       || (queueFilter === 'cancelados' && account.status === 'cancelled')
     if (!matchesFilter || !normalizedSearch) return matchesFilter
     return [
-      `mesa ${account.mesaNumero}`,
+      account.mesaNumero === null ? 'delivery' : `mesa ${account.mesaNumero}`,
       account.id,
-      ...account.pedidos.flatMap((order) => [order.id, ...order.itens.map((item) => item.nome)]),
+      ...account.pedidos.flatMap((order) => [order.id, order.clienteNomeSnapshot ?? '', ...order.itens.map((item) => item.nome)]),
     ].some((value) => value.toLocaleLowerCase('pt-BR').includes(normalizedSearch))
   }).sort((a, b) => Number(canReceivePayment(b)) - Number(canReceivePayment(a)))
 
@@ -123,9 +135,13 @@ export function AdminPedidosLive({ initialPedidos }: { initialPedidos: Atendimen
       {visibleContas.length === 0 ? <AdminEmptyState title="Nenhuma conta corresponde aos filtros" description="Tente outro filtro ou limpe a busca." /> : <div className="grid gap-3">{visibleContas.map((account) => {
         const expanded = expandedId === account.id
         const paymentOpen = paymentAccountId === account.id
+        const firstDeliveryOrder = account.pedidos.find((order) => order.canal === 'delivery')
+        const accountTitle = account.mesaNumero === null
+          ? `DELIVERY · Cliente ${firstDeliveryOrder?.clienteNomeSnapshot ?? 'não identificado'}`
+          : `Mesa ${account.mesaNumero} · Conta`
         return <article key={account.id} className={`space-y-3 rounded-[var(--radius)] border p-4 ${account.status === 'cancelled' ? 'border-[var(--error)]/35 bg-[var(--error-soft)]' : 'bg-background'}`}>
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start"><div><p className="text-lg font-semibold">Mesa {account.mesaNumero} · Conta #{account.id.slice(0, 8)}</p><p className="text-sm text-muted-foreground">{account.orderCount} pedido(s) · {accountLabel(account.status)} · aberta {formatPedidoCriadoEm(account.abertoEm)}</p><p className="mt-2 text-2xl font-bold">{formatCurrency(account.total)}</p><p className="text-sm text-muted-foreground">Pago: {formatCurrency(account.total - account.saldoPendente)} · Saldo pendente: {formatCurrency(account.saldoPendente)}</p></div><div className="flex flex-wrap gap-2"><Button type="button" intent="neutral" appearance="outline" size="sm" className="min-h-11" onClick={() => setExpandedId(expanded ? null : account.id)}>{expanded ? 'Fechar pedidos' : 'Ver pedidos'}</Button>{canReceivePayment(account) ? <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11" onClick={() => { setPaymentAccountId(account.id); setExpandedId(account.id) }}>Receber pagamento</Button> : null}</div></div>
-          {expanded ? <div className="space-y-3 border-t pt-3"><h2 className="text-sm font-semibold">Pedidos desta conta</h2>{account.pedidos.map((order) => <div key={order.id} className="rounded-[var(--radius)] border p-3"><div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><span>Pedido #{order.id.slice(0, 8)}</span><span>{formatCurrency(order.total)}</span></div><ul className="mt-2 space-y-1 text-sm">{order.itens.map((item, index) => <li key={`${order.id}-${index}`} className="min-w-0 break-words">{item.quantidade}x {item.nome}{item.observacao ? ` · ${item.observacao}` : ''}</li>)}</ul></div>)}{paymentOpen ? <form aria-busy={isPending} className="grid gap-3 rounded-md border bg-muted/30 p-3" onSubmit={(event) => handlePaymentSubmit(event, account)}><label className="grid gap-1 text-sm">Forma de pagamento<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as FormaPagamento)} className="min-h-11 rounded-md border border-input bg-background px-3">{paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label><label className="grid gap-1 text-sm">Valor recebido<input value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-md border border-input bg-background px-3" inputMode="decimal" required /></label><div className="flex flex-col gap-2 sm:flex-row"><Button type="submit" intent="positive" appearance="solid" className="min-h-11" aria-busy={isPending} disabled={isPending}>{isPending ? 'Registrando...' : 'Confirmar pagamento'}</Button><Button type="button" intent="neutral" appearance="outline" className="min-h-11" onClick={() => setPaymentAccountId(null)} disabled={isPending}>Cancelar</Button></div></form> : null}</div> : null}
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start"><div><p className="text-lg font-semibold">{accountTitle} #{account.id.slice(0, 8)}</p><p className="text-sm text-muted-foreground">{account.orderCount} pedido(s) · {accountLabel(account.status)} · aberta {formatPedidoCriadoEm(account.abertoEm)}</p><p className="mt-2 text-2xl font-bold">{formatCurrency(account.total)}</p><p className="text-sm text-muted-foreground">Pago: {formatCurrency(account.total - account.saldoPendente)} · Saldo pendente: {formatCurrency(account.saldoPendente)}</p></div><div className="flex flex-wrap gap-2"><Button type="button" intent="neutral" appearance="outline" size="sm" className="min-h-11" onClick={() => setExpandedId(expanded ? null : account.id)}>{expanded ? 'Fechar pedidos' : 'Ver pedidos'}</Button>{canReceivePayment(account) ? <Button type="button" intent="positive" appearance="solid" size="sm" className="min-h-11" onClick={() => { setPaymentAccountId(account.id); setExpandedId(account.id) }}>Receber pagamento</Button> : null}</div></div>
+          {expanded ? <div className="space-y-3 border-t pt-3"><h2 className="text-sm font-semibold">Pedidos desta conta</h2>{account.pedidos.map((order) => <div key={order.id} className="rounded-[var(--radius)] border p-3"><div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><span>Pedido #{order.id.slice(0, 8)}</span><span>{formatCurrency(order.total)}</span></div>{order.canal === 'delivery' ? <div className="mt-2 space-y-1 text-sm"><p className="font-semibold">DELIVERY</p><p>Cliente: {order.clienteNomeSnapshot ?? 'Não informado'}</p><p>Endereço: {formatDeliveryAddress(order.enderecoSnapshot)}</p><p>Taxa de entrega: {order.taxaEntregaAplicada == null ? 'Não informada' : formatCurrency(Number(order.taxaEntregaAplicada))}</p></div> : null}<p className="mt-2 text-sm text-muted-foreground">Status do pedido: {order.status}</p><ul className="mt-2 space-y-1 text-sm">{order.itens.map((item, index) => <li key={`${order.id}-${index}`} className="min-w-0 break-words">{item.quantidade}x {item.nome}{item.observacao ? ` · ${item.observacao}` : ''}</li>)}</ul></div>)}{paymentOpen ? <form aria-busy={isPending} className="grid gap-3 rounded-md border bg-muted/30 p-3" onSubmit={(event) => handlePaymentSubmit(event, account)}><label className="grid gap-1 text-sm">Forma de pagamento<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as FormaPagamento)} className="min-h-11 rounded-md border border-input bg-background px-3">{paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label><label className="grid gap-1 text-sm">Valor recebido<input value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-md border border-input bg-background px-3" inputMode="decimal" required /></label><div className="flex flex-col gap-2 sm:flex-row"><Button type="submit" intent="positive" appearance="solid" className="min-h-11" aria-busy={isPending} disabled={isPending}>{isPending ? 'Registrando...' : 'Confirmar pagamento'}</Button><Button type="button" intent="neutral" appearance="outline" className="min-h-11" onClick={() => setPaymentAccountId(null)} disabled={isPending}>Cancelar</Button></div></form> : null}</div> : null}
         </article>
       })}</div>}
     </AdminPanel>}

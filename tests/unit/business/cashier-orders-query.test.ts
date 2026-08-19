@@ -17,7 +17,8 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/db/schema', () => ({
   pedido: {
     id: 'pedido.id', tenantId: 'pedido.tenant_id', mesaId: 'pedido.mesa_id',
-    createdByUserId: 'pedido.created_by_user_id', status: 'pedido.status',
+    createdByUserId: 'pedido.created_by_user_id', canal: 'pedido.canal', clienteNomeSnapshot: 'pedido.cliente_nome_snapshot',
+    enderecoSnapshot: 'pedido.endereco_snapshot', taxaEntregaAplicada: 'pedido.taxa_entrega_aplicada', status: 'pedido.status',
     criadoEm: 'pedido.criado_em', entregueEm: 'pedido.entregue_em',
   },
   mesa: { id: 'mesa.id', tenantId: 'mesa.tenant_id', numero: 'mesa.numero' },
@@ -60,13 +61,13 @@ function mockCashierQuery(input: {
     id: 'order-a', status: 'entregue' as const,
     criadoEm: new Date('2026-07-13T12:00:00.000Z'),
     entregueEm: new Date('2026-07-13T12:15:00.000Z'),
-    mesaNumero: 4, createdByUserId: input.createdByUserId,
+    mesaNumero: null, canal: 'delivery', clienteNomeSnapshot: 'Ana Snapshot', enderecoSnapshot: { rua: 'Rua do Pedido', numero: '10' }, taxaEntregaAplicada: '5.00', createdByUserId: input.createdByUserId,
   }
 
   mocks.db.select
     .mockReturnValueOnce({
       from: vi.fn(() => ({
-        innerJoin: vi.fn(() => ({
+        leftJoin: vi.fn(() => ({
           where: vi.fn(() => ({ orderBy: vi.fn(async () => [order]) })),
         })),
       })),
@@ -111,6 +112,9 @@ describe('getCashierOrders responsible integration', () => {
     expect(order.criadoPor).toBeNull()
     expect(order.pagamentoStatus).toBe('pago')
     expect(order.pagamento?.registradoPor).toBeNull()
+    expect(order.mesaNumero).toBeNull()
+    expect(order.canal).toBe('delivery')
+    expect(order.enderecoSnapshot).toEqual({ rua: 'Rua do Pedido', numero: '10' })
   })
 
   it('treats an estornado-only order as pending with no payment metadata', async () => {

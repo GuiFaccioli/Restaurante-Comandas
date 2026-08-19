@@ -10,7 +10,7 @@ import {
   tenantUser,
   usuario,
 } from '@/lib/db/schema'
-import type { StatusPagamento, StatusPedido } from '@/lib/db/schema'
+import type { CanalPedido, StatusPagamento, StatusPedido } from '@/lib/db/schema'
 import { calculateOrderTotal } from './totals'
 
 export type TableOrderItem = {
@@ -41,7 +41,11 @@ export type CashierPayment = {
 }
 
 export type CashierOrder = TableOrder & {
-  mesaNumero: number
+  canal: CanalPedido
+  mesaNumero: number | null
+  clienteNomeSnapshot: string | null
+  enderecoSnapshot: Record<string, string | null> | null
+  taxaEntregaAplicada: string | null
   pagamentoStatus: 'pendente' | 'pago'
   criadoPor: CashierResponsible | null
   pagamento: CashierPayment | null
@@ -137,18 +141,21 @@ export async function getCashierOrders(input: { tenantId: string }): Promise<Cas
   const orders = await db
     .select({
       id: pedido.id,
+      canal: pedido.canal,
       status: pedido.status,
       criadoEm: pedido.criadoEm,
       entregueEm: pedido.entregueEm,
       mesaNumero: mesa.numero,
+      clienteNomeSnapshot: pedido.clienteNomeSnapshot,
+      enderecoSnapshot: pedido.enderecoSnapshot,
+      taxaEntregaAplicada: pedido.taxaEntregaAplicada,
       createdByUserId: pedido.createdByUserId,
     })
     .from(pedido)
-    .innerJoin(mesa, eq(pedido.mesaId, mesa.id))
+    .leftJoin(mesa, and(eq(pedido.mesaId, mesa.id), eq(mesa.tenantId, input.tenantId)))
     .where(
       and(
         eq(pedido.tenantId, input.tenantId),
-        eq(mesa.tenantId, input.tenantId),
         ne(pedido.status, 'cancelado')
       )
     )
@@ -167,7 +174,11 @@ export async function getCashierOrders(input: { tenantId: string }): Promise<Cas
           })
           .from(itemPedido)
           .innerJoin(produto, eq(itemPedido.produtoId, produto.id))
-          .where(inArray(itemPedido.pedidoId, orderIds))
+          .where(and(
+            eq(itemPedido.tenantId, input.tenantId),
+            eq(produto.tenantId, input.tenantId),
+            inArray(itemPedido.pedidoId, orderIds),
+          ))
       : []
 
   const pagamentos =
@@ -218,7 +229,7 @@ export async function getCashierOrders(input: { tenantId: string }): Promise<Cas
     const itens = items
       .filter((item) => item.pedidoId === order.id)
       .map(({ pedidoId: _pedidoId, ...item }) => item)
-    const total = calculateOrderTotal(itens)
+    const total = calculateOrderTotal(itens) + (order.canal === 'delivery' ? Number(order.taxaEntregaAplicada ?? 0) : 0)
     const pagamentoRegistrado = findRegisteredPayment(pagamentos, order.id)
     const criadoPor = resolveTenantResponsible(
       responsibleUsers,
@@ -235,10 +246,14 @@ export async function getCashierOrders(input: { tenantId: string }): Promise<Cas
 
     return {
       id: order.id,
+      canal: order.canal,
       status: order.status,
       criadoEm: order.criadoEm.toISOString(),
       entregueEm: order.entregueEm?.toISOString() ?? null,
       mesaNumero: order.mesaNumero,
+      clienteNomeSnapshot: order.clienteNomeSnapshot,
+      enderecoSnapshot: order.enderecoSnapshot as Record<string, string | null> | null,
+      taxaEntregaAplicada: order.taxaEntregaAplicada,
       total,
       pagamentoStatus: pagamentoRegistrado ? 'pago' : 'pendente',
       criadoPor,

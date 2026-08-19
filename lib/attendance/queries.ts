@@ -9,17 +9,21 @@ import {
   pedido,
   produto,
 } from '@/lib/db/schema'
-import type { StatusAtendimento } from '@/lib/db/schema'
+import type { CanalPedido, StatusAtendimento } from '@/lib/db/schema'
 import { calculateOrderTotal } from '@/lib/orders/totals'
 import { deriveMesaOperationalState, type AttendanceForTableState } from './service'
 
 export type AtendimentoResumo = AttendanceForTableState & {
-  mesaId: string
-  mesaNumero: number
+  mesaId: string | null
+  mesaNumero: number | null
   status: StatusAtendimento
   saldoPendente: number
   pedidos: Array<{
     id: string
+    canal: CanalPedido
+    clienteNomeSnapshot: string | null
+    enderecoSnapshot: Record<string, string | null> | null
+    taxaEntregaAplicada: string | null
     status: string
     criadoEm: string
     entregueEm: string | null
@@ -118,10 +122,9 @@ export async function getCashierAccounts(input: { tenantId: string }): Promise<A
       abertoEm: atendimento.abertoEm,
     })
     .from(atendimento)
-    .innerJoin(mesa, eq(atendimento.mesaId, mesa.id))
+      .leftJoin(mesa, and(eq(atendimento.mesaId, mesa.id), eq(mesa.tenantId, input.tenantId)))
     .where(and(
       eq(atendimento.tenantId, input.tenantId),
-      eq(mesa.tenantId, input.tenantId),
     ))
     .orderBy(desc(atendimento.abertoEm))
   return hydrateAttendances(input.tenantId, rows)
@@ -129,7 +132,7 @@ export async function getCashierAccounts(input: { tenantId: string }): Promise<A
 
 async function hydrateAttendances(
   tenantId: string,
-  rows: Array<{ id: string; mesaId: string; mesaNumero: number; status: StatusAtendimento; abertoEm: Date }>,
+  rows: Array<{ id: string; mesaId: string | null; mesaNumero: number | null; status: StatusAtendimento; abertoEm: Date }>,
 ): Promise<AtendimentoResumo[]> {
   const attendanceIds = rows.map((row) => row.id)
   if (attendanceIds.length === 0) return []
@@ -137,6 +140,10 @@ async function hydrateAttendances(
     .select({
       id: pedido.id,
       atendimentoId: pedido.atendimentoId,
+      canal: pedido.canal,
+      clienteNomeSnapshot: pedido.clienteNomeSnapshot,
+      enderecoSnapshot: pedido.enderecoSnapshot,
+      taxaEntregaAplicada: pedido.taxaEntregaAplicada,
       status: pedido.status,
       criadoEm: pedido.criadoEm,
       entregueEm: pedido.entregueEm,
@@ -166,7 +173,11 @@ async function hydrateAttendances(
         status: order.status,
         criadoEm: order.criadoEm.toISOString(),
         entregueEm: order.entregueEm?.toISOString() ?? null,
-        total: order.status === 'cancelado' ? 0 : calculateOrderTotal(orderItems),
+        total: order.status === 'cancelado' ? 0 : calculateOrderTotal(orderItems) + (order.canal === 'delivery' ? Number(order.taxaEntregaAplicada ?? 0) : 0),
+        canal: order.canal,
+        clienteNomeSnapshot: order.clienteNomeSnapshot,
+        enderecoSnapshot: order.enderecoSnapshot as Record<string, string | null> | null,
+        taxaEntregaAplicada: order.taxaEntregaAplicada,
         itens: orderItems,
       }
     })
