@@ -36,15 +36,17 @@ const ana = {
 }
 
 describe('CustomerRegistry', () => {
-  it('shows active delivery orders in a global section before customer search', () => {
+  it('shows customer search before the filtered customer list and active orders', () => {
     render(createElement(CustomerRegistry, { initialCustomers: [{
       ...ana,
       activeDeliveryOrders: [{ id: 'active-order-1', status: 'pronto', criadoEm: '2026-08-18T10:00:00Z', entregueEm: null, total: 64, clienteNomeSnapshot: 'Ana Souza', enderecoSnapshot: { rua: 'Rua do Pedido', numero: '99', bairro: 'Centro', cidade: 'São Paulo', cep: '01000-000', complemento: null, referencia: null }, taxaEntregaAplicada: '15.00', itens: [{ nome: 'Pizza Mussarela', quantidade: 1, precoUnitario: '34.00', observacao: null }, { nome: 'Coca', quantidade: 1, precoUnitario: '15.00', observacao: null }] }],
     }] }))
 
-    const activeSection = screen.getByRole('heading', { name: 'Pedidos DELIVERY em andamento' })
     const searchHeading = screen.getByRole('heading', { name: 'Buscar clientes' })
-    expect(activeSection.compareDocumentPosition(searchHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const activeSection = screen.getByRole('heading', { name: 'Pedidos DELIVERY em andamento' })
+    const customerList = screen.getByLabelText('Lista de clientes')
+    expect(searchHeading.compareDocumentPosition(activeSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(searchHeading.compareDocumentPosition(customerList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('Cliente:', { exact: true }).parentElement).toHaveTextContent('Ana Souza')
     expect(screen.getByText(/Rua do Pedido, 99/)).toBeInTheDocument()
     expect(screen.getByText('PIZZA MUSSARELA')).toBeInTheDocument()

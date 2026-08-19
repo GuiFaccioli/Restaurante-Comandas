@@ -51,6 +51,15 @@ describe('AdminPedidosLive', () => {
     expect(screen.getByText(/Mesa 4 · Conta/)).toBeInTheDocument()
   })
 
+  it('renders the cashier search before the accounts it filters', () => {
+    render(createElement(AdminPedidosLive, { initialPedidos: [account] }))
+
+    const search = screen.getByLabelText('Buscar mesa, conta ou pedido')
+    const accounts = screen.getByText('Contas do restaurante')
+
+    expect(search.compareDocumentPosition(accounts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('filters the queue and searches by table', () => {
     render(createElement(AdminPedidosLive, { initialPedidos: [account] }))
     fireEvent.change(screen.getByLabelText('Buscar mesa, conta ou pedido'), { target: { value: '99' } })

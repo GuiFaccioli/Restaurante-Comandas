@@ -314,6 +314,21 @@ describe('pedido business flow', () => {
     expect(productFormSource).toContain('Salvando…')
   })
 
+  test('inventory search fields precede the content they filter', () => {
+    const inventorySource = source('app/admin/estoque/client.tsx')
+    const stockSearchIndex = inventorySource.indexOf('id="buscar-insumo"')
+    const stockTableIndex = inventorySource.indexOf('{filteredInsumos.map')
+    const pickerSearchIndex = inventorySource.indexOf('aria-label="Buscar insumo"')
+    const pickerOptionsIndex = inventorySource.indexOf('options.map')
+
+    expect(stockSearchIndex).toBeGreaterThan(-1)
+    expect(stockTableIndex).toBeGreaterThan(-1)
+    expect(stockSearchIndex).toBeLessThan(stockTableIndex)
+    expect(pickerSearchIndex).toBeGreaterThan(-1)
+    expect(pickerOptionsIndex).toBeGreaterThan(-1)
+    expect(pickerSearchIndex).toBeLessThan(pickerOptionsIndex)
+  })
+
   test('access and auth screens keep readable responsive UI', () => {
     const signInPageSource = source('app/auth/sign-in/page.tsx')
     const signInClientSource = source('app/auth/sign-in/client.tsx')

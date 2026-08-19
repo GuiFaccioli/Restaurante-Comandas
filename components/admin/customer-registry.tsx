@@ -286,6 +286,23 @@ export function CustomerRegistry({ initialCustomers }: { initialCustomers: Custo
         description="Um endereço padrão fica salvo em cada cadastro."
         action={<Button type="button" intent="positive" appearance="solid" onClick={startCreate}>Novo cliente</Button>}
       >
+        <section aria-labelledby="customer-search-title" className="mb-6 rounded-[var(--radius)] border bg-muted/20 p-4">
+          <h2 id="customer-search-title" className="text-base font-semibold">Buscar clientes</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Telefone, nome, rua, bairro, cidade ou CEP.</p>
+          <form onSubmit={submitSearch} className="mt-3 flex flex-col gap-3 sm:flex-row">
+            <Input
+              aria-label="Buscar clientes"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Ex.: (11) 99999-8888 ou Centro"
+              className="min-h-11"
+            />
+            <Button type="submit" intent="informational" appearance="solid" className="min-h-11" disabled={searching}>
+              {searching ? 'Buscando…' : 'Buscar'}
+            </Button>
+          </form>
+        </section>
         {activeDeliveryOrders.length > 0 ? <section aria-labelledby="active-delivery-orders-title" className="mb-6 rounded-md border border-[var(--primary)]/30 bg-[var(--primary-soft)] p-3">
           <h3 id="active-delivery-orders-title" className="text-sm font-semibold">Pedidos DELIVERY em andamento</h3>
           <div className="mt-2 space-y-2">
@@ -343,21 +360,6 @@ export function CustomerRegistry({ initialCustomers }: { initialCustomers: Custo
         )}
       </AdminPanel>
 
-      <AdminPanel title="Buscar clientes" description="Telefone, nome, rua, bairro, cidade ou CEP.">
-        <form onSubmit={submitSearch} className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            aria-label="Buscar clientes"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Ex.: (11) 99999-8888 ou Centro"
-            className="min-h-11"
-          />
-          <Button type="submit" intent="informational" appearance="solid" className="min-h-11" disabled={searching}>
-            {searching ? 'Buscando…' : 'Buscar'}
-          </Button>
-        </form>
-      </AdminPanel>
     </div>
   )
 }
