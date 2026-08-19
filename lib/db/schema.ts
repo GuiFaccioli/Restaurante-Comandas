@@ -3,6 +3,7 @@ import {
   check,
   foreignKey,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -20,6 +21,7 @@ export const statusPedidoEnum = pgEnum('status_pedido', [
   'entregue',
   'cancelado',
 ])
+export const canalPedidoEnum = pgEnum('canal_pedido', ['salao', 'delivery'])
 export const roleUsuarioEnum = pgEnum('role_usuario', ['garcom', 'admin'])
 export const acessoUsuarioEnum = pgEnum('acesso_usuario', [
   'admin',
@@ -56,6 +58,7 @@ export type StatusPedido =
   | 'pronto'
   | 'entregue'
   | 'cancelado'
+export type CanalPedido = 'salao' | 'delivery'
 export type RoleUsuario = 'garcom' | 'admin'
 export type AcessoUsuario = 'admin' | 'caixa' | 'cozinha' | 'garcom'
 export type TenantStatus = 'active' | 'inactive'
@@ -301,7 +304,7 @@ export const atendimento = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenant.id),
-    mesaId: uuid('mesa_id').notNull(),
+    mesaId: uuid('mesa_id'),
     status: statusAtendimentoEnum('status').notNull().default('open'),
     abertoEm: timestamp('aberto_em', { withTimezone: true })
       .notNull()
@@ -338,10 +341,19 @@ export const pedido = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenant.id),
-    mesaId: uuid('mesa_id').notNull(),
+    mesaId: uuid('mesa_id'),
     atendimentoId: uuid('atendimento_id').notNull(),
     createdByUserId: uuid('created_by_user_id').references(() => usuario.id, {
       onDelete: 'set null',
+    }),
+    canal: canalPedidoEnum('canal').notNull().default('salao'),
+    clienteId: uuid('cliente_id'),
+    clienteNomeSnapshot: text('cliente_nome_snapshot'),
+    clienteTelefoneSnapshot: text('cliente_telefone_snapshot'),
+    enderecoSnapshot: jsonb('endereco_snapshot'),
+    taxaEntregaAplicada: numeric('taxa_entrega_aplicada', {
+      precision: 10,
+      scale: 2,
     }),
     status: statusPedidoEnum('status').notNull().default('novo'),
     criadoEm: timestamp('criado_em', { withTimezone: true })
@@ -364,6 +376,11 @@ export const pedido = pgTable(
       foreignColumns: [atendimento.tenantId, atendimento.id],
       name: 'pedido_tenant_atendimento_fkey',
     }),
+    foreignKey({
+      columns: [table.tenantId, table.clienteId],
+      foreignColumns: [cliente.tenantId, cliente.id],
+      name: 'pedido_tenant_cliente_fkey',
+    }).onDelete('set null'),
   ],
 )
 
