@@ -4,9 +4,10 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { runInDbTransaction } from '@/lib/db/index'
 import { atendimento, itemPedido, pagamentoPedido, pedido } from '@/lib/db/schema'
 import type { FormaPagamento, StatusPedido } from '@/lib/db/schema'
-import { requireAccess } from '@/lib/auth/access'
+import { requireAccess, requireAnyAccess } from '@/lib/auth/access'
 import { notifyTenant } from '@/lib/tenant-events'
 import { normalizeCurrencyToDecimal } from '@/lib/money'
+import type { ConfirmarPedidoDeliveryInput } from '@/lib/orders/delivery-contract'
 import {
   measureOrderConfirmationPhase,
   runOrderConfirmationMeasurement,
@@ -15,6 +16,7 @@ import {
 import {
   cancelOrderInPostgresTransaction,
   createOrderInPostgresTransaction,
+  createDeliveryOrderInPostgresTransaction,
   transitionOrderInPostgresTransaction,
 } from '@/lib/stock/order-consumption'
 
@@ -22,6 +24,13 @@ export type ConfirmarPedidoItem = {
   produtoId: string
   quantidade: number
   observacao?: string
+}
+
+export type ConfirmarPedidoDeliveryActionInput = Omit<
+  ConfirmarPedidoDeliveryInput,
+  'taxaEntrega'
+> & {
+  taxaEntrega?: string
 }
 
 export async function confirmarPedido(
@@ -55,6 +64,49 @@ export async function confirmarPedido(
       'transaction',
       () => runInDbTransaction({
         postgresOperation: (tx) => createOrderInPostgresTransaction(tx, transactionInput),
+      }),
+    )
+
+    notifyTenant(tenantId, { type: 'attendance_updated' })
+    return { id: created.id }
+  })
+}
+
+export async function confirmarPedidoDelivery(
+  input: ConfirmarPedidoDeliveryActionInput,
+): Promise<{ id: string }> {
+  return runOrderConfirmationMeasurement(async () => {
+    const { usuarioId, tenantId } = await measureOrderConfirmationPhase(
+      'require_access',
+      () => requireAnyAccess(['admin', 'caixa']),
+    )
+    setOrderConfirmationMeasurementContext({
+      tenantId,
+      productLineCount: input.items.length,
+      uniqueProducts: new Set(input.items.map((item) => item.produtoId)).size,
+    })
+    if (!input.clienteId.trim()) throw new Error('Cliente obrigatório para pedido DELIVERY')
+    if (!input.enderecoId.trim()) throw new Error('Endereço obrigatório para pedido DELIVERY')
+    if (input.items.length === 0) throw new Error('Pedido vazio: adicione pelo menos um item ao pedido')
+    if (input.items.some((item) => (
+      !item.produtoId ||
+      !Number.isInteger(item.quantidade) ||
+      item.quantidade <= 0
+    ))) {
+      throw new Error('Item inválido: cada item precisa ter um produto e uma quantidade inteira maior que zero')
+    }
+
+    const created = await measureOrderConfirmationPhase(
+      'transaction',
+      () => runInDbTransaction({
+        postgresOperation: (tx) => createDeliveryOrderInPostgresTransaction(tx, {
+          tenantId,
+          usuarioId,
+          clienteId: input.clienteId,
+          enderecoId: input.enderecoId,
+          taxaEntrega: input.taxaEntrega,
+          items: input.items,
+        }),
       }),
     )
 
@@ -98,6 +150,24 @@ export async function confirmarEntrega(pedidoId: string): Promise<void> {
   await runInDbTransaction({
     postgresOperation: (tx) => (
       transitionOrderInPostgresTransaction(tx, transactionInput)
+    ),
+  })
+  notifyTenant(tenantId, {
+    type: 'attendance_updated',
+  })
+}
+
+export async function confirmarEntregaDelivery(pedidoId: string): Promise<void> {
+  const { tenantId, usuarioId } = await requireAnyAccess(['admin', 'caixa'])
+  await runInDbTransaction({
+    postgresOperation: (tx) => (
+      transitionOrderInPostgresTransaction(tx, {
+        tenantId,
+        usuarioId,
+        pedidoId,
+        targetStatus: 'entregue',
+        expectedCanal: 'delivery',
+      })
     ),
   })
   notifyTenant(tenantId, {

@@ -17,7 +17,13 @@ const mocks = vi.hoisted(() => ({
     tenantId: 'tenant-1',
     access: 'garcom',
   })),
+  requireAnyAccess: vi.fn(async () => ({
+    usuarioId: 'user-1',
+    tenantId: 'tenant-1',
+    access: 'admin',
+  })),
   createOrderInPostgresTransaction: vi.fn(),
+  createDeliveryOrderInPostgresTransaction: vi.fn(),
   transitionOrderInPostgresTransaction: vi.fn(),
   cancelOrderInPostgresTransaction: vi.fn(),
   and: vi.fn((...conditions: unknown[]) => conditions),
@@ -38,6 +44,7 @@ vi.mock('@/lib/db/schema', () => ({
   pedido: {
     id: 'pedido.id',
     tenantId: 'pedido.tenant_id',
+    canal: 'pedido.canal',
     status: 'pedido.status',
   },
   itemPedido: {
@@ -61,10 +68,13 @@ vi.mock('@/lib/db/schema', () => ({
 
 vi.mock('@/lib/auth/access', () => ({
   requireAccess: mocks.requireAccess,
+  requireAnyAccess: mocks.requireAnyAccess,
 }))
 
 vi.mock('@/lib/stock/order-consumption', () => ({
   createOrderInPostgresTransaction: mocks.createOrderInPostgresTransaction,
+  createDeliveryOrderInPostgresTransaction:
+    mocks.createDeliveryOrderInPostgresTransaction,
   transitionOrderInPostgresTransaction:
     mocks.transitionOrderInPostgresTransaction,
   cancelOrderInPostgresTransaction: mocks.cancelOrderInPostgresTransaction,
@@ -92,6 +102,11 @@ beforeEach(() => {
   )
   mocks.createOrderInPostgresTransaction.mockReturnValue(createdOrder())
   mocks.createOrderInPostgresTransaction.mockResolvedValue(createdOrder())
+  mocks.createDeliveryOrderInPostgresTransaction.mockResolvedValue({
+    id: 'pedido-delivery-1',
+    mesaNumero: null,
+    itens: [],
+  })
   mocks.transitionOrderInPostgresTransaction.mockReturnValue({
     changed: true,
     status: 'em_preparo',
@@ -166,6 +181,65 @@ describe('confirmarPedido', () => {
 
     await expect(confirmarPedido(mesaId, 'atendimento-1', items)).rejects.toThrow(message)
     expect(mocks.runInDbTransaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('confirmarPedidoDelivery', () => {
+  const input = {
+    clienteId: 'cliente-1',
+    enderecoId: 'endereco-1',
+    items: [{ produtoId: 'produto-1', quantidade: 2 }],
+  }
+
+  it.each(['admin', 'caixa'] as const)(
+    'allows %s to create the delivery order without a table',
+    async (access) => {
+      const { confirmarPedidoDelivery } = await import('@/lib/actions/pedidos')
+      mocks.requireAnyAccess.mockResolvedValueOnce({
+        usuarioId: `${access}-1`,
+        tenantId: 'tenant-1',
+        access,
+      })
+
+      await expect(confirmarPedidoDelivery(input)).resolves.toEqual({
+        id: 'pedido-delivery-1',
+      })
+
+      expect(mocks.requireAnyAccess).toHaveBeenCalledWith(['admin', 'caixa'])
+      expect(mocks.createDeliveryOrderInPostgresTransaction).toHaveBeenCalledWith(
+        { dialect: 'postgresql' },
+        {
+          tenantId: 'tenant-1',
+          usuarioId: `${access}-1`,
+          clienteId: 'cliente-1',
+          enderecoId: 'endereco-1',
+          taxaEntrega: undefined,
+          items: input.items,
+        },
+      )
+    },
+  )
+
+  it('passes an explicit zero fee override through the transaction', async () => {
+    const { confirmarPedidoDelivery } = await import('@/lib/actions/pedidos')
+
+    await expect(confirmarPedidoDelivery({
+      ...input,
+      taxaEntrega: '0.00',
+    })).resolves.toEqual({ id: 'pedido-delivery-1' })
+
+    expect(mocks.createDeliveryOrderInPostgresTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taxaEntrega: '0.00' }),
+    )
+  })
+
+  it('does not notify or swallow a transaction rollback', async () => {
+    const { confirmarPedidoDelivery } = await import('@/lib/actions/pedidos')
+    const failure = new Error('Não há estoque suficiente para Farinha')
+    mocks.createDeliveryOrderInPostgresTransaction.mockRejectedValueOnce(failure)
+
+    await expect(confirmarPedidoDelivery(input)).rejects.toBe(failure)
   })
 })
 
@@ -249,6 +323,32 @@ describe('confirmarEntrega', () => {
       expect.objectContaining({ targetStatus: 'entregue', tenantId: 'tenant-1' }),
     )
   })
+})
+
+describe('confirmarEntregaDelivery', () => {
+  it.each(['admin', 'caixa'] as const)(
+    'allows %s to deliver only through the delivery-scoped transition',
+    async (access) => {
+      const { confirmarEntregaDelivery } = await import('@/lib/actions/pedidos')
+      mocks.requireAnyAccess.mockResolvedValueOnce({
+        usuarioId: `${access}-1`, tenantId: 'tenant-1', access,
+      })
+
+      await confirmarEntregaDelivery('pedido-delivery-1')
+
+      expect(mocks.requireAnyAccess).toHaveBeenCalledWith(['admin', 'caixa'])
+      expect(mocks.transitionOrderInPostgresTransaction).toHaveBeenCalledWith(
+        { dialect: 'postgresql' },
+        {
+          tenantId: 'tenant-1',
+          usuarioId: `${access}-1`,
+          pedidoId: 'pedido-delivery-1',
+          targetStatus: 'entregue',
+          expectedCanal: 'delivery',
+        },
+      )
+    },
+  )
 })
 
 describe('cancelarPedido', () => {

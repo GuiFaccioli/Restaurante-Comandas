@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import * as pgSchema from '@/lib/db/schema'
 import type { StatusPedido } from '@/lib/db/schema'
 import {
@@ -9,6 +9,8 @@ import {
   type LockedStockItem,
   type PostgresStockTransaction,
 } from '@/lib/stock/service'
+import { normalizeDeliveryFee } from '@/lib/customer/validation'
+import { validateDeliveryOrderInput } from '@/lib/orders/delivery-contract'
 import {
   lockAutomaticShoppingListItemInPostgresTransaction,
   reconcileShoppingListInPostgresTransaction,
@@ -27,14 +29,30 @@ export type OrderItemInput = {
 export type CreateOrderTransactionInput = {
   tenantId: string
   usuarioId: string
-  mesaId: string
+  mesaId: string | null
   atendimentoId?: string
+  items: OrderItemInput[]
+  delivery?: {
+    clienteId: string
+    clienteNomeSnapshot: string
+    clienteTelefoneSnapshot: string
+    enderecoSnapshot: Record<string, string | null>
+    taxaEntregaAplicada: string
+  }
+}
+
+export type CreateDeliveryOrderTransactionInput = {
+  tenantId: string
+  usuarioId: string
+  clienteId: string
+  enderecoId: string
+  taxaEntrega?: string
   items: OrderItemInput[]
 }
 
 export type CreatedOrder = {
   id: string
-  mesaNumero: number
+  mesaNumero: number | null
   itens: Array<{
     nome: string
     quantidade: number
@@ -48,6 +66,7 @@ export type TransitionOrderInput = {
   usuarioId: string
   pedidoId: string
   targetStatus: StatusPedido
+  expectedCanal?: pgSchema.CanalPedido
 }
 
 export type CancelOrderInput = {
@@ -85,7 +104,7 @@ const STATUS_FLOW: Record<StatusPedido, StatusPedido | null> = {
 function validateCreateOrderInput(
   input: CreateOrderTransactionInput,
 ): void {
-  if (!input.tenantId || !input.usuarioId || !input.mesaId) {
+  if (!input.tenantId || !input.usuarioId || (!input.mesaId && !input.delivery)) {
     throw new Error('Mesa inválida')
   }
   if (input.items.length === 0) throw new Error('Pedido vazio')
@@ -299,7 +318,7 @@ function validateTransition(
 
 function buildCreatedOrder(
   id: string,
-  mesaNumero: number,
+  mesaNumero: number | null,
   preparedItems: Array<{
     item: OrderItemInput
     product: ProductForOrder
@@ -325,16 +344,18 @@ export async function createOrderInPostgresTransaction(
   if (!input.atendimentoId) throw new Error('Atendimento inválido')
   const atendimentoId = input.atendimentoId
 
-  const [currentTable] = await tx
-    .select({ numero: pgSchema.mesa.numero })
-    .from(pgSchema.mesa)
-    .where(and(
-      eq(pgSchema.mesa.id, input.mesaId),
-      eq(pgSchema.mesa.tenantId, input.tenantId),
-      eq(pgSchema.mesa.ativa, true),
-    ))
-    .for('update')
-  if (!currentTable) throw new Error('Mesa inválida')
+  const [currentTable] = input.delivery
+    ? [{ numero: null }]
+    : await tx
+      .select({ numero: pgSchema.mesa.numero })
+      .from(pgSchema.mesa)
+      .where(and(
+        eq(pgSchema.mesa.id, input.mesaId as string),
+        eq(pgSchema.mesa.tenantId, input.tenantId),
+        eq(pgSchema.mesa.ativa, true),
+      ))
+      .for('update')
+  if (!input.delivery && !currentTable) throw new Error('Mesa inválida')
 
   const [currentAttendance] = await tx
     .select({ id: pgSchema.atendimento.id, mesaId: pgSchema.atendimento.mesaId, status: pgSchema.atendimento.status })
@@ -342,7 +363,9 @@ export async function createOrderInPostgresTransaction(
     .where(and(
       eq(pgSchema.atendimento.id, atendimentoId),
       eq(pgSchema.atendimento.tenantId, input.tenantId),
-      eq(pgSchema.atendimento.mesaId, input.mesaId),
+      input.delivery
+        ? isNull(pgSchema.atendimento.mesaId)
+        : eq(pgSchema.atendimento.mesaId, input.mesaId as string),
     ))
     .for('update')
   if (!currentAttendance || !['open', 'awaiting_payment'].includes(currentAttendance.status)) {
@@ -484,6 +507,14 @@ export async function createOrderInPostgresTransaction(
     mesaId: input.mesaId,
     atendimentoId,
     createdByUserId: input.usuarioId,
+    ...(input.delivery ? {
+      canal: 'delivery' as const,
+      clienteId: input.delivery.clienteId,
+      clienteNomeSnapshot: input.delivery.clienteNomeSnapshot,
+      clienteTelefoneSnapshot: input.delivery.clienteTelefoneSnapshot,
+      enderecoSnapshot: input.delivery.enderecoSnapshot,
+      taxaEntregaAplicada: input.delivery.taxaEntregaAplicada,
+    } : {}),
     status: 'novo',
     criadoEm: now,
     entregueEm: null,
@@ -549,6 +580,91 @@ export async function createOrderInPostgresTransaction(
   )
 }
 
+export async function createDeliveryOrderInPostgresTransaction(
+  tx: PostgresStockTransaction,
+  input: CreateDeliveryOrderTransactionInput,
+): Promise<CreatedOrder> {
+  const [customer] = await tx
+    .select({
+      id: pgSchema.cliente.id,
+      nome: pgSchema.cliente.nome,
+      telefone: pgSchema.cliente.telefone,
+      taxaEntregaPadrao: pgSchema.cliente.taxaEntregaPadrao,
+      ativo: pgSchema.cliente.ativo,
+    })
+    .from(pgSchema.cliente)
+    .where(and(
+      eq(pgSchema.cliente.id, input.clienteId),
+      eq(pgSchema.cliente.tenantId, input.tenantId),
+    ))
+    .for('update')
+  if (!customer) throw new Error('Cliente não encontrado neste restaurante')
+  if (!customer.ativo) throw new Error('O cliente está inativo')
+
+  const [address] = await tx
+    .select({
+      rua: pgSchema.enderecoCliente.rua,
+      numero: pgSchema.enderecoCliente.numero,
+      bairro: pgSchema.enderecoCliente.bairro,
+      cidade: pgSchema.enderecoCliente.cidade,
+      cep: pgSchema.enderecoCliente.cep,
+      complemento: pgSchema.enderecoCliente.complemento,
+      referencia: pgSchema.enderecoCliente.referencia,
+      ativo: pgSchema.enderecoCliente.ativo,
+    })
+    .from(pgSchema.enderecoCliente)
+    .where(and(
+      eq(pgSchema.enderecoCliente.id, input.enderecoId),
+      eq(pgSchema.enderecoCliente.clienteId, input.clienteId),
+      eq(pgSchema.enderecoCliente.tenantId, input.tenantId),
+    ))
+    .for('update')
+  if (!address) throw new Error('Endereço não encontrado para este cliente')
+  if (!address.ativo) throw new Error('O endereço está inativo')
+
+  const taxaEntrega = normalizeDeliveryFee(
+    input.taxaEntrega ?? customer.taxaEntregaPadrao,
+  )
+  validateDeliveryOrderInput({
+    clienteId: input.clienteId,
+    enderecoId: input.enderecoId,
+    taxaEntrega,
+    items: input.items,
+  })
+
+  const atendimentoId = crypto.randomUUID()
+  await tx.insert(pgSchema.atendimento).values({
+    id: atendimentoId,
+    tenantId: input.tenantId,
+    mesaId: null,
+    status: 'open',
+    abertoPorUsuarioId: input.usuarioId,
+  })
+
+  return createOrderInPostgresTransaction(tx, {
+    tenantId: input.tenantId,
+    usuarioId: input.usuarioId,
+    mesaId: null,
+    atendimentoId,
+    items: input.items,
+    delivery: {
+      clienteId: customer.id,
+      clienteNomeSnapshot: customer.nome,
+      clienteTelefoneSnapshot: customer.telefone,
+      enderecoSnapshot: {
+        rua: address.rua,
+        numero: address.numero,
+        bairro: address.bairro,
+        cidade: address.cidade,
+        cep: address.cep,
+        complemento: address.complemento,
+        referencia: address.referencia,
+      },
+      taxaEntregaAplicada: taxaEntrega,
+    },
+  })
+}
+
 async function reverseSnapshotInPostgresTransaction(
   tx: PostgresStockTransaction,
   input: CancelOrderInput,
@@ -603,7 +719,7 @@ export async function transitionOrderInPostgresTransaction(
   input: TransitionOrderInput,
 ): Promise<OrderTransitionResult> {
   const [current] = await tx
-    .select({ status: pgSchema.pedido.status, atendimentoId: pgSchema.pedido.atendimentoId })
+    .select({ status: pgSchema.pedido.status, canal: pgSchema.pedido.canal, atendimentoId: pgSchema.pedido.atendimentoId })
     .from(pgSchema.pedido)
     .where(and(
       eq(pgSchema.pedido.id, input.pedidoId),
@@ -611,6 +727,9 @@ export async function transitionOrderInPostgresTransaction(
     ))
     .for('update')
   if (!current) throw new Error('Pedido não encontrado')
+  if (input.expectedCanal && current.canal !== input.expectedCanal) {
+    throw new Error('O pedido não pertence ao canal esperado')
+  }
   const noOp = validateTransition(current.status, input.targetStatus)
   if (noOp) return noOp
 

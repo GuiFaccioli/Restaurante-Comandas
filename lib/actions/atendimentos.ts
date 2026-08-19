@@ -78,6 +78,7 @@ export async function continuarAtendimento(atendimentoId: string): Promise<{ id:
         .for('update')
       if (!current) throw new Error('Conta não encontrada')
       if (current.status !== 'awaiting_payment') throw new Error('Esta conta não está aguardando pagamento')
+      if (!current.mesaId) throw new Error('Esta conta não possui mesa')
       await validateTable(tx, tenantId, current.mesaId)
       const [open] = await tx
         .select({ id: atendimento.id })

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   and: vi.fn((...conditions: unknown[]) => conditions),
   eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
   inArray: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+  isNull: vi.fn((value: unknown) => ({ isNull: value })),
   applyStockMovementInPostgresTransaction: vi.fn(),
   lockAutomaticShoppingListItemInPostgresTransaction: vi.fn(),
   lockStockItemInPostgresTransaction: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock('drizzle-orm', () => ({
   asc: vi.fn((value: unknown) => value),
   eq: mocks.eq,
   inArray: mocks.inArray,
+  isNull: mocks.isNull,
 }))
 
 vi.mock('@/lib/stock/service', () => ({
@@ -36,6 +38,7 @@ import * as schema from '@/lib/db/schema'
 import {
   cancelOrderInPostgresTransaction,
   createOrderInPostgresTransaction,
+  createDeliveryOrderInPostgresTransaction,
   transitionOrderInPostgresTransaction,
 } from '@/lib/stock/order-consumption'
 
@@ -105,6 +108,126 @@ beforeEach(() => {
 })
 
 describe('PostgreSQL order consumption', () => {
+  it('rejects the delivery-scoped transition for a SALAO order before updating status', async () => {
+    const current = lockedQuery([{
+      status: 'pronto' as const,
+      canal: 'salao' as const,
+      atendimentoId: 'atendimento-1',
+    }])
+    const tx = {
+      select: vi.fn(() => current),
+      update: vi.fn(),
+    }
+
+    await expect(transitionOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', pedidoId: 'pedido-1',
+      targetStatus: 'entregue', expectedCanal: 'delivery',
+    })).rejects.toThrow('O pedido não pertence ao canal esperado')
+
+    expect(current.where).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ left: schema.pedido.tenantId, right: 'tenant-1' }),
+    ]))
+    expect(tx.update).not.toHaveBeenCalled()
+  })
+
+  it('creates a delivery attendance and snapshots the default fee without a table', async () => {
+    const inserted: unknown[] = []
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(lockedQuery([{
+          id: 'customer-1', nome: 'Ana', telefone: '11999998888',
+          taxaEntregaPadrao: '4.50', ativo: true,
+        }]))
+        .mockReturnValueOnce(lockedQuery([{
+          rua: 'Rua A', numero: '10', bairro: null, cidade: null, cep: null,
+          complemento: null, referencia: null, ativo: true,
+        }]))
+        .mockReturnValueOnce(lockedQuery([{
+          id: 'attendance-1', mesaId: null, status: 'open' as const,
+        }]))
+        .mockReturnValueOnce(lockedQuery([{
+          nome: 'Pizza', preco: '42.00', categoriaNome: 'Pratos', controleEstoque: false,
+        }])),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (values: unknown) => {
+          inserted.push(values)
+        }),
+      })),
+    }
+
+    const { createDeliveryOrderInPostgresTransaction } = await import(
+      '@/lib/stock/order-consumption'
+    )
+    await expect(createDeliveryOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', clienteId: 'customer-1',
+      enderecoId: 'address-1', items: [{ produtoId: 'produto-1', quantidade: 1 }],
+    })).resolves.toMatchObject({ id: expect.any(String), mesaNumero: null })
+
+    expect(inserted).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mesaId: null, status: 'open' }),
+      expect.objectContaining({
+        mesaId: null,
+        canal: 'delivery',
+        clienteId: 'customer-1',
+        clienteNomeSnapshot: 'Ana',
+        clienteTelefoneSnapshot: '11999998888',
+        enderecoSnapshot: expect.objectContaining({ rua: 'Rua A', numero: '10' }),
+        taxaEntregaAplicada: '4.50',
+      }),
+    ]))
+  })
+
+  it('rejects a customer from another tenant before creating a delivery attendance', async () => {
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(lockedQuery([])),
+      insert: vi.fn(),
+    }
+
+    await expect(createDeliveryOrderInPostgresTransaction(tx as never, {
+      tenantId: 'tenant-1',
+      usuarioId: 'user-1',
+      clienteId: 'customer-other-tenant',
+      enderecoId: 'address-1',
+      items: [{ produtoId: 'produto-1', quantidade: 1 }],
+    })).rejects.toThrow('Cliente não encontrado neste restaurante')
+
+    expect(tx.insert).not.toHaveBeenCalled()
+  })
+
+  it('rejects inactive customers and addresses before creating a delivery attendance', async () => {
+    const customer = {
+      id: 'customer-1',
+      nome: 'Ana',
+      telefone: '11999998888',
+      taxaEntregaPadrao: '4.50',
+      ativo: false,
+    }
+    const inactiveCustomerTx = {
+      select: vi.fn().mockReturnValueOnce(lockedQuery([customer])),
+      insert: vi.fn(),
+    }
+
+    await expect(createDeliveryOrderInPostgresTransaction(inactiveCustomerTx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', clienteId: 'customer-1',
+      enderecoId: 'address-1', items: [{ produtoId: 'produto-1', quantidade: 1 }],
+    })).rejects.toThrow('O cliente está inativo')
+
+    const activeCustomerTx = {
+      select: vi.fn()
+        .mockReturnValueOnce(lockedQuery([{ ...customer, ativo: true }]))
+        .mockReturnValueOnce(lockedQuery([{ rua: 'Rua A', numero: '10', ativo: false }])),
+      insert: vi.fn(),
+    }
+
+    await expect(createDeliveryOrderInPostgresTransaction(activeCustomerTx as never, {
+      tenantId: 'tenant-1', usuarioId: 'user-1', clienteId: 'customer-1',
+      enderecoId: 'address-1', items: [{ produtoId: 'produto-1', quantidade: 1 }],
+    })).rejects.toThrow('O endereço está inativo')
+
+    expect(inactiveCustomerTx.insert).not.toHaveBeenCalled()
+    expect(activeCustomerTx.insert).not.toHaveBeenCalled()
+  })
+
   it('rejects a stock-controlled product without a recipe before creating the order', async () => {
     const table = lockedQuery([{ numero: 7 }])
     const attendance = lockedQuery([{
