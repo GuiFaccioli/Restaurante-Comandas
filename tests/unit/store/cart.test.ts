@@ -5,7 +5,9 @@ import { useCart } from '@/lib/store/cart'
 beforeEach(() => {
   useCart.setState({
     mesaId: null,
+    deliveryId: null,
     cartsByMesa: {},
+    cartsByDelivery: {},
     items: [],
     total: 0,
   })
@@ -40,6 +42,27 @@ describe('useCart', () => {
     expect(items).toHaveLength(1)
     expect(items[0].quantidade).toBe(2)
     expect(total).toBe(64)
+  })
+
+  it('adds products to a selected delivery cart', () => {
+    act(() => {
+      useCart.getState().selectDelivery('customer-a')
+    })
+
+    expect(useCart.getState().addItem({
+      produtoId: 'p1',
+      nome: 'Margherita',
+      preco: 32,
+    })).toBe(true)
+
+    expect(useCart.getState().items).toEqual([{
+      produtoId: 'p1',
+      nome: 'Margherita',
+      preco: 32,
+      quantidade: 1,
+    }])
+    expect(useCart.getState().total).toBe(32)
+    expect(useCart.getState().cartsByDelivery['customer-a'].total).toBe(32)
   })
 
   it('addItem adds new entry for different product', () => {

@@ -9,6 +9,37 @@ function source(path: string) {
 }
 
 describe('pedido business flow', () => {
+  test('starts DELIVERY from the customer registry with the existing composer context', () => {
+    const registrySource = source('components/admin/customer-registry.tsx')
+    const deliveryPagePath = 'app/admin/pedidos/delivery/page.tsx'
+    const deliveryClientPath = 'components/admin/delivery-order-composer.tsx'
+    const drawerSource = source('components/garcom/cart-drawer.tsx')
+
+    expect(registrySource).toContain('Novo pedido')
+    expect(existsSync(join(root, deliveryPagePath))).toBe(true)
+    expect(existsSync(join(root, deliveryClientPath))).toBe(true)
+    expect(source(deliveryClientPath)).toContain('selectDelivery')
+    expect(source(deliveryClientPath)).toContain('MenuGrid')
+    expect(drawerSource).toContain('confirmarPedidoDelivery')
+    expect(drawerSource).toContain('taxaEntrega')
+    expect(drawerSource).toContain('endereco')
+    expect(source(deliveryPagePath)).toContain("requireAnyAccess(['admin', 'caixa'])")
+    expect(source(deliveryClientPath)).toContain("router.push('/admin/clientes')")
+    expect(source(deliveryClientPath)).not.toContain("router.push('/admin/pedidos')")
+  })
+
+  test('projects DELIVERY orders into the kitchen card without table details', () => {
+    const kitchenQuerySource = source('lib/kitchen/queries.ts')
+    const kitchenCardSource = source('components/cozinha/pedido-card.tsx')
+
+    expect(kitchenQuerySource).toContain('leftJoin(mesa')
+    expect(kitchenQuerySource).toContain('pedido.canal')
+    expect(kitchenCardSource).toContain('DELIVERY')
+    expect(kitchenCardSource).toContain('pedido.canal === \'delivery\'')
+    expect(kitchenCardSource).not.toContain('enderecoSnapshot')
+    expect(kitchenCardSource).not.toContain('taxaEntregaAplicada')
+  })
+
   test('garcom mesa screen does not create a kitchen-visible pedido before confirmation', () => {
     const pageSource = source('app/garcom/mesa/[id]/page.tsx')
     const clientSource = source('app/garcom/mesa/[id]/client.tsx')

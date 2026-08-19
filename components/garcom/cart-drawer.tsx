@@ -1,5 +1,5 @@
 'use client'
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { confirmarPedido } from '@/lib/actions/pedidos'
+import { confirmarPedido, confirmarPedidoDelivery } from '@/lib/actions/pedidos'
 import { useCart } from '@/lib/store/cart'
 import { getProductAvailability, type ReceitaDisponibilidade, type SaldoDisponibilidade, type ProdutoControleEstoque } from '@/lib/stock/availability'
 import { userFacingErrorMessage } from '@/lib/ui/error-messages'
@@ -16,9 +16,18 @@ import { userFacingErrorMessage } from '@/lib/ui/error-messages'
 type Props = {
   open: boolean
   onClose: () => void
-  mesaId: string
-  mesaNumero: number
-  atendimentoId: string
+  mode?: 'salao' | 'delivery'
+  mesaId?: string
+  mesaNumero?: number
+  atendimentoId?: string
+  delivery?: {
+    clienteId: string
+    clienteNome: string
+    enderecoId: string
+    enderecoLabel: string
+    taxaEntrega: string
+  }
+  onConfirmed?: () => void
   recipes: ReceitaDisponibilidade[]
   balances: SaldoDisponibilidade[]
   productStockControls: ProdutoControleEstoque[]
@@ -35,26 +44,56 @@ export function getOrderConfirmationErrorMessage(error: unknown): string {
   return userFacingErrorMessage(error, ORDER_CONFIRMATION_ERROR)
 }
 
-export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, recipes, balances, productStockControls }: Props) {
+export function CartDrawer({ open, onClose, mode = 'salao', mesaId, mesaNumero, atendimentoId, delivery, onConfirmed, recipes, balances, productStockControls }: Props) {
   const router = useRouter()
   const { items, total, removeItem, addItem, decrementItem, clearCart, setObservacao } = useCart()
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deliveryFee, setDeliveryFee] = useState(delivery?.taxaEntrega ?? '0')
   const [editingObservationItem, setEditingObservationItem] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (mode === 'delivery') setDeliveryFee(delivery?.taxaEntrega ?? '0')
+  }, [delivery?.taxaEntrega, mode])
+
+  const isDelivery = mode === 'delivery'
+
+  function parseDeliveryFee(value: string): number | null {
+    const normalized = value.trim().replace(',', '.')
+    if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null
+    const amount = Number(normalized)
+    return Number.isFinite(amount) && amount >= 0 ? amount : null
+  }
 
   async function handleConfirmar() {
     setSending(true)
     setError(null)
     try {
-      await confirmarPedido(
-        mesaId,
-        atendimentoId,
-        items.map((item) => ({
-          produtoId: item.produtoId,
-          quantidade: item.quantidade,
-          observacao: item.observacao,
-        }))
-      )
+      const orderItems = items.map((item) => ({
+        produtoId: item.produtoId,
+        quantidade: item.quantidade,
+        observacao: item.observacao,
+      }))
+
+      if (isDelivery) {
+        const fee = parseDeliveryFee(deliveryFee)
+        if (!delivery || fee === null) {
+          setError('Informe uma taxa de entrega válida.')
+          return
+        }
+        await confirmarPedidoDelivery({
+          clienteId: delivery.clienteId,
+          enderecoId: delivery.enderecoId,
+          taxaEntrega: fee.toFixed(2),
+          items: orderItems,
+        })
+      } else {
+        if (!mesaId || !atendimentoId) {
+          setError('A mesa ainda não está pronta para receber o pedido.')
+          return
+        }
+        await confirmarPedido(mesaId, atendimentoId, orderItems)
+      }
     } catch (error) {
       console.error('Failed to confirm order', error)
       const message = getOrderConfirmationErrorMessage(error)
@@ -68,15 +107,32 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, r
     router.refresh()
     clearCart()
     onClose()
+    onConfirmed?.()
     toast.success('Pedido concluído com sucesso.')
   }
+
+  const displayedTotal = total + (isDelivery ? (parseDeliveryFee(deliveryFee) ?? 0) : 0)
+  const displayedTotalLabel = isDelivery
+    ? displayedTotal.toFixed(2).replace('.', ',')
+    : total.toFixed(2)
 
   return (
     <Drawer open={open} onOpenChange={(value) => !value && onClose()}>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Carrinho — Mesa {mesaNumero}</DrawerTitle>
+          <DrawerTitle>{isDelivery ? 'Carrinho — DELIVERY' : `Carrinho — Mesa ${mesaNumero}`}</DrawerTitle>
         </DrawerHeader>
+        {isDelivery && delivery ? <div className="space-y-3 px-4">
+          <div className="rounded-[var(--radius)] border bg-muted/30 p-3 text-sm">
+            <p className="font-semibold">{delivery.clienteNome}</p>
+            <p className="mt-1 text-muted-foreground">{delivery.enderecoLabel}</p>
+          </div>
+          <label className="grid gap-1 text-sm font-medium" htmlFor="delivery-fee">
+            Taxa de entrega
+            <input id="delivery-fee" type="text" inputMode="decimal" value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} className="min-h-11 rounded-md border border-input bg-background px-3 font-normal" aria-describedby="delivery-fee-help" />
+            <span id="delivery-fee-help" className="text-xs font-normal text-muted-foreground">A taxa padrão foi carregada e pode ser ajustada antes da confirmação. R$ 0,00 também é válido.</span>
+          </label>
+        </div> : null}
         <div className="max-h-[60vh] space-y-3 overflow-y-auto px-4">
           {items.map((item) => (
             <CartItemRow
@@ -97,7 +153,7 @@ export function CartDrawer({ open, onClose, mesaId, mesaNumero, atendimentoId, r
         <Separator className="my-4" />
         <div className="flex justify-between px-4 font-semibold">
           <span>Total</span>
-          <span>R$ {total.toFixed(2)}</span>
+          <span>R$ {displayedTotalLabel}</span>
         </div>
         {error && <p className="px-4 text-sm text-destructive">{error}</p>}
         <DrawerFooter className="gap-2">
