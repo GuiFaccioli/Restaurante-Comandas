@@ -12,7 +12,6 @@ import {
   usuario,
   usuarioAcesso,
   authSession,
-  loginRateLimit,
   acessoUsuarioEnum,
   tenant,
   tenantUser,
@@ -274,23 +273,6 @@ describe('Drizzle schema', () => {
       expect(Object.keys(authSession)).toContain('expiresAt')
       expect(Object.keys(authSession)).toContain('createdAt')
       expect(Object.keys(authSession)).toContain('selectedTenantId')
-    })
-  })
-
-  describe('loginRateLimit table', () => {
-    it('stores only scoped HMAC keys and fixed-window state', () => {
-      expect(Object.keys(loginRateLimit)).toEqual(
-        expect.arrayContaining([
-          'scope',
-          'keyHash',
-          'failureCount',
-          'windowStartedAt',
-          'blockedUntil',
-          'updatedAt',
-        ]),
-      )
-      expect(Object.keys(loginRateLimit)).not.toContain('email')
-      expect(Object.keys(loginRateLimit)).not.toContain('ip')
     })
   })
 

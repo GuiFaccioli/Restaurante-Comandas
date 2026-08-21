@@ -4,11 +4,9 @@ import {
   foreignKey,
   integer,
   jsonb,
-  index,
   numeric,
   pgEnum,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -537,41 +535,6 @@ export const authSession = pgTable('auth_session', {
     .notNull()
     .defaultNow(),
 })
-
-export const loginRateLimit = pgTable(
-  'login_rate_limit',
-  {
-    scope: text('scope').notNull(),
-    keyHash: text('key_hash').notNull(),
-    failureCount: integer('failure_count').notNull().default(0),
-    windowStartedAt: timestamp('window_started_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    blockedUntil: timestamp('blocked_until', { withTimezone: true }),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.scope, table.keyHash],
-      name: 'login_rate_limit_pkey',
-    }),
-    check(
-      'login_rate_limit_scope_check',
-      sql`${table.scope} IN ('email_ip', 'ip')`,
-    ),
-    check(
-      'login_rate_limit_key_hash_check',
-      sql`${table.keyHash} ~ '^[0-9a-f]{64}$'`,
-    ),
-    check(
-      'login_rate_limit_failure_count_check',
-      sql`${table.failureCount} >= 0`,
-    ),
-    index('idx_login_rate_limit_blocked_until').on(table.blockedUntil),
-  ],
-)
 
 export const usuarioConvite = pgTable(
   'usuario_convite',

@@ -64,9 +64,6 @@ const state = vi.hoisted(() => ({
   runInDbTransactionMock: vi.fn(),
   destroyCurrentSessionMock: vi.fn(),
   setSelectedTenantMock: vi.fn(),
-  isLoginBlockedMock: vi.fn(async () => false),
-  recordLoginFailureMock: vi.fn(async () => undefined),
-  clearLoginFailuresMock: vi.fn(async () => undefined),
   currentSession: null as { usuarioId: string; email: string; nome: string; selectedTenantId?: string | null } | null,
   neonAuth: {
     signUp: {
@@ -88,10 +85,6 @@ const state = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   redirect: state.redirectMock,
-}))
-
-vi.mock('next/headers', () => ({
-  headers: vi.fn(async () => new Headers({ 'x-forwarded-for': '203.0.113.10' })),
 }))
 
 vi.mock('@/lib/auth/password', () => ({
@@ -116,18 +109,6 @@ vi.mock('@/lib/auth/session', () => ({
 vi.mock('@/lib/auth/server', () => ({
   getNeonAuth: vi.fn(async () => state.neonAuth),
   isNeonAuthEnabled: vi.fn(() => true),
-}))
-
-vi.mock('@/lib/auth/login-rate-limit', () => ({
-  LOGIN_ERROR_MESSAGE: 'E-mail ou senha incorretos',
-  createLoginRateLimitIdentifiers: vi.fn(() => ({
-    emailIpHash: 'a'.repeat(64),
-    ipHash: 'b'.repeat(64),
-  })),
-  extractClientIp: vi.fn(() => '203.0.113.10'),
-  isLoginBlocked: state.isLoginBlockedMock,
-  recordLoginFailure: state.recordLoginFailureMock,
-  clearLoginFailures: state.clearLoginFailuresMock,
 }))
 
 vi.mock('@/lib/db/schema', () => ({
@@ -352,9 +333,6 @@ beforeEach(() => {
   state.events = []
   state.queries = []
   state.currentSession = null
-  state.isLoginBlockedMock.mockResolvedValue(false)
-  state.recordLoginFailureMock.mockResolvedValue(undefined)
-  state.clearLoginFailuresMock.mockResolvedValue(undefined)
   state.createAuthSessionMock.mockImplementation(async () => {
     state.events.push('session')
   })
@@ -493,50 +471,6 @@ describe('auth actions', () => {
     await expect(signIn({ email: 'ana@example.com', password: 'senha-errada' })).rejects.toThrow(
       'E-mail ou senha incorretos'
     )
-    expect(state.recordLoginFailureMock).toHaveBeenCalledTimes(1)
-    expect(state.clearLoginFailuresMock).not.toHaveBeenCalled()
-  })
-
-  it('fails closed with a generic message when a failed login cannot be recorded', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    state.selectResults = [[{ id: 'user-1', passwordHash: 'hashed-password' }]]
-    state.recordLoginFailureMock.mockRejectedValueOnce(
-      new Error('database error for ana@example.com from 203.0.113.10'),
-    )
-
-    await expect(signIn({ email: 'ana@example.com', password: 'senha-errada' })).rejects.toThrow(
-      'E-mail ou senha incorretos',
-    )
-
-    expect(consoleError).toHaveBeenCalledWith(
-      '[auth] Login rate limiter persistence failure',
-      { operation: 'record_failure', policy: 'fail_closed' },
-    )
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('ana@example.com')
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('203.0.113.10')
-    expect(state.createAuthSessionMock).not.toHaveBeenCalled()
-    expect(state.clearLoginFailuresMock).not.toHaveBeenCalled()
-    consoleError.mockRestore()
-  })
-
-  it('returns the generic login message for malformed e-mail input', async () => {
-    await expect(signIn({ email: 'invalid', password: 'senha-errada' })).rejects.toThrow(
-      'E-mail ou senha incorretos'
-    )
-    expect(state.neonAuth.signIn.email).not.toHaveBeenCalled()
-    expect(state.recordLoginFailureMock).not.toHaveBeenCalled()
-  })
-
-  it('blocks an active HMAC rate-limit key before calling either credential provider', async () => {
-    state.isLoginBlockedMock.mockResolvedValueOnce(true)
-
-    await expect(signIn({ email: 'ana@example.com', password: 'senha-certa' })).rejects.toThrow(
-      'E-mail ou senha incorretos'
-    )
-
-    expect(state.neonAuth.signIn.email).not.toHaveBeenCalled()
-    expect(state.queries).toEqual([])
-    expect(state.recordLoginFailureMock).not.toHaveBeenCalled()
   })
 
   it('creates a session, selects the only tenant, and redirects by user accesses on valid login', async () => {
@@ -551,7 +485,6 @@ describe('auth actions', () => {
     )
 
     expect(state.createAuthSessionMock).toHaveBeenCalledWith('user-1', 'tenant-1')
-    expect(state.clearLoginFailuresMock).toHaveBeenCalledTimes(1)
 
     const membershipQuery = state.queries[1]
     expect(membershipQuery.joins).toEqual([
@@ -568,31 +501,6 @@ describe('auth actions', () => {
     expect(hasEquality(accessQuery.where, state.schema.usuarioAcesso.usuarioId, 'user-1')).toBe(
       true
     )
-  })
-
-  it('allows valid login but emits safe observability when the credential bucket cannot be cleared', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    state.clearLoginFailuresMock.mockRejectedValueOnce(
-      new Error('database error for ana@example.com from 203.0.113.10'),
-    )
-    state.selectResults = [
-      [{ id: 'user-1', passwordHash: 'hashed-password' }],
-      [{ id: 'tenant-user-1', tenantId: 'tenant-1', nome: 'Pizza Boa' }],
-      [{ acesso: 'admin' }],
-    ]
-
-    await expect(signIn({ email: 'ana@example.com', password: 'senha-certa' })).rejects.toThrow(
-      'REDIRECT:/admin/menu',
-    )
-
-    expect(consoleError).toHaveBeenCalledWith(
-      '[auth] Login rate limiter persistence failure',
-      { operation: 'clear_email_ip', policy: 'allow_valid_login' },
-    )
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('ana@example.com')
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('203.0.113.10')
-    expect(state.createAuthSessionMock).toHaveBeenCalledWith('user-1', 'tenant-1')
-    consoleError.mockRestore()
   })
 
   it('allows users created by the admin to use the local credentials fallback', async () => {

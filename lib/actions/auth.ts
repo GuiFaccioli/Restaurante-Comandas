@@ -2,19 +2,10 @@
 
 import { and, eq } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { db, runInDbTransaction } from '@/lib/db/index'
 import { tenant, tenantUser, usuario, usuarioAcesso } from '@/lib/db/schema'
 import { assertValidEmail, hashPassword, verifyPassword } from '@/lib/auth/password'
 import { getNeonAuth, isNeonAuthEnabled } from '@/lib/auth/server'
-import {
-  LOGIN_ERROR_MESSAGE,
-  clearLoginFailures,
-  createLoginRateLimitIdentifiers,
-  extractClientIp,
-  isLoginBlocked,
-  recordLoginFailure,
-} from '@/lib/auth/login-rate-limit'
 import {
   createAuthSession,
   destroyCurrentSession,
@@ -59,16 +50,6 @@ function logNeonSignupError(error: unknown, hasUserId: boolean): void {
     statusCode: typeof details.statusCode === 'number' ? details.statusCode : undefined,
     message: stringValue(details.message),
     hasUserId,
-  })
-}
-
-function logLoginRateLimitPersistenceFailure(
-  operation: 'record_failure' | 'clear_email_ip',
-  policy: 'fail_closed' | 'allow_valid_login',
-): void {
-  console.error('[auth] Login rate limiter persistence failure', {
-    operation,
-    policy,
   })
 }
 
@@ -205,42 +186,16 @@ export async function signUpOwner(
 export async function signIn(
   data: FormData | { email: string; password: string }
 ): Promise<void> {
-  let email: string
-  try {
-    email = assertValidEmail(formValue(data, 'email'))
-  } catch {
-    throw new Error(LOGIN_ERROR_MESSAGE)
-  }
+  const email = assertValidEmail(formValue(data, 'email'))
   const password = formValue(data, 'password')
-
-  let rateLimitIdentifiers: ReturnType<typeof createLoginRateLimitIdentifiers>
-  try {
-    const requestHeaders = await headers()
-    rateLimitIdentifiers = createLoginRateLimitIdentifiers(
-      email,
-      extractClientIp(requestHeaders),
-    )
-    if (await isLoginBlocked(db, rateLimitIdentifiers)) {
-      throw new Error(LOGIN_ERROR_MESSAGE)
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message === LOGIN_ERROR_MESSAGE) throw error
-    console.error('[auth] Login rate limiter unavailable')
-    throw new Error(LOGIN_ERROR_MESSAGE)
-  }
 
   let userId: string | undefined
   if (isNeonAuthEnabled()) {
-    let authResult
-    try {
-      authResult = await (await getNeonAuth()).signIn.email({
-        email,
-        password,
-        callbackURL: authCallbackUrl(),
-      })
-    } catch {
-      throw new Error(LOGIN_ERROR_MESSAGE)
-    }
+    const authResult = await (await getNeonAuth()).signIn.email({
+      email,
+      password,
+      callbackURL: authCallbackUrl(),
+    })
     const authUserId = authResult.data?.user?.id
     if (!authResult.error && authUserId) {
       const [user] = await db
@@ -259,21 +214,7 @@ export async function signIn(
     if (user && (await verifyPassword(password, user.passwordHash))) userId = user.id
   }
 
-  if (!userId) {
-    try {
-      await recordLoginFailure(db, rateLimitIdentifiers)
-    } catch {
-      logLoginRateLimitPersistenceFailure('record_failure', 'fail_closed')
-      throw new Error(LOGIN_ERROR_MESSAGE)
-    }
-    throw new Error(LOGIN_ERROR_MESSAGE)
-  }
-
-  try {
-    await clearLoginFailures(db, rateLimitIdentifiers)
-  } catch {
-    logLoginRateLimitPersistenceFailure('clear_email_ip', 'allow_valid_login')
-  }
+  if (!userId) throw new Error('E-mail ou senha incorretos')
   const user = { id: userId }
 
   const memberships = await db
